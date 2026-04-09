@@ -1,0 +1,40 @@
+from app.services.analytics_service import AnalyticsService
+from app.services.bulk_import_service import BulkImportService
+from app.services.paper_service import PaperService
+from app.services.question_report_service import QuestionReportService
+from app.services.question_service import QuestionService
+from app.services.student_analytics_service import StudentAnalyticsService
+from app.services.student_history_service import StudentHistoryService
+from app.services.test_service import TestService
+
+
+def get_question_service() -> QuestionService:
+    return QuestionService()
+
+
+def get_test_service() -> TestService:
+    return TestService()
+
+
+def get_paper_service() -> PaperService:
+    return PaperService()
+
+
+def get_analytics_service() -> AnalyticsService:
+    return AnalyticsService()
+
+
+def get_bulk_import_service() -> BulkImportService:
+    return BulkImportService()
+
+
+def get_student_history_service() -> StudentHistoryService:
+    return StudentHistoryService()
+
+
+def get_student_analytics_service() -> StudentAnalyticsService:
+    return StudentAnalyticsService()
+
+
+def get_question_report_service() -> QuestionReportService:
+    return QuestionReportService()

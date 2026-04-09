@@ -1,0 +1,110 @@
+{
+  "questions": [
+    {
+      "question_text": "What is 2 + 2?",
+      "question_type": "mcq_single",
+      "options": [
+        { "key": "a", "label": "3" },
+        { "key": "b", "label": "4" },
+        { "key": "c", "label": "5" },
+        { "key": "d", "label": "22" }
+      ],
+      "correct_answer": "b",
+      "explanation": "Basic addition.",
+      "difficulty": "EASY",
+      "subject": "Mathematics",
+      "topic": "Arithmetic",
+      "tags": ["math", "easy"]
+    },
+    {
+      "question_text": "The capital of France is Paris.",
+      "question_type": "true_false",
+      "options": [],
+      "correct_answer": "true",
+      "difficulty": "EASY",
+      "subject": "Geography",
+      "topic": "Europe",
+      "tags": ["geography"]
+    },
+    {
+      "question_text": "Solve for x: 3x + 5 = 20",
+      "question_type": "mcq_single",
+      "options": [
+        { "key": "a", "label": "3" },
+        { "key": "b", "label": "5" },
+        { "key": "c", "label": "7" },
+        { "key": "d", "label": "15" }
+      ],
+      "correct_answer": "b",
+      "difficulty": "MEDIUM",
+      "subject": "Mathematics",
+      "topic": "Algebra",
+      "tags": ["algebra"]
+    },
+    {
+      "question_text": "What is the derivative of x^2?",
+      "question_type": "mcq_single",
+      "options": [
+        { "key": "a", "label": "x" },
+        { "key": "b", "label": "2x" },
+        { "key": "c", "label": "x^2" },
+        { "key": "d", "label": "2" }
+      ],
+      "correct_answer": "b",
+      "difficulty": "HARD",
+      "subject": "Mathematics",
+      "topic": "Calculus",
+      "tags": ["calculus"]
+    },
+    {
+      "question_text": "Water boils at 100°C at standard atmospheric pressure.",
+      "question_type": "true_false",
+      "options": [],
+      "correct_answer": "true",
+      "difficulty": "MEDIUM",
+      "subject": "Science",
+      "topic": "Physics",
+      "tags": ["physics"]
+    },
+    {
+      "question_text": "Which HTTP method is idempotent by convention?",
+      "question_type": "mcq_single",
+      "options": [
+        { "key": "a", "label": "POST" },
+        { "key": "b", "label": "GET" },
+        { "key": "c", "label": "PATCH" },
+        { "key": "d", "label": "CONNECT" }
+      ],
+      "correct_answer": "b",
+      "difficulty": "MEDIUM",
+      "subject": "Computer Science",
+      "topic": "Web",
+      "tags": ["http"]
+    },
+    {
+      "question_text": "What is the time complexity of binary search on a sorted array?",
+      "question_type": "mcq_single",
+      "options": [
+        { "key": "a", "label": "O(n)" },
+        { "key": "b", "label": "O(log n)" },
+        { "key": "c", "label": "O(n log n)" },
+        { "key": "d", "label": "O(1)" }
+      ],
+      "correct_answer": "b",
+      "difficulty": "HARD",
+      "subject": "Computer Science",
+      "topic": "Algorithms",
+      "tags": ["algorithms"]
+    },
+    {
+      "question_text": "JSON stands for JavaScript Object Notation.",
+      "question_type": "true_false",
+      "options": [],
+      "correct_answer": "true",
+      "difficulty": "EASY",
+      "subject": "Computer Science",
+      "topic": "Data",
+      "tags": ["json"]
+    }
+  ]
+}
