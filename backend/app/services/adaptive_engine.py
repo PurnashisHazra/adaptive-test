@@ -43,12 +43,13 @@ async def get_next_question_id(
     used_ids: Sequence[str],
     subject: Optional[str] = None,
     topic: Optional[str] = None,
+    exam_tag: Optional[str] = None,
 ) -> Optional[str]:
     """
     Pick a random unused question at target difficulty, or nearest available difficulty.
     """
     for diff in ordered_fallback_difficulties(target_difficulty):
-        qid = await repo.pick_random_id(diff, used_ids, subject, topic)
+        qid = await repo.pick_random_id(diff, used_ids, subject, topic, exam_tag)
         if qid:
             return qid
     return None

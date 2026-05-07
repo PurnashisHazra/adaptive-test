@@ -13,6 +13,7 @@ class StudentQuestionReview(BaseModel):
     index: int = Field(..., ge=1, description="1-based order within section or standalone attempt")
     question_id: str
     question_text: str
+    image_url: Optional[str] = None
     question_type: str
     options: List[StudentQuestionOptionOut] = Field(default_factory=list)
     chosen_answer: str

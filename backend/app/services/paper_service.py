@@ -66,6 +66,7 @@ class PaperService:
                     order=int(s.get("order", 0)),
                     subject=s.get("subject"),
                     topic=s.get("topic"),
+                    exam_tag=s.get("exam_tag"),
                     total_questions=int(s["total_questions"]),
                     time_limit_seconds=int(s["time_limit_seconds"]),
                 )
@@ -137,6 +138,24 @@ class PaperService:
             raise ValueError("Paper not found")
         await self._papers.sync_assignments_for_paper(paper_id, usernames)
 
+    async def assign_paper_by_title(self, title: str, assignees: List[str]) -> Tuple[str, str, List[str]]:
+        """Resolve paper by title (case-insensitive, exact match) and replace its assignment list."""
+        normalized = sorted({str(u).strip() for u in assignees if u is not None and str(u).strip()})
+        if not normalized:
+            raise ValueError("assignees must contain at least one non-empty username")
+        rows = await self._papers.list_papers_by_title_case_insensitive(title)
+        if not rows:
+            raise ValueError("No question paper matches this title")
+        if len(rows) > 1:
+            ids = [oid_str(r["_id"]) for r in rows[:8]]
+            raise ValueError(
+                f"Multiple question papers match this title ({len(rows)} found). "
+                f"Rename duplicates or assign by paper id. Matching ids: {ids}"
+            )
+        pid = oid_str(rows[0]["_id"])
+        await self.sync_assignments(pid, normalized)
+        return pid, str(rows[0].get("title", "")), normalized
+
     async def list_assignments(self, paper_id: str) -> List[Dict[str, Any]]:
         got = await self._papers.get_paper(paper_id)
         if not got:
@@ -187,6 +206,7 @@ class PaperService:
             student_name=paper_attempt["student_username"],
             subject=sec.get("subject"),
             topic=sec.get("topic"),
+            exam_tag=sec.get("exam_tag"),
             total_questions=int(sec["total_questions"]),
             time_limit_seconds=int(sec["time_limit_seconds"]),
             paper_context=ctx,

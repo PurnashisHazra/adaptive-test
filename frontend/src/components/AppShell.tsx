@@ -42,8 +42,24 @@ export function AppShell() {
             flexWrap: "wrap",
           }}
         >
-          <Link to="/" style={{ fontWeight: 700, fontSize: "1.05rem", color: "#0f172a", textDecoration: "none" }}>
-            AdaptTest
+          <Link
+            to="/"
+            style={{
+              fontWeight: 700,
+              fontSize: "1.05rem",
+              color: "#0f172a",
+              textDecoration: "none",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}
+          >
+            <img
+              src="https://emgc.in/wp-content/uploads/2026/02/EMGC-PNG-New-Logo.png"
+              alt="EMGC"
+              style={{ height: 28, width: "auto", objectFit: "contain" }}
+            />
+            <span>AdaptTest</span>
           </Link>
           <nav style={{ display: "flex", gap: "0.35rem", alignItems: "center", flexWrap: "wrap" }}>
             <NavLink to="/" end style={linkStyle}>
@@ -99,7 +115,14 @@ export function AppShell() {
         <Outlet />
       </main>
       <footer style={{ padding: "1.5rem", textAlign: "center", color: "#94a3b8", fontSize: "0.85rem" }}>
-        Adaptive assessment · server-controlled difficulty
+        <a
+          href="https://github.com/lobrockyl"
+          target="_blank"
+          rel="noreferrer"
+          style={{ color: "inherit", textDecoration: "none" }}
+        >
+          AdapTest - Adaptive Testing for your Success
+        </a>
       </footer>
     </div>
   );

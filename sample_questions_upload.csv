@@ -1,0 +1,8 @@
+question_text,question_type,option_a,option_b,option_c,option_d,correct_answer,explanation,image_url,difficulty,subject,topic,tags
+"If x + 3 = 11, what is x?",mcq_single,6,8,9,11,b,"Subtract 3 from both sides to get x = 8.",,EASY,Mathematics,Linear Equations,CAT
+"The average of 10, 12, 14, and 16 is:",mcq_single,12,13,14,15,b,"(10+12+14+16)/4 = 13.",https://example.com/question-images/average-q1.png,MEDIUM,Quantitative Aptitude,Averages,SSC
+"A train traveling at constant speed covers equal distances in equal intervals of time.",true_false,True,False,,,true,"This is the definition of constant speed motion.",,EASY,Physics,Motion,BANK
+"Solve: 7^2 - 5^2",tita,,,,,24,"49 - 25 = 24.",,EASY,Mathematics,Algebra,RAILWAY
+"If 25% of a number is 45, the number is:",mcq_single,120,150,180,200,c,"Let number be N. 0.25N = 45 => N = 180.",,MEDIUM,Quantitative Aptitude,Percentages,DEFENCE
+"The antonym of 'abundant' is:",mcq_single,plentiful,scarce,ample,overflowing,b,"'Scarce' means limited in quantity, opposite of abundant.",,EASY,English,Vocabulary,STATE
+"A statement and its contrapositive always have the same truth value.",true_false,True,False,,,true,"In propositional logic, a statement is logically equivalent to its contrapositive.",,HARD,Logical Reasoning,Statements,OTHER

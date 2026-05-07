@@ -2,7 +2,6 @@ import { useMemo, useState, type FormEvent } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useAuthStore } from "../store/authStore";
-import type { Role } from "../api/types";
 
 export function AuthPage() {
   const nav = useNavigate();
@@ -13,7 +12,6 @@ export function AuthPage() {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [signupRole, setSignupRole] = useState<Role>("student");
   const [submitting, setSubmitting] = useState(false);
 
   const initialRedirect = useMemo(() => {
@@ -43,13 +41,12 @@ export function AuthPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const roleKey = signupRole === "admin" ? "admin" : "student";
-      const res = await useAuthStore.getState().signupUser({ username, password, role_key: roleKey });
+      const res = await useAuthStore.getState().signupUser({ username, password, role_key: "student" });
       if (!res.ok) {
         toast.error(res.error ?? "Signup failed");
         return;
       }
-      nav(signupRole === "admin" ? "/admin" : "/start");
+      nav("/start");
     } finally {
       setSubmitting(false);
     }
@@ -87,7 +84,7 @@ export function AuthPage() {
             {submitting ? "Signing in…" : "Sign in"}
           </button>
           <p style={{ color: "var(--muted)", fontSize: "0.85rem", marginTop: "0.75rem" }}>
-            Use your username/password. Role is embedded in the login token (admin vs student).
+            Use your username/password only. If you've forgotten your password, mail to: lobrockyl@gmail.com
           </p>
         </form>
       ) : (
@@ -97,13 +94,6 @@ export function AuthPage() {
             <input className="input" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="e.g. Ada Lovelace" required />
           </div>
           <div style={{ marginBottom: "1rem" }}>
-            <label className="label">Role (default is student)</label>
-            <select className="input" value={signupRole} onChange={(e) => setSignupRole(e.target.value as Role)}>
-              <option value="student">student</option>
-              <option value="admin">admin</option>
-            </select>
-          </div>
-          <div style={{ marginBottom: "1rem" }}>
             <label className="label">Password</label>
             <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Minimum 8 characters" required />
           </div>
@@ -111,7 +101,7 @@ export function AuthPage() {
             {submitting ? "Creating…" : "Create account"}
           </button>
           <p style={{ color: "var(--muted)", fontSize: "0.85rem", marginTop: "0.75rem" }}>
-            Password is stored as a bcrypt hash in the backend.
+            Self-signup creates student accounts only. Admin accounts must be created separately.
           </p>
         </form>
       )}

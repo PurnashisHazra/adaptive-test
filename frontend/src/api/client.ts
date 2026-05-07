@@ -2,10 +2,14 @@ import axios from "axios";
 import type {
   AnalyticsOverview,
   AppConfig,
+  AssignPaperByTitleBody,
+  AssignPaperByTitleResult,
   AssignedPaperItem,
   AttemptSummary,
   AuthResponse,
   BulkImportResult,
+  PdfImportPreviewItem,
+  PdfImportPreviewResponse,
   Paginated,
   PaperResultSummary,
   QuestionAdmin,
@@ -83,6 +87,15 @@ export async function createQuestion(body: object) {
   return data;
 }
 
+export async function uploadQuestionImage(file: File) {
+  const fd = new FormData();
+  fd.append("file", file);
+  const { data } = await api.post<{ url: string }>("/questions/upload-image", fd, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data.url;
+}
+
 export async function generateAiQuestionDraft(body: { prompt: string; subject?: string; topic?: string }) {
   const { data } = await api.post<QuestionCreatePayload>("/questions/ai-generate-draft", body);
   return data;
@@ -128,6 +141,22 @@ export async function importQuestionsCsv(file: File) {
   return data;
 }
 
+export async function previewPdfQuestions(file: File, subject: string, topic: string) {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("subject", subject || "General");
+  fd.append("topic", topic || "General");
+  const { data } = await api.post<PdfImportPreviewResponse>("/questions/import/pdf/preview", fd, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data;
+}
+
+export async function commitPdfQuestions(questions: PdfImportPreviewItem[]) {
+  const { data } = await api.post<BulkImportResult>("/questions/import/pdf/commit", { questions });
+  return data;
+}
+
 export async function importQuestionsJson(file: File) {
   const fd = new FormData();
   fd.append("file", file);
@@ -141,6 +170,7 @@ export async function startTest(body: {
   student_name: string;
   subject?: string | null;
   topic?: string | null;
+  exam_tag?: string | null;
   total_questions: number;
   time_limit_seconds?: number | null;
 }) {
@@ -231,6 +261,11 @@ export async function assignPaper(paperId: string, student_username: string) {
 
 export async function syncPaperAssignments(paperId: string, student_usernames: string[]) {
   await api.put(`/admin/question-papers/${paperId}/assignments`, { student_usernames });
+}
+
+export async function assignQuestionPaperByTitle(body: AssignPaperByTitleBody) {
+  const { data } = await api.post<AssignPaperByTitleResult>("/admin/question-papers/assign-by-title", body);
+  return data;
 }
 
 export async function unassignPaper(paperId: string, username: string) {

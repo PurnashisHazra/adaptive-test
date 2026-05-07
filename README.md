@@ -73,13 +73,19 @@ Ensure `mongod` is listening on `mongodb://localhost:27017`.
 cd backend
 python3 -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip3 install -r requirements.txt
 cp ../.env.example .env     # edit MONGODB_URI if needed
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 - API: `http://127.0.0.1:8000`
 - Interactive docs: `http://127.0.0.1:8000/docs` (Swagger UI)
+
+**Question images (Cloudflare R2, optional)**  
+Set `R2_ENDPOINT_URL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, and `R2_PUBLIC_BASE_URL` in `.env` (see `.env.example`). Admins can upload from **New / Edit question** or paste any public image URL. CSV export includes `image_url`; CSV import accepts optional `image_url` or `image_link` (same meaning).
+
+**Question paper PDF (admin bulk upload)**  
+Under **Admin → Bulk upload**, upload a text-based PDF. **`OPENAI_API_KEY` is required**: the model reads the extracted text and emits structured questions (MCQ, True/False, or TITA), inlining **shared reading passages** and **range-specific directions** into each item’s `question_text`. Review and fix answers, then **Save all to question bank**. Install **`pypdf`** via `pip3 install -r requirements.txt`.
 
 ### 3. Seed sample questions (optional)
 
@@ -158,3 +164,4 @@ See `sample_questions_upload.csv`.
 ## License
 
 MIT (or your organization’s default).
+_acme-challenge.testhub.emgc.in.TXTC7lQB1OTsONiIiks6-f88Tiq35KdsP-P_5HzwDfG1cU

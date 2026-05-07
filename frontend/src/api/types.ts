@@ -1,6 +1,7 @@
 export type Difficulty = "EASY" | "MEDIUM" | "HARD" | "EXPERT";
 export type QuestionType = "mcq_single" | "true_false" | "tita";
 export type Role = "student" | "admin";
+export type ExamTag = "CAT" | "SSC" | "BANK" | "RAILWAY" | "DEFENCE" | "STATE" | "OTHER";
 
 export interface AuthUser {
   username: string;
@@ -24,6 +25,7 @@ export interface QuestionAdmin {
   options: QuestionOption[];
   correct_answer: string;
   explanation?: string | null;
+  image_url?: string | null;
   difficulty: Difficulty;
   subject: string;
   topic: string;
@@ -39,6 +41,7 @@ export interface QuestionCreatePayload {
   options: QuestionOption[];
   correct_answer: string;
   explanation?: string | null;
+  image_url?: string | null;
   difficulty: Difficulty;
   subject: string;
   topic: string;
@@ -53,6 +56,7 @@ export interface QuestionStudent {
   options: { key: string; label: string }[];
   subject: string;
   topic: string;
+  image_url?: string | null;
 }
 
 export interface PaperSessionMeta {
@@ -132,6 +136,7 @@ export interface QuestionPaperSection {
   order: number;
   subject?: string | null;
   topic?: string | null;
+  exam_tag?: ExamTag | null;
   total_questions: number;
   time_limit_seconds: number;
 }
@@ -144,6 +149,17 @@ export interface QuestionPaper {
   marks_per_incorrect: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface AssignPaperByTitleBody {
+  title: string;
+  assignees: string[];
+}
+
+export interface AssignPaperByTitleResult {
+  paper_id: string;
+  paper_title: string;
+  assignees: string[];
 }
 
 export interface SubmitAnswerResponse {
@@ -295,6 +311,7 @@ export interface StudentQuestionReview {
   index: number;
   question_id: string;
   question_text: string;
+  image_url?: string | null;
   question_type: string;
   options: StudentQuestionOptionOut[];
   chosen_answer: string;
@@ -380,6 +397,29 @@ export interface Paginated<T> {
   total: number;
   page: number;
   page_size: number;
+}
+
+export interface PdfImportPreviewItem {
+  question_text: string;
+  question_type: string;
+  option_a: string;
+  option_b: string;
+  option_c: string;
+  option_d: string;
+  correct_answer: string;
+  explanation?: string | null;
+  image_url?: string | null;
+  difficulty: string;
+  subject: string;
+  topic: string;
+  exam_tag: ExamTag;
+}
+
+export interface PdfImportPreviewResponse {
+  drafts: PdfImportPreviewItem[];
+  parse_mode: string;
+  message?: string | null;
+  truncated: boolean;
 }
 
 export interface BulkImportResult {

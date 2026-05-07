@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -41,6 +42,14 @@ class PaperRepository:
 
     async def list_papers(self, skip: int = 0, limit: int = 200) -> List[Dict[str, Any]]:
         cur = self._papers.find({}).sort("created_at", -1).skip(skip).limit(limit)
+        return [d async for d in cur]
+
+    async def list_papers_by_title_case_insensitive(self, title: str) -> List[Dict[str, Any]]:
+        """All papers whose title equals ``title`` after trim, compared case-insensitively."""
+        t = title.strip()
+        if not t:
+            return []
+        cur = self._papers.find({"title": {"$regex": f"^{re.escape(t)}$", "$options": "i"}}).sort("updated_at", -1)
         return [d async for d in cur]
 
     async def upsert_assignment(self, paper_id: str, student_username: str) -> None:

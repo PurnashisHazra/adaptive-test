@@ -42,12 +42,15 @@ def _row_to_question(row: Dict[str, str], row_num: int) -> Tuple[Optional[Questi
         tags_raw = row.get("tags") or ""
         tags = [t.strip() for t in tags_raw.split(",") if t.strip()]
 
+        img_raw = (row.get("image_url") or row.get("image_link") or "").strip()
+
         qc = QuestionCreate(
             question_text=(row.get("question_text") or "").strip(),
             question_type=qtype,
             options=opts,
             correct_answer=(row.get("correct_answer") or "").strip(),
             explanation=(row.get("explanation") or "").strip() or None,
+            image_url=img_raw or None,
             difficulty=difficulty,
             subject=(row.get("subject") or "General").strip(),
             topic=(row.get("topic") or "").strip(),
@@ -110,4 +113,20 @@ class BulkImportService:
                 result.inserted += 1
             except (QuestionValidationError, Exception) as e:
                 result.errors.append(RowError(row=idx, error=str(e)))
+        return result
+
+    async def import_question_creates(self, questions: List[QuestionCreate]) -> BulkImportResult:
+        """Insert validated questions (e.g. after PDF import review)."""
+        result = BulkImportResult()
+        for i, qc in enumerate(questions, start=1):
+            try:
+                doc = question_create_to_doc(qc)
+                dup = await self._repo.find_ids_by_text_hash(doc["question_text"])
+                if dup:
+                    result.skipped += 1
+                    continue
+                await self._repo.insert_one(doc)
+                result.inserted += 1
+            except (QuestionValidationError, Exception) as e:
+                result.errors.append(RowError(row=i, error=str(e)))
         return result

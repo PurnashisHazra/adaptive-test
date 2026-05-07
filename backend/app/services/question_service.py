@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from app.models.domain import Difficulty, QuestionType
 from app.repositories.question_repository import QuestionRepository
-from app.schemas.question import QuestionCreate, QuestionUpdate
+from app.schemas.question import EXAM_TAGS, QuestionCreate, QuestionUpdate
 from app.utils.ids import oid_str
 
 
@@ -14,6 +14,20 @@ class QuestionValidationError(ValueError):
 
 def _normalize_text(s: str) -> str:
     return " ".join(s.strip().split())
+
+
+def _normalize_exam_tags(tags: List[str]) -> List[str]:
+    allowed = {x.upper() for x in EXAM_TAGS}
+    out: List[str] = []
+    for raw in tags:
+        t = str(raw).strip().upper()
+        if not t:
+            continue
+        if t not in allowed:
+            t = "OTHER"
+        if t not in out:
+            out.append(t)
+    return out or ["OTHER"]
 
 
 def normalize_correct_answer(question_type: QuestionType, correct_answer: str) -> str:
@@ -75,12 +89,9 @@ def question_create_to_doc(data: QuestionCreate) -> Dict[str, Any]:
     validate_question_payload(data.question_type, opts, data.correct_answer)
     ca = normalize_correct_answer(data.question_type, data.correct_answer)
     norm = _normalize_text(data.question_text)
-    is_ai_generated = bool(
-        data.is_ai_generated or any(str(t).strip().lower() == "ai_generated" for t in data.tags)
-    )
-    tags = list(data.tags)
-    if is_ai_generated and not any(str(t).strip().lower() == "ai_generated" for t in tags):
-        tags.append("ai_generated")
+    is_ai_generated = bool(data.is_ai_generated)
+    tags = _normalize_exam_tags(list(data.tags))
+    img = (data.image_url or "").strip() if data.image_url else None
     return {
         "question_text": data.question_text.strip(),
         "question_text_norm": norm,
@@ -88,6 +99,7 @@ def question_create_to_doc(data: QuestionCreate) -> Dict[str, Any]:
         "options": opts,
         "correct_answer": ca,
         "explanation": data.explanation.strip() if data.explanation else None,
+        "image_url": img or None,
         "difficulty": data.difficulty.value,
         "subject": data.subject.strip(),
         "topic": data.topic.strip(),
@@ -109,6 +121,9 @@ def merge_update_doc(existing: Dict[str, Any], upd: QuestionUpdate) -> Dict[str,
         patch["correct_answer"] = upd.correct_answer.strip().lower()
     if upd.explanation is not None:
         patch["explanation"] = upd.explanation.strip() if upd.explanation else None
+    if upd.image_url is not None:
+        s = upd.image_url.strip()
+        patch["image_url"] = s if s else None
     if upd.difficulty is not None:
         patch["difficulty"] = upd.difficulty.value
     if upd.subject is not None:
@@ -116,7 +131,7 @@ def merge_update_doc(existing: Dict[str, Any], upd: QuestionUpdate) -> Dict[str,
     if upd.topic is not None:
         patch["topic"] = upd.topic.strip()
     if upd.tags is not None:
-        patch["tags"] = upd.tags
+        patch["tags"] = _normalize_exam_tags(list(upd.tags))
     if upd.is_ai_generated is not None:
         patch["is_ai_generated"] = bool(upd.is_ai_generated)
 
@@ -176,6 +191,7 @@ class QuestionService:
         "option_d",
         "correct_answer",
         "explanation",
+        "image_url",
         "difficulty",
         "subject",
         "topic",
@@ -211,6 +227,7 @@ class QuestionService:
             "option_d": od,
             "correct_answer": str(doc.get("correct_answer", "")),
             "explanation": str(doc.get("explanation") or ""),
+            "image_url": str(doc.get("image_url") or ""),
             "difficulty": str(doc.get("difficulty", "")),
             "subject": str(doc.get("subject", "")),
             "topic": str(doc.get("topic", "")),

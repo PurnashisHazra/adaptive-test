@@ -388,6 +388,15 @@ export function TestSessionPage() {
           <p style={{ color: "var(--muted)", fontSize: "0.85rem", marginBottom: "0.5rem" }}>
             {currentQuestion.subject} · {currentQuestion.topic}
           </p>
+          {currentQuestion.image_url ? (
+            <div style={{ marginBottom: "1rem" }}>
+              <img
+                src={currentQuestion.image_url}
+                alt=""
+                style={{ maxWidth: "100%", maxHeight: 280, borderRadius: 10, border: "1px solid var(--border)", display: "block" }}
+              />
+            </div>
+          ) : null}
           <h2 style={{ fontSize: "1.35rem", marginBottom: "1.25rem" }}>{currentQuestion.question_text}</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
             {isTita ? (

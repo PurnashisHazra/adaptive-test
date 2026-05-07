@@ -29,6 +29,7 @@ async def start_test(
             student_name=body.student_name,
             subject=body.subject,
             topic=body.topic,
+            exam_tag=body.exam_tag,
             total_questions=body.total_questions,
             time_limit_seconds=body.time_limit_seconds,
         )

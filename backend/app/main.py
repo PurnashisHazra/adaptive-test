@@ -12,10 +12,12 @@ from app.api.routers import (
     auth,
     config,
     health,
+    public_question_papers,
     question_papers,
     question_reports,
     questions,
     student_analytics,
+    super_admin,
     tests,
 )
 from app.core.config import get_settings
@@ -74,9 +76,11 @@ def create_app() -> FastAPI:
     app.include_router(analytics.router, prefix="/api")
     app.include_router(admin_users.router, prefix="/api")
     app.include_router(admin_question_papers.router, prefix="/api")
+    app.include_router(public_question_papers.router, prefix="/api")
     app.include_router(question_papers.router, prefix="/api")
     app.include_router(question_reports.student_router, prefix="/api")
     app.include_router(question_reports.admin_router, prefix="/api")
+    app.include_router(super_admin.router, prefix="/api")
     return app
 
 

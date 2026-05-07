@@ -1,15 +1,30 @@
-from typing import Optional
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from pydantic import ValidationError
 from fastapi.responses import StreamingResponse
 
-from app.api.deps import get_bulk_import_service, get_question_service
+from app.api.deps import (
+    get_bulk_import_service,
+    get_pdf_question_import_service,
+    get_question_service,
+    get_r2_storage_service,
+)
 from app.models.domain import Difficulty
-from app.schemas.common import BulkImportResult, Message, Paginated
-from app.schemas.question import AIGenerateQuestionRequest, QuestionAdmin, QuestionCreate, QuestionUpdate
+from app.schemas.common import BulkImportResult, Message, Paginated, RowError
+from app.schemas.question import (
+    AIGenerateQuestionRequest,
+    PdfImportCommitRequest,
+    PdfImportPreviewResponse,
+    QuestionAdmin,
+    QuestionCreate,
+    QuestionUpdate,
+)
 from app.services.ai_question_generator import AIQuestionGenerator
 from app.services.bulk_import_service import BulkImportService
 from app.services.question_service import QuestionService, QuestionValidationError
+from app.services.pdf_question_import_service import PdfQuestionImportService, preview_item_to_question_create
+from app.services.r2_storage_service import R2StorageService
 from app.api.deps_auth import require_admin
 
 router = APIRouter(prefix="/questions", tags=["questions"], dependencies=[Depends(require_admin)])
@@ -57,6 +72,87 @@ async def export_questions_csv(svc: QuestionService = Depends(get_question_servi
 async def delete_all_questions(svc: QuestionService = Depends(get_question_service)) -> dict:
     deleted = await svc.delete_all()
     return {"deleted": deleted}
+
+
+@router.post("/upload-image")
+async def upload_question_image(
+    file: UploadFile = File(...),
+    r2: R2StorageService = Depends(get_r2_storage_service),
+) -> dict:
+    """Upload an image to R2; returns public URL for optional `image_url` on questions."""
+    url = await r2.upload_question_image(file)
+    return {"url": url}
+
+
+@router.post("/import/pdf/preview", response_model=PdfImportPreviewResponse)
+async def import_pdf_preview(
+    file: UploadFile = File(...),
+    subject: str = Form("General"),
+    topic: str = Form("General"),
+    pdf_svc: PdfQuestionImportService = Depends(get_pdf_question_import_service),
+) -> PdfImportPreviewResponse:
+    name = (file.filename or "").lower()
+    if not name.endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="A .pdf file is required")
+    raw = await file.read()
+    if len(raw) > 12 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="PDF too large (max 12MB)")
+    return await pdf_svc.preview(raw, subject, topic)
+
+
+@router.post("/import/pdf/commit", response_model=BulkImportResult)
+async def import_pdf_commit(
+    body: PdfImportCommitRequest,
+    bulk: BulkImportService = Depends(get_bulk_import_service),
+) -> BulkImportResult:
+    result = BulkImportResult()
+    creates: List[QuestionCreate] = []
+    for i, item in enumerate(body.questions, start=1):
+        try:
+            creates.append(preview_item_to_question_create(item))
+        except (ValueError, ValidationError) as e:
+            result.errors.append(RowError(row=i, error=str(e)))
+    if not creates:
+        return result
+    insert_res = await bulk.import_question_creates(creates)
+    result.inserted = insert_res.inserted
+    result.skipped = insert_res.skipped
+    result.errors.extend(insert_res.errors)
+    return result
+
+
+@router.post("/import/json", response_model=BulkImportResult)
+async def import_json(
+    file: UploadFile = File(...),
+    svc: BulkImportService = Depends(get_bulk_import_service),
+) -> BulkImportResult:
+    raw = await file.read()
+    return await svc.import_json_bytes(raw)
+
+
+@router.post("/import/csv", response_model=BulkImportResult)
+async def import_csv(
+    file: UploadFile = File(...),
+    svc: BulkImportService = Depends(get_bulk_import_service),
+) -> BulkImportResult:
+    raw = await file.read()
+    return await svc.import_csv_bytes(raw)
+
+
+@router.post("/ai-generate-draft", response_model=QuestionCreate)
+async def ai_generate_draft(body: AIGenerateQuestionRequest) -> QuestionCreate:
+    generator = AIQuestionGenerator()
+    draft = await generator.generate_expert_draft_question(
+        prompt=body.prompt,
+        subject=body.subject,
+        topic=body.topic,
+    )
+    if not draft:
+        raise HTTPException(
+            status_code=502,
+            detail="Could not generate a question draft. Check OpenAI settings and try another prompt.",
+        )
+    return draft
 
 
 @router.get("/{question_id}", response_model=QuestionAdmin)
@@ -110,37 +206,3 @@ async def delete_question(
     if not ok:
         raise HTTPException(status_code=404, detail="Question not found")
     return Message(message="deleted")
-
-
-@router.post("/import/json", response_model=BulkImportResult)
-async def import_json(
-    file: UploadFile = File(...),
-    svc: BulkImportService = Depends(get_bulk_import_service),
-) -> BulkImportResult:
-    raw = await file.read()
-    return await svc.import_json_bytes(raw)
-
-
-@router.post("/import/csv", response_model=BulkImportResult)
-async def import_csv(
-    file: UploadFile = File(...),
-    svc: BulkImportService = Depends(get_bulk_import_service),
-) -> BulkImportResult:
-    raw = await file.read()
-    return await svc.import_csv_bytes(raw)
-
-
-@router.post("/ai-generate-draft", response_model=QuestionCreate)
-async def ai_generate_draft(body: AIGenerateQuestionRequest) -> QuestionCreate:
-    generator = AIQuestionGenerator()
-    draft = await generator.generate_expert_draft_question(
-        prompt=body.prompt,
-        subject=body.subject,
-        topic=body.topic,
-    )
-    if not draft:
-        raise HTTPException(
-            status_code=502,
-            detail="Could not generate a question draft. Check OpenAI settings and try another prompt.",
-        )
-    return draft

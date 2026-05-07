@@ -1,7 +1,9 @@
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.schemas.question import EXAM_TAGS
 
 
 class PaperSectionIn(BaseModel):
@@ -10,8 +12,21 @@ class PaperSectionIn(BaseModel):
     order: int = Field(default=0, ge=0, le=1000)
     subject: Optional[str] = None
     topic: Optional[str] = None
+    exam_tag: Optional[str] = Field(default=None, description="Exam category tag filter (e.g. CAT/SSC/BANK). Null means mixed.")
     total_questions: int = Field(default=5, ge=1, le=100)
     time_limit_seconds: int = Field(default=600, ge=60, le=7200)
+
+    @field_validator("exam_tag")
+    @classmethod
+    def validate_exam_tag(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        t = str(v).strip().upper()
+        if not t:
+            return None
+        if t not in EXAM_TAGS:
+            raise ValueError(f"Invalid exam_tag '{v}'. Allowed: {', '.join(EXAM_TAGS)}")
+        return t
 
 
 class QuestionPaperCreate(BaseModel):
@@ -34,6 +49,7 @@ class PaperSectionOut(BaseModel):
     order: int
     subject: Optional[str] = None
     topic: Optional[str] = None
+    exam_tag: Optional[str] = None
     total_questions: int
     time_limit_seconds: int
 
@@ -52,6 +68,21 @@ class PaperAssignmentOut(BaseModel):
     paper_id: str
     student_username: str
     assigned_at: datetime
+
+
+class AssignPaperByTitleRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=300, description="Question paper title (case-insensitive exact match).")
+    assignees: List[str] = Field(
+        ...,
+        min_length=1,
+        description="Student usernames to assign; replaces the paper's current assignment list.",
+    )
+
+
+class AssignPaperByTitleResponse(BaseModel):
+    paper_id: str
+    paper_title: str
+    assignees: List[str] = Field(description="Usernames now assigned to this paper (sorted, unique).")
 
 
 class PaperSessionMeta(BaseModel):

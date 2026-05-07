@@ -11,12 +11,16 @@ class QuestionOption(BaseModel):
     label: str
 
 
+EXAM_TAGS: List[str] = ["CAT", "SSC", "BANK", "RAILWAY", "DEFENCE", "STATE", "OTHER"]
+
+
 class QuestionBase(BaseModel):
     question_text: str = Field(..., min_length=1)
     question_type: QuestionType
     options: List[QuestionOption] = Field(default_factory=list)
     correct_answer: str = Field(..., min_length=1)
     explanation: Optional[str] = None
+    image_url: Optional[str] = Field(default=None, max_length=2048, description="Optional image URL (e.g. R2 public URL).")
     difficulty: Difficulty
     subject: str = Field(default="General", min_length=1)
     topic: str = Field(..., min_length=1, description="CAT topic of the question (e.g., Algebra, Time-Speed-Distance).")
@@ -34,6 +38,23 @@ class QuestionBase(BaseModel):
             return [str(x).strip() for x in v if str(x).strip()]
         return []
 
+    @field_validator("tags")
+    @classmethod
+    def normalize_exam_tags(cls, v: List[str]) -> List[str]:
+        if not v:
+            return ["OTHER"]
+        allowed = {x.upper() for x in EXAM_TAGS}
+        out: List[str] = []
+        for raw in v:
+            t = str(raw).strip().upper()
+            if not t:
+                continue
+            if t not in allowed:
+                t = "OTHER"
+            if t not in out:
+                out.append(t)
+        return out or ["OTHER"]
+
 
 class QuestionCreate(QuestionBase):
     pass
@@ -45,6 +66,7 @@ class QuestionUpdate(BaseModel):
     options: Optional[List[QuestionOption]] = None
     correct_answer: Optional[str] = Field(default=None, min_length=1)
     explanation: Optional[str] = None
+    image_url: Optional[str] = Field(default=None, max_length=2048)
     difficulty: Optional[Difficulty] = None
     subject: Optional[str] = Field(default=None, min_length=1)
     topic: Optional[str] = Field(default=None, min_length=1)
@@ -69,6 +91,7 @@ class QuestionStudentView(BaseModel):
     options: List[QuestionOption]
     subject: str
     topic: str
+    image_url: Optional[str] = None
 
 
 class QuestionFilterParams(BaseModel):
@@ -93,3 +116,34 @@ class AIGenerateQuestionRequest(BaseModel):
     prompt: str = Field(..., min_length=8, max_length=4000)
     subject: Optional[str] = None
     topic: Optional[str] = None
+
+
+class PdfImportPreviewItem(BaseModel):
+    """Relaxed row for editing before commit; maps to QuestionCreate."""
+
+    question_text: str = ""
+    question_type: str = "mcq_single"
+    option_a: str = ""
+    option_b: str = ""
+    option_c: str = ""
+    option_d: str = ""
+    correct_answer: str = ""
+    explanation: Optional[str] = None
+    image_url: Optional[str] = None
+    difficulty: str = "EASY"
+    subject: str = "General"
+    topic: str = "General"
+    exam_tag: str = "OTHER"
+
+
+class PdfImportPreviewResponse(BaseModel):
+    drafts: List[PdfImportPreviewItem]
+    parse_mode: str = Field(description="'openai', 'openai_required', or 'error'")
+    message: Optional[str] = None
+    truncated: bool = False
+
+
+class PdfImportCommitRequest(BaseModel):
+    """Edited rows from PDF preview; same shape as {@link PdfImportPreviewItem}."""
+
+    questions: List[PdfImportPreviewItem] = Field(..., min_length=1)

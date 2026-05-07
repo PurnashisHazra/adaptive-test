@@ -5,6 +5,8 @@ import { Toaster } from "react-hot-toast";
 import App from "./App";
 import "./styles/global.css";
 
+console.log("Developed by Purnashis Hazra, Github: github.com/lobrockyl");
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>

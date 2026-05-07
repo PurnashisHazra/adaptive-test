@@ -13,7 +13,27 @@ import {
   syncPaperAssignments,
   updateQuestionPaper,
 } from "../../api/client";
-import type { AppConfig, QuestionPaperSection } from "../../api/types";
+import type { AppConfig, ExamTag, QuestionPaperSection } from "../../api/types";
+
+const EXAM_TAG_OPTIONS: Array<{ label: string; value: "" | ExamTag }> = [
+  { label: "Mixed (all exams)", value: "" },
+  { label: "CAT", value: "CAT" },
+  { label: "SSC", value: "SSC" },
+  { label: "BANK", value: "BANK" },
+  { label: "RAILWAY", value: "RAILWAY" },
+  { label: "DEFENCE", value: "DEFENCE" },
+  { label: "STATE", value: "STATE" },
+  { label: "OTHER", value: "OTHER" },
+];
+
+function generateSectionId(): string {
+  const c = globalThis.crypto;
+  if (c && typeof c.randomUUID === "function") {
+    return c.randomUUID();
+  }
+  const rnd = Math.random().toString(36).slice(2, 10);
+  return `sec_${Date.now().toString(36)}_${rnd}`;
+}
 
 function SectionFilterFields({
   sec,
@@ -21,12 +41,14 @@ function SectionFilterFields({
   subjects,
   onSubjectChange,
   onTopicChange,
+  onExamTagChange,
 }: {
   sec: QuestionPaperSection;
   cfg: AppConfig | null;
   subjects: string[];
   onSubjectChange: (subject: string) => void;
   onTopicChange: (topic: string) => void;
+  onExamTagChange: (examTag: "" | ExamTag) => void;
 }) {
   const [topics, setTopics] = useState<string[]>([]);
   const [loadingTopics, setLoadingTopics] = useState(false);
@@ -54,10 +76,8 @@ function SectionFilterFields({
     };
   }, [cfg?.topic_filter_enabled, cfg?.subject_filter_enabled, sec.subject]);
 
-  if (!cfg) return null;
-
-  const showSubject = cfg.subject_filter_enabled;
-  const showTopic = cfg.topic_filter_enabled;
+  const showSubject = Boolean(cfg?.subject_filter_enabled);
+  const showTopic = Boolean(cfg?.topic_filter_enabled);
 
   if (!showSubject && !showTopic) {
     return (
@@ -80,13 +100,23 @@ function SectionFilterFields({
   }
 
   return (
-    <div
-      className="grid-2"
-      style={{
-        marginBottom: "0.75rem",
-        gridTemplateColumns: showSubject && showTopic ? undefined : "1fr",
-      }}
-    >
+    <div style={{ marginBottom: "0.75rem" }}>
+      <div style={{ marginBottom: "0.75rem" }}>
+        <label className="label">Exam category</label>
+        <select className="input" value={(sec.exam_tag as "" | ExamTag | undefined) ?? ""} onChange={(e) => onExamTagChange(e.target.value as "" | ExamTag)}>
+          {EXAM_TAG_OPTIONS.map((o) => (
+            <option key={o.label} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div
+        className="grid-2"
+        style={{
+          gridTemplateColumns: showSubject && showTopic ? undefined : "1fr",
+        }}
+      >
       {showSubject ? (
         <div>
           <label className="label">Subject (optional)</label>
@@ -113,17 +143,19 @@ function SectionFilterFields({
           </select>
         </div>
       ) : null}
+      </div>
     </div>
   );
 }
 
 function newSection(): QuestionPaperSection {
   return {
-    id: crypto.randomUUID(),
+    id: generateSectionId(),
     title: "Section",
     order: 0,
     subject: "",
     topic: "",
+    exam_tag: null,
     total_questions: 5,
     time_limit_seconds: 600,
   };
@@ -132,7 +164,7 @@ function newSection(): QuestionPaperSection {
 export function QuestionPaperFormPage() {
   const { id } = useParams<{ id: string }>();
   const nav = useNavigate();
-  const isNew = id === "new";
+  const isNew = !id || id === "new";
 
   const [title, setTitle] = useState("");
   const [marksCorrect, setMarksCorrect] = useState(1);
@@ -182,6 +214,7 @@ export function QuestionPaperFormPage() {
             order: s.order ?? i,
             subject: s.subject ?? "",
             topic: s.topic ?? "",
+            exam_tag: s.exam_tag ?? null,
             total_questions: s.total_questions,
             time_limit_seconds: s.time_limit_seconds,
           }))
@@ -223,6 +256,7 @@ export function QuestionPaperFormPage() {
         order: i,
         subject: s.subject?.trim() || null,
         topic: s.topic?.trim() || null,
+        exam_tag: s.exam_tag || null,
         total_questions: s.total_questions,
         time_limit_seconds: s.time_limit_seconds,
       })),
@@ -326,6 +360,7 @@ export function QuestionPaperFormPage() {
                 setSections(sections.map((s) => (s.id === sec.id ? { ...s, subject: v, topic: "" } : s)))
               }
               onTopicChange={(v) => setSections(sections.map((s) => (s.id === sec.id ? { ...s, topic: v } : s)))}
+              onExamTagChange={(v) => setSections(sections.map((s) => (s.id === sec.id ? { ...s, exam_tag: v || null } : s)))}
             />
             <div className="grid-2">
               <div>

@@ -30,6 +30,7 @@ class QuestionRepository:
             "options": doc.get("options", []),
             "correct_answer": doc["correct_answer"],
             "explanation": doc.get("explanation"),
+            "image_url": doc.get("image_url"),
             "difficulty": doc["difficulty"],
             "subject": doc.get("subject", "General"),
             "topic": doc.get("topic", "General"),
@@ -129,6 +130,7 @@ class QuestionRepository:
         exclude_ids: Sequence[str],
         subject: Optional[str] = None,
         topic: Optional[str] = None,
+        exam_tag: Optional[str] = None,
     ) -> List[ObjectId]:
         filt: Dict[str, Any] = {"difficulty": difficulty.value}
         if exclude_ids:
@@ -137,6 +139,8 @@ class QuestionRepository:
             filt["subject"] = subject
         if topic:
             filt["topic"] = topic
+        if exam_tag:
+            filt["tags"] = {"$in": [str(exam_tag).strip().upper()]}
         cursor = self._col.find(filt, {"_id": 1})
         return [d["_id"] async for d in cursor]
 
@@ -146,8 +150,9 @@ class QuestionRepository:
         exclude_ids: Sequence[str],
         subject: Optional[str] = None,
         topic: Optional[str] = None,
+        exam_tag: Optional[str] = None,
     ) -> Optional[str]:
-        ids = await self.list_ids_by_difficulty_excluding(difficulty, exclude_ids, subject, topic)
+        ids = await self.list_ids_by_difficulty_excluding(difficulty, exclude_ids, subject, topic, exam_tag)
         if not ids:
             return None
         return oid_str(random.choice(ids))

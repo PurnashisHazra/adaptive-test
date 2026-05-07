@@ -23,6 +23,8 @@ def _utc_now() -> datetime:
 
 
 def _to_student_payload(doc: Dict[str, Any]) -> QuestionPayload:
+    raw_img = doc.get("image_url")
+    img = str(raw_img).strip() if raw_img else None
     return QuestionPayload(
         id=oid_str(doc["_id"]),
         question_text=doc["question_text"],
@@ -30,6 +32,7 @@ def _to_student_payload(doc: Dict[str, Any]) -> QuestionPayload:
         options=doc.get("options", []),
         subject=doc.get("subject", "General"),
         topic=doc.get("topic", "General"),
+        image_url=img or None,
     )
 
 
@@ -113,6 +116,7 @@ class TestService:
         student_name: str,
         subject: Optional[str],
         topic: Optional[str],
+        exam_tag: Optional[str],
         total_questions: int,
         time_limit_seconds: Optional[int],
         paper_context: Optional[Dict[str, Any]] = None,
@@ -136,6 +140,7 @@ class TestService:
             [],
             subject,
             topic,
+            exam_tag,
         )
         if not first_id:
             raise ValueError(
@@ -153,6 +158,7 @@ class TestService:
             "marked_for_review": [],
             "subject_filter": subject,
             "topic_filter": topic,
+            "exam_tag_filter": exam_tag,
             "time_limit_seconds": time_limit_seconds,
         }
         if paper_context:
@@ -286,6 +292,7 @@ class TestService:
                 used_after,
                 att.get("subject_filter"),
                 att.get("topic_filter"),
+                att.get("exam_tag_filter"),
             )
         if not next_qid:
             patch["status"] = AttemptStatus.COMPLETED.value

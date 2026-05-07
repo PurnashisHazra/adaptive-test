@@ -126,6 +126,7 @@ class StudentAnalyticsService:
                         index=i,
                         question_id=qid or "unknown",
                         question_text="This question is no longer in the bank.",
+                        image_url=None,
                         question_type="unknown",
                         options=[],
                         chosen_answer=chosen,
@@ -147,11 +148,14 @@ class StudentAnalyticsService:
                 if o.get("key") is not None
             ]
             correct_key = str(qdoc.get("correct_answer", ""))
+            raw_img = qdoc.get("image_url")
+            img = str(raw_img).strip() if raw_img else None
             out.append(
                 StudentQuestionReview(
                     index=i,
                     question_id=oid_str(qdoc["_id"]),
                     question_text=str(qdoc.get("question_text", "")),
+                    image_url=img or None,
                     question_type=str(qdoc.get("question_type", "")),
                     options=opts,
                     chosen_answer=chosen,

@@ -75,6 +75,31 @@ class Settings(BaseSettings):
         ge=1,
         le=60 * 24 * 365,
     )
+    public_assign_api_keys: str = Field(
+        default="",
+        validation_alias=AliasChoices("PUBLIC_ASSIGN_API_KEYS", "PUBLIC_ASSIGN_API_KEY"),
+        description="Comma-separated API keys allowed to call the public paper assignment endpoint.",
+    )
+
+    # Cloudflare R2 (S3-compatible) for question images
+    r2_endpoint_url: str = Field(
+        default="",
+        validation_alias=AliasChoices("R2_ENDPOINT_URL"),
+        description="R2 S3 API endpoint, e.g. https://<accountid>.r2.cloudflarestorage.com",
+    )
+    r2_access_key_id: str = Field(default="", validation_alias=AliasChoices("R2_ACCESS_KEY_ID"))
+    r2_secret_access_key: str = Field(default="", validation_alias=AliasChoices("R2_SECRET_ACCESS_KEY"))
+    r2_bucket: str = Field(default="", validation_alias=AliasChoices("R2_BUCKET"))
+    r2_public_base_url: str = Field(
+        default="",
+        validation_alias=AliasChoices("R2_PUBLIC_BASE_URL"),
+        description="Public URL prefix for objects (custom domain or r2.dev), no trailing slash.",
+    )
+    super_admin_api_keys: str = Field(
+        default="",
+        validation_alias=AliasChoices("SUPER_ADMIN_API_KEYS", "SUPER_ADMIN_API_KEY"),
+        description="Comma-separated API keys allowed to call hidden super-admin endpoints.",
+    )
 
     @field_validator("openai_api_key")
     @classmethod
@@ -91,6 +116,14 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> List[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def public_assign_api_keys_list(self) -> List[str]:
+        return [k.strip() for k in self.public_assign_api_keys.split(",") if k.strip()]
+
+    @property
+    def super_admin_api_keys_list(self) -> List[str]:
+        return [k.strip() for k in self.super_admin_api_keys.split(",") if k.strip()]
 
 
 @lru_cache

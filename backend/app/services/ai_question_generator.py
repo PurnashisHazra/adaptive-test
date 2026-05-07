@@ -140,13 +140,14 @@ class AIQuestionGenerator:
             '  "explanation": "string",\n'
             '  "subject": "string",\n'
             '  "topic": "string",\n'
-            '  "tags": ["string", "string"]\n'
+            '  "tags": ["CAT|SSC|BANK|RAILWAY|DEFENCE|STATE|OTHER"]\n'
             "}\n"
             "Rules:\n"
             "- Use subject/topic close to the given context.\n"
             "- Difficulty must be truly EXPERT.\n"
             "- No ambiguous wording; exactly one correct option.\n"
             "- Keep options balanced and plausible.\n"
+            "- tags MUST contain exactly one exam category from: CAT, SSC, BANK, RAILWAY, DEFENCE, STATE, OTHER.\n"
             f"Context: subject={sub}, topic={top}\n"
             f"Additional admin prompt/instruction: {user_prompt if user_prompt else '(none)'}"
         )
@@ -167,9 +168,10 @@ class AIQuestionGenerator:
         tags = payload.get("tags")
         if not isinstance(tags, list):
             tags = []
-        clean_tags = [str(t).strip() for t in tags if str(t).strip()]
-        if "ai_generated" not in clean_tags:
-            clean_tags.append("ai_generated")
+        # Question tags are reserved for exam categories.
+        clean_tags = [str(t).strip().upper() for t in tags if str(t).strip()]
+        if not clean_tags:
+            clean_tags = ["OTHER"]
 
         return QuestionCreate(
             question_text=str(payload.get("question_text", "")).strip(),

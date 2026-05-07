@@ -4,7 +4,13 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import get_paper_service
 from app.api.deps_auth import require_admin
-from app.schemas.paper import QuestionPaperCreate, QuestionPaperOut, QuestionPaperUpdate
+from app.schemas.paper import (
+    AssignPaperByTitleRequest,
+    AssignPaperByTitleResponse,
+    QuestionPaperCreate,
+    QuestionPaperOut,
+    QuestionPaperUpdate,
+)
 from app.services.paper_service import PaperService
 
 router = APIRouter(prefix="/admin/question-papers", tags=["admin-question-papers"])
@@ -28,6 +34,23 @@ async def list_papers(
     svc: PaperService = Depends(get_paper_service),
 ) -> List[QuestionPaperOut]:
     return await svc.list_papers()
+
+
+@router.post("/assign-by-title", response_model=AssignPaperByTitleResponse)
+async def assign_paper_by_title(
+    body: AssignPaperByTitleRequest,
+    _claims: dict = Depends(require_admin),
+    svc: PaperService = Depends(get_paper_service),
+) -> AssignPaperByTitleResponse:
+    """Find a paper by title and set its assignees (replaces existing assignments)."""
+    try:
+        paper_id, paper_title, assignees = await svc.assign_paper_by_title(body.title, body.assignees)
+        return AssignPaperByTitleResponse(paper_id=paper_id, paper_title=paper_title, assignees=assignees)
+    except ValueError as e:
+        msg = str(e)
+        if msg.startswith("No question paper"):
+            raise HTTPException(status_code=404, detail=msg) from e
+        raise HTTPException(status_code=400, detail=msg) from e
 
 
 @router.get("/{paper_id}", response_model=QuestionPaperOut)

@@ -20,6 +20,7 @@ class TestStartRequest(BaseModel):
     student_name: str = Field(..., min_length=1, max_length=200)
     subject: Optional[str] = None
     topic: Optional[str] = None
+    exam_tag: Optional[str] = None
     total_questions: int = Field(default=10, ge=1, le=100)
     time_limit_seconds: Optional[int] = Field(default=None, ge=60, le=7200)
 
@@ -45,6 +46,7 @@ class QuestionPayload(BaseModel):
     options: List[dict]
     subject: str
     topic: str
+    image_url: Optional[str] = None
 
 
 class PaperNextSection(BaseModel):

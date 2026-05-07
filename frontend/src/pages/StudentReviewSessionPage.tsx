@@ -79,6 +79,11 @@ function QuestionReviewCard({ q }: { q: StudentQuestionReview }) {
         </span>
       </div>
       <h3 style={{ fontSize: "1.05rem", marginTop: "0.85rem", lineHeight: 1.45, marginBottom: 0 }}>{q.question_text}</h3>
+      {q.image_url ? (
+        <div style={{ marginTop: "0.65rem" }}>
+          <img src={q.image_url} alt="" style={{ maxWidth: "100%", maxHeight: 240, borderRadius: 8, border: "1px solid var(--border)" }} />
+        </div>
+      ) : null}
       <p style={{ marginTop: "0.65rem", marginBottom: "0.35rem" }}>
         <strong>Your answer:</strong> {q.chosen_label}
         {q.chosen_answer !== q.chosen_label ? (
