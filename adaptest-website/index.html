@@ -107,9 +107,9 @@
               </button>
             </article>
 
-            <article class="card pricing-card featured">
+            <article class="card pricing-card">
               <p class="plan-name">Pay Per Test</p>
-              <p class="price">₹199<span>/test</span></p>
+              <p class="price">₹99<span>/test</span></p>
 
               <ul>
                 <li>No monthly commitment</li>
@@ -176,9 +176,9 @@
         </div>
         <div>
           <p class="footer-title">Contact</p>
-          <p>Email: hello@adaptest.io</p>
-          <p>Phone: +91 98765 43210</p>
-          <p>Address: Bengaluru, India</p>
+          <p>Email: parthahazra000@gmail.com</p>
+          <p>Phone: +91 9529624854</p>
+          <p>Address: Mumbai, India</p>
         </div>
       </div>
     </footer>
@@ -256,6 +256,7 @@
         const leadSelectedModel = document.getElementById("leadSelectedModel");
         const leadModelInput = document.getElementById("leadModelInput");
         const LEADS_API_URL = "https://adaptive-test-bknd.vercel.app/api/leads";
+        const LEAD_FALLBACK_EMAIL = "parthahazra000@gmail.com";
 
         const curveState = {
           waypointsBlue: [],
@@ -586,7 +587,21 @@
               setModalOpen(leadModal, false);
               setModalOpen(leadSuccessModal, true);
             } catch {
-              alert("Could not submit right now. Please try again.");
+              const subject = `AdapTest inquiry — ${payload.model_name}`;
+              const body = [
+                "Please keep this inquiry:",
+                "",
+                `Model: ${payload.model_name}`,
+                `Name: ${payload.name}`,
+                `Institution: ${payload.institution_name}`,
+                `Phone: ${payload.contact_number}`,
+                `Email: ${payload.email}`,
+              ].join("\n");
+              const mailto = `mailto:${LEAD_FALLBACK_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+              window.location.href = mailto;
+              alert(
+                "We could not reach our server. Your email app should open with your details—send the message to complete your request.",
+              );
             } finally {
               leadSubmitBtn.disabled = false;
               leadSubmitBtn.textContent = oldText || "Submit";
