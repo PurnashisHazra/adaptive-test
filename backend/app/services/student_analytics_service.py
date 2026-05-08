@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from bson import ObjectId
 
@@ -8,10 +8,14 @@ from app.repositories.attempt_repository import AttemptRepository
 from app.repositories.paper_repository import PaperRepository
 from app.repositories.question_repository import QuestionRepository
 from app.schemas.student_analytics import (
+    StudentInsightCapsule,
     StudentPaperDetail,
+    StudentPerformanceInsights,
     StudentPaperSectionReview,
     StudentQuestionOptionOut,
     StudentQuestionReview,
+    StudentStrategyAdvice,
+    StudentInsightArea,
     StudentSessionSummary,
     StudentStandaloneDetail,
 )
@@ -110,6 +114,184 @@ class StudentAnalyticsService:
                 t_self = int(st)
                 slower = sum(1 for t in peer_times if t > t_self)
                 r.your_time_faster_than_peer_percent = round(100.0 * slower / len(peer_times), 1)
+
+    def _time_baselines(self, reviews: List[StudentQuestionReview]) -> Tuple[Optional[float], Optional[float]]:
+        times = [int(r.time_spent_seconds) for r in reviews if r.time_spent_seconds is not None and int(r.time_spent_seconds) >= 0]
+        avg_time = round(sum(times) / len(times), 1) if times else None
+        long_time_threshold: Optional[float] = None
+        if avg_time is not None:
+            long_time_threshold = max(avg_time * 1.35, avg_time + 20.0)
+        return avg_time, long_time_threshold
+
+    def _apply_question_insight_capsules(self, reviews: List[StudentQuestionReview]) -> None:
+        """Set per-question insight flags after peer stats are applied."""
+        _, long_time_threshold = self._time_baselines(reviews)
+        for r in reviews:
+            capsules: List[StudentInsightCapsule] = []
+            diff = str(r.difficulty_when_served or "UNKNOWN").upper()
+            spent = int(r.time_spent_seconds) if r.time_spent_seconds is not None else None
+            peer_acc = r.peer_accuracy_percent
+            peer_n = r.peer_answer_count
+
+            missed = (
+                not r.is_correct
+                and peer_acc is not None
+                and float(peer_acc) >= 65.0
+                and peer_n >= 3
+            )
+            wasted = (
+                not r.is_correct
+                and spent is not None
+                and long_time_threshold is not None
+                and spent >= long_time_threshold
+            )
+            skip_flag = wasted and diff in {"HARD", "EXPERT"}
+
+            if missed:
+                capsules.append(
+                    StudentInsightCapsule(
+                        key="missed_opportunity",
+                        label="Missed opportunity",
+                        hint=f"Peers answer this correctly about {peer_acc:.0f}% of the time ({peer_n} attempts).",
+                    )
+                )
+            if wasted:
+                capsules.append(
+                    StudentInsightCapsule(
+                        key="wasted_time",
+                        label="Wasted time",
+                        hint="You spent much longer than your usual pace on this item and still missed.",
+                    )
+                )
+            if skip_flag:
+                capsules.append(
+                    StudentInsightCapsule(
+                        key="skip_revisit",
+                        label="Skip & revisit",
+                        hint="High difficulty plus heavy time—mark and return after easier marks are locked in.",
+                    )
+                )
+            r.insight_capsules = capsules
+
+    def _build_performance_insights(
+        self,
+        reviews: List[StudentQuestionReview],
+        ended_early: bool,
+    ) -> StudentPerformanceInsights:
+        attempted = len(reviews)
+        correct = sum(1 for r in reviews if r.is_correct)
+        accuracy = round((correct / attempted) * 100.0, 1) if attempted else 0.0
+
+        avg_time, _ = self._time_baselines(reviews)
+
+        def _has_cap(r: StudentQuestionReview, key: str) -> bool:
+            return any(c.key == key for c in r.insight_capsules)
+
+        wasted = sum(1 for r in reviews if _has_cap(r, "wasted_time"))
+        missed_opportunity = sum(1 for r in reviews if _has_cap(r, "missed_opportunity"))
+        skip_candidate = sum(1 for r in reviews if _has_cap(r, "skip_revisit"))
+
+        by_diff: Dict[str, Dict[str, Any]] = defaultdict(lambda: {"attempts": 0, "correct": 0, "times": []})
+
+        for r in reviews:
+            diff = str(r.difficulty_when_served or "UNKNOWN").upper()
+            by_diff[diff]["attempts"] += 1
+            if r.is_correct:
+                by_diff[diff]["correct"] += 1
+            if r.time_spent_seconds is not None and int(r.time_spent_seconds) >= 0:
+                by_diff[diff]["times"].append(int(r.time_spent_seconds))
+
+        strong_areas: List[StudentInsightArea] = []
+        weak_areas: List[StudentInsightArea] = []
+        for diff, b in by_diff.items():
+            attempts = int(b["attempts"])
+            if attempts <= 0 or diff == "UNKNOWN":
+                continue
+            acc = round((int(b["correct"]) / attempts) * 100.0, 1)
+            ts: List[int] = list(b["times"])
+            diff_avg_time = round(sum(ts) / len(ts), 1) if ts else None
+            row = StudentInsightArea(
+                name=diff,
+                attempts=attempts,
+                accuracy_percent=acc,
+                avg_time_seconds=diff_avg_time,
+            )
+            if attempts >= 2 and acc >= 70.0:
+                strong_areas.append(row)
+            elif attempts >= 2 and acc < 50.0:
+                weak_areas.append(row)
+
+        strong_areas.sort(key=lambda x: (-x.accuracy_percent, -x.attempts, x.name))
+        weak_areas.sort(key=lambda x: (x.accuracy_percent, -x.attempts, x.name))
+
+        recommendations: List[StudentStrategyAdvice] = []
+        if accuracy < 45.0:
+            recommendations.append(
+                StudentStrategyAdvice(
+                    title="Reset your first-pass goal",
+                    detail="Aim for high-confidence attempts first. In the first round, attempt only questions you can solve in under your average time with clear elimination.",
+                )
+            )
+        elif accuracy >= 70.0:
+            recommendations.append(
+                StudentStrategyAdvice(
+                    title="Protect your current edge",
+                    detail="Your conversion is strong. Keep accuracy stable by avoiding overthinking medium questions and reserving difficult guesses for the final minutes.",
+                )
+            )
+
+        if wasted > 0:
+            recommendations.append(
+                StudentStrategyAdvice(
+                    title="Cap time on low-ROI questions",
+                    detail="When stuck beyond your normal pace, mark and move. Revisit later instead of spending extra time on a single uncertain question.",
+                )
+            )
+
+        if skip_candidate > 0:
+            recommendations.append(
+                StudentStrategyAdvice(
+                    title="Use a strict skip-and-return rule",
+                    detail="For hard/expert items that stay unclear after one full attempt, skip immediately and come back only if easier marks are secured.",
+                )
+            )
+
+        if missed_opportunity > 0:
+            recommendations.append(
+                StudentStrategyAdvice(
+                    title="Recover missed easy/medium marks",
+                    detail="You missed several questions peers usually solve. Prioritize core concept revision and option-elimination drills to improve mark conversion.",
+                )
+            )
+
+        if ended_early:
+            recommendations.append(
+                StudentStrategyAdvice(
+                    title="Finish the full paper window",
+                    detail="You ended early in this attempt. In exam conditions, keep a final review buffer to revisit flagged questions and reduce avoidable misses.",
+                )
+            )
+
+        if not recommendations:
+            recommendations.append(
+                StudentStrategyAdvice(
+                    title="Maintain a two-pass attempt strategy",
+                    detail="Round 1: secure direct questions quickly. Round 2: solve moderate questions. Final round: attempt risky questions only if expected value is positive.",
+                )
+            )
+
+        return StudentPerformanceInsights(
+            attempted_questions=attempted,
+            correct_questions=correct,
+            accuracy_percent=accuracy,
+            avg_time_seconds=avg_time,
+            wasted_time_questions=wasted,
+            missed_opportunity_questions=missed_opportunity,
+            skip_candidate_questions=skip_candidate,
+            strong_areas=strong_areas[:3],
+            weak_areas=weak_areas[:3],
+            recommendations=recommendations[:5],
+        )
 
     async def _reviews_from_answers(
         self, answers: List[Dict[str, Any]], answer_attempt_id: str
@@ -238,6 +420,7 @@ class StudentAnalyticsService:
         qids = [r.question_id for r in reviews if r.question_id != "unknown"]
         rows = await self._attempts.list_answer_slices_for_questions(qids)
         self._apply_peer_stats(reviews, rows)
+        self._apply_question_insight_capsules(reviews)
         score = int(att.get("score", 0))
         total = max(1, int(att.get("total_questions", 1)))
         pct = round((score / total) * 100.0, 2) if total else None
@@ -260,6 +443,7 @@ class StudentAnalyticsService:
             percentage=pct,
             ended_early=ended_early,
             questions=reviews,
+            insights=self._build_performance_insights(reviews, ended_early=ended_early),
         )
 
     async def paper_detail(self, username: str, paper_attempt_id: str) -> StudentPaperDetail:
@@ -307,6 +491,7 @@ class StudentAnalyticsService:
         qids = [r.question_id for r in all_reviews if r.question_id != "unknown"]
         rows = await self._attempts.list_answer_slices_for_questions(qids)
         self._apply_peer_stats(all_reviews, rows)
+        self._apply_question_insight_capsules(all_reviews)
 
         cohort_docs = await self._papers.list_scored_attempts_for_paper(str(pa["paper_id"]))
         cohort_marks = [float(d["total_marks"]) for d in cohort_docs if d.get("total_marks") is not None]
@@ -331,4 +516,5 @@ class StudentAnalyticsService:
             cohort_scored_attempt_count=cohort_n,
             your_score_better_than_percent=better_pct,
             sections=sections_out,
+            insights=self._build_performance_insights(all_reviews, ended_early=ended_early),
         )

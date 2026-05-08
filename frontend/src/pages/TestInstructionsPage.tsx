@@ -61,7 +61,7 @@ export function TestInstructionsPage() {
   }
 
   return (
-    <div className="page" style={{ maxWidth: 760 }}>
+    <div className="page">
       <h1>General Instructions</h1>
       <div className="card" style={{ marginTop: "1rem" }}>
         <ol style={{ marginTop: 0, lineHeight: 1.7 }}>

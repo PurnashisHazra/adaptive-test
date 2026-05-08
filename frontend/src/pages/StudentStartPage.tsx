@@ -72,7 +72,7 @@ export function StudentStartPage() {
   }
 
   return (
-    <div className="page" style={{ maxWidth: 520 }}>
+    <div className="page">
       <h1>Begin your session</h1>
       <p style={{ color: "var(--muted)" }}>Your name is used to group attempts — no password in this MVP.</p>
       <form onSubmit={onStart} className="card" style={{ marginTop: "1.5rem" }}>

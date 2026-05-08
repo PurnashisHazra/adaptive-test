@@ -49,17 +49,9 @@ export function AppShell() {
               fontSize: "1.05rem",
               color: "#0f172a",
               textDecoration: "none",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "0.5rem",
             }}
           >
-            <img
-              src="https://emgc.in/wp-content/uploads/2026/02/EMGC-PNG-New-Logo.png"
-              alt="EMGC"
-              style={{ height: 28, width: "auto", objectFit: "contain" }}
-            />
-            <span>AdaptTest</span>
+            <span>AdapTest</span>
           </Link>
           <nav style={{ display: "flex", gap: "0.35rem", alignItems: "center", flexWrap: "wrap" }}>
             <NavLink to="/" end style={linkStyle}>

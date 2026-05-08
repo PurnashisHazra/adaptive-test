@@ -32,7 +32,7 @@ export function StudentHistoryPage() {
   }, []);
 
   return (
-    <div className="page" style={{ maxWidth: 800 }}>
+    <div className="page">
       <h1>My results</h1>
       <p style={{ color: "var(--muted)" }}>
         Completed tests where the session used your account name (<strong>{session?.username ?? "—"}</strong>). Standalone tests

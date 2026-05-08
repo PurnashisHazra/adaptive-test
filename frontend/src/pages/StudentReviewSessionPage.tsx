@@ -3,7 +3,14 @@ import { Link, Navigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { PaperReviewDifficultyChart } from "../components/PaperReviewDifficultyChart";
 import { getMyPaperReview, getMyStandaloneReview } from "../api/client";
-import type { StudentPaperDetail, StudentQuestionReview, StudentStandaloneDetail } from "../api/types";
+import type {
+  StudentInsightCapsule,
+  StudentInsightCapsuleKey,
+  StudentPaperDetail,
+  StudentPerformanceInsights,
+  StudentQuestionReview,
+  StudentStandaloneDetail,
+} from "../api/types";
 
 function peerAccuracyLine(q: StudentQuestionReview): { main: string; note?: string } {
   const n = q.peer_answer_count ?? 0;
@@ -37,6 +44,48 @@ function speedRankLine(q: StudentQuestionReview): { main: string; note?: string 
     };
   }
   return { main: "—", note: "Need other students’ timings to rank your speed." };
+}
+
+function insightCapsuleColors(key: StudentInsightCapsuleKey): { bg: string; color: string; border: string } {
+  switch (key) {
+    case "missed_opportunity":
+      return { bg: "rgba(234,179,8,0.16)", color: "#854d0e", border: "1px solid rgba(234,179,8,0.45)" };
+    case "wasted_time":
+      return { bg: "rgba(249,115,22,0.14)", color: "#9a3412", border: "1px solid rgba(249,115,22,0.4)" };
+    case "skip_revisit":
+      return { bg: "rgba(99,102,241,0.14)", color: "#3730a3", border: "1px solid rgba(99,102,241,0.35)" };
+    default:
+      return { bg: "#f1f5f9", color: "#334155", border: "1px solid #e2e8f0" };
+  }
+}
+
+function QuestionInsightCapsules({ capsules }: { capsules: StudentInsightCapsule[] }) {
+  if (!capsules.length) return null;
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginTop: "0.65rem" }} role="list" aria-label="Insight flags for this question">
+      {capsules.map((c) => {
+        const palette = insightCapsuleColors(c.key);
+        return (
+          <span
+            key={c.key}
+            role="listitem"
+            title={c.hint || c.label}
+            style={{
+              fontSize: "0.72rem",
+              fontWeight: 700,
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+              padding: "0.28rem 0.55rem",
+              borderRadius: 999,
+              ...palette,
+            }}
+          >
+            {c.label}
+          </span>
+        );
+      })}
+    </div>
+  );
 }
 
 function QuestionReviewCard({ q }: { q: StudentQuestionReview }) {
@@ -78,6 +127,7 @@ function QuestionReviewCard({ q }: { q: StudentQuestionReview }) {
           {q.is_correct ? "Correct" : "Wrong"}
         </span>
       </div>
+      <QuestionInsightCapsules capsules={q.insight_capsules ?? []} />
       <h3 style={{ fontSize: "1.05rem", marginTop: "0.85rem", lineHeight: 1.45, marginBottom: 0 }}>{q.question_text}</h3>
       {q.image_url ? (
         <div style={{ marginTop: "0.65rem" }}>
@@ -194,6 +244,70 @@ function PaperCohortBanner({ paper }: { paper: StudentPaperDetail }) {
   );
 }
 
+function StudentInsightsPanel({ insights }: { insights: StudentPerformanceInsights }) {
+  const chip: CSSProperties = {
+    display: "inline-block",
+    padding: "0.35rem 0.55rem",
+    borderRadius: 8,
+    background: "#f8fafc",
+    border: "1px solid #e2e8f0",
+    fontSize: "0.85rem",
+    color: "#334155",
+  };
+  const card: CSSProperties = {
+    marginTop: "1.25rem",
+    padding: "1rem 1.1rem",
+    borderRadius: 10,
+    border: "1px solid #cbd5e1",
+    background: "#ffffff",
+  };
+  return (
+    <section style={card}>
+      <h2 style={{ fontSize: "1.05rem", margin: 0 }}>Personalized analysis</h2>
+      <p style={{ margin: "0.4rem 0 0.9rem", color: "var(--muted)", fontSize: "0.9rem" }}>
+        Based on your attempt behavior, speed and conversion.
+      </p>
+      <div style={{ display: "flex", gap: "0.45rem", flexWrap: "wrap" }}>
+        <span style={chip}>Accuracy: {insights.accuracy_percent.toFixed(1)}%</span>
+        <span style={chip}>Avg time/question: {insights.avg_time_seconds != null ? `${insights.avg_time_seconds}s` : "—"}</span>
+        <span style={chip}>Wasted time questions: {insights.wasted_time_questions}</span>
+        <span style={chip}>Missed opportunities: {insights.missed_opportunity_questions}</span>
+        <span style={chip}>Should skip & revisit: {insights.skip_candidate_questions}</span>
+      </div>
+
+      <div style={{ marginTop: "0.9rem", display: "grid", gap: "0.7rem" }}>
+        {insights.strong_areas.length > 0 ? (
+          <div>
+            <strong style={{ color: "#166534" }}>Good at:</strong>{" "}
+            {insights.strong_areas
+              .map((x) => `${x.name} (${x.accuracy_percent.toFixed(0)}% over ${x.attempts})`)
+              .join(", ")}
+          </div>
+        ) : null}
+        {insights.weak_areas.length > 0 ? (
+          <div>
+            <strong style={{ color: "#991b1b" }}>Needs improvement:</strong>{" "}
+            {insights.weak_areas
+              .map((x) => `${x.name} (${x.accuracy_percent.toFixed(0)}% over ${x.attempts})`)
+              .join(", ")}
+          </div>
+        ) : null}
+      </div>
+
+      <div style={{ marginTop: "1rem" }}>
+        <strong>Exam strategy to maximize score:</strong>
+        <ul style={{ margin: "0.45rem 0 0", paddingLeft: "1.1rem" }}>
+          {insights.recommendations.map((tip, i) => (
+            <li key={`${tip.title}-${i}`} style={{ marginBottom: "0.35rem" }}>
+              <strong>{tip.title}:</strong> {tip.detail}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
 export function StudentReviewSessionPage() {
   const { sessionType, id } = useParams<{ sessionType: string; id: string }>();
   const [standalone, setStandalone] = useState<StudentStandaloneDetail | null>(null);
@@ -240,7 +354,7 @@ export function StudentReviewSessionPage() {
   }
 
   return (
-    <div className="page" style={{ maxWidth: 720 }}>
+    <div className="page">
       <p style={{ marginBottom: "0.75rem" }}>
         <Link to="/review">← All sessions</Link>
       </p>
@@ -265,6 +379,7 @@ export function StudentReviewSessionPage() {
             Started {new Date(standalone.started_at).toLocaleString()}
             {standalone.completed_at ? ` · Finished ${new Date(standalone.completed_at).toLocaleString()}` : ""}
           </p>
+          <StudentInsightsPanel insights={standalone.insights} />
           <h2 style={{ fontSize: "1.05rem", marginTop: "2rem", marginBottom: "0.75rem" }}>Questions</h2>
           {standalone.questions.length === 0 ? (
             <p className="empty">No answers recorded yet.</p>
@@ -294,6 +409,7 @@ export function StudentReviewSessionPage() {
             Started {new Date(paper.started_at).toLocaleString()}
             {paper.completed_at ? ` · Finished ${new Date(paper.completed_at).toLocaleString()}` : ""}
           </p>
+          <StudentInsightsPanel insights={paper.insights} />
           <PaperCohortBanner paper={paper} />
           <PaperReviewDifficultyChart paper={paper} />
           {paper.sections.map((sec) => (

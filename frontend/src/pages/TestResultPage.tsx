@@ -13,7 +13,7 @@ export function TestResultPage() {
 
   if (paperSummary) {
     return (
-      <div className="page" style={{ maxWidth: 640 }}>
+      <div className="page">
         <div className="card" style={{ textAlign: "center" }}>
           <h1 style={{ fontSize: "1.75rem", marginBottom: "0.5rem" }}>{paperSummary.title}</h1>
           <p style={{ color: "var(--muted)" }}>{paperSummary.student_name}</p>
@@ -74,7 +74,7 @@ export function TestResultPage() {
   const endedEarly = Boolean(summary?.ended_early);
 
   return (
-    <div className="page" style={{ maxWidth: 640 }}>
+    <div className="page">
       <div className="card" style={{ textAlign: "center" }}>
         {endedEarly ? (
           <>

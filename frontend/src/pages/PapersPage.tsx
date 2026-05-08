@@ -141,7 +141,7 @@ export function PapersPage() {
   }
 
   return (
-    <div className="page" style={{ maxWidth: 720 }}>
+    <div className="page">
       <h1>Question papers</h1>
       <p style={{ color: "var(--muted)" }}>
         Papers assigned to you by an instructor. Once you start a paper, you cannot restart it — use Continue to pick up where you left off, or end the paper from the test screen.

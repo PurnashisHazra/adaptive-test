@@ -4,6 +4,15 @@ from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 
 
+StudentInsightCapsuleKey = Literal["missed_opportunity", "wasted_time", "skip_revisit"]
+
+
+class StudentInsightCapsule(BaseModel):
+    key: StudentInsightCapsuleKey
+    label: str
+    hint: Optional[str] = Field(default=None, description="Short tooltip-style reason for this flag.")
+
+
 class StudentQuestionOptionOut(BaseModel):
     key: str
     label: str
@@ -53,6 +62,47 @@ class StudentQuestionReview(BaseModel):
         default=None,
         description="Among other timed attempts, percentage that took strictly longer than you (0–100).",
     )
+    insight_capsules: List[StudentInsightCapsule] = Field(
+        default_factory=list,
+        description="Per-question behavior flags (e.g. missed opportunity vs peers, wasted time).",
+    )
+
+
+class StudentInsightArea(BaseModel):
+    name: str
+    attempts: int = Field(..., ge=0)
+    accuracy_percent: float = Field(..., ge=0, le=100)
+    avg_time_seconds: Optional[float] = Field(default=None, ge=0)
+
+
+class StudentStrategyAdvice(BaseModel):
+    title: str
+    detail: str
+
+
+class StudentPerformanceInsights(BaseModel):
+    attempted_questions: int = Field(..., ge=0)
+    correct_questions: int = Field(..., ge=0)
+    accuracy_percent: float = Field(..., ge=0, le=100)
+    avg_time_seconds: Optional[float] = Field(default=None, ge=0)
+    wasted_time_questions: int = Field(
+        default=0,
+        ge=0,
+        description="Wrong answers where time spent is notably above your own average.",
+    )
+    missed_opportunity_questions: int = Field(
+        default=0,
+        ge=0,
+        description="Questions that were answered wrong while peers found relatively easy.",
+    )
+    skip_candidate_questions: int = Field(
+        default=0,
+        ge=0,
+        description="Questions likely better skipped/revisited due to low ROI time usage.",
+    )
+    strong_areas: List[StudentInsightArea] = Field(default_factory=list)
+    weak_areas: List[StudentInsightArea] = Field(default_factory=list)
+    recommendations: List[StudentStrategyAdvice] = Field(default_factory=list)
 
 
 class StudentSessionSummary(BaseModel):
@@ -79,6 +129,7 @@ class StudentStandaloneDetail(BaseModel):
     percentage: Optional[float] = None
     ended_early: bool
     questions: List[StudentQuestionReview]
+    insights: StudentPerformanceInsights
 
 
 class StudentPaperSectionReview(BaseModel):
@@ -110,3 +161,4 @@ class StudentPaperDetail(BaseModel):
         description="Share of those attempts whose total marks are strictly lower than yours (0–100).",
     )
     sections: List[StudentPaperSectionReview]
+    insights: StudentPerformanceInsights

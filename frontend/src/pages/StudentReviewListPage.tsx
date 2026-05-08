@@ -16,7 +16,7 @@ export function StudentReviewListPage() {
   }, []);
 
   return (
-    <div className="page" style={{ maxWidth: 720 }}>
+    <div className="page">
       <h1>Paper review</h1>
       <p style={{ color: "var(--muted)", maxWidth: 560 }}>
         Open any session to see each question, your result, time on the question, peer accuracy and average time, how your speed ranks against others, and explanations when available.

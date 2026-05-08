@@ -53,7 +53,7 @@ export function AuthPage() {
   }
 
   return (
-    <div className="page" style={{ maxWidth: 520 }}>
+    <div className="page">
       <h1>{mode === "login" ? "Login" : "Sign up"}</h1>
       {session && (
         <p style={{ color: "var(--muted)", marginTop: "-0.5rem" }}>

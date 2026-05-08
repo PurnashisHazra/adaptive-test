@@ -302,6 +302,14 @@ export interface StudentSessionSummary {
   kind_label: string;
 }
 
+export type StudentInsightCapsuleKey = "missed_opportunity" | "wasted_time" | "skip_revisit";
+
+export interface StudentInsightCapsule {
+  key: StudentInsightCapsuleKey;
+  label: string;
+  hint?: string | null;
+}
+
 export interface StudentQuestionOptionOut {
   key: string;
   label: string;
@@ -328,6 +336,32 @@ export interface StudentQuestionReview {
   peer_avg_time_seconds?: number | null;
   peer_time_peer_sample_count?: number;
   your_time_faster_than_peer_percent?: number | null;
+  insight_capsules?: StudentInsightCapsule[];
+}
+
+export interface StudentInsightArea {
+  name: string;
+  attempts: number;
+  accuracy_percent: number;
+  avg_time_seconds?: number | null;
+}
+
+export interface StudentStrategyAdvice {
+  title: string;
+  detail: string;
+}
+
+export interface StudentPerformanceInsights {
+  attempted_questions: number;
+  correct_questions: number;
+  accuracy_percent: number;
+  avg_time_seconds?: number | null;
+  wasted_time_questions: number;
+  missed_opportunity_questions: number;
+  skip_candidate_questions: number;
+  strong_areas: StudentInsightArea[];
+  weak_areas: StudentInsightArea[];
+  recommendations: StudentStrategyAdvice[];
 }
 
 export interface StudentStandaloneDetail {
@@ -343,6 +377,7 @@ export interface StudentStandaloneDetail {
   percentage?: number | null;
   ended_early: boolean;
   questions: StudentQuestionReview[];
+  insights: StudentPerformanceInsights;
 }
 
 export interface StudentPaperSectionReview {
@@ -367,6 +402,7 @@ export interface StudentPaperDetail {
   cohort_scored_attempt_count?: number;
   your_score_better_than_percent?: number | null;
   sections: StudentPaperSectionReview[];
+  insights: StudentPerformanceInsights;
 }
 
 export type QuestionReportSessionType = "standalone" | "paper_section";

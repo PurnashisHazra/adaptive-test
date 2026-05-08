@@ -134,7 +134,7 @@ export function TestSessionPage() {
     const nextN = pendingSectionNext.paper.section_index + 1;
     const nextTitle = pendingSectionNext.paper.section_title;
     return (
-      <div className="page" style={{ maxWidth: 520, margin: "0 auto", paddingTop: "2rem" }}>
+      <div className="page" style={{ margin: "0 auto", paddingTop: "2rem" }}>
         <div className="card" style={{ textAlign: "center", padding: "2rem 1.5rem" }}>
           <p style={{ color: "var(--muted)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", fontSize: "0.75rem", marginBottom: "0.75rem" }}>
             Question paper
@@ -343,7 +343,7 @@ export function TestSessionPage() {
   const optionsDisabled = !canSubmit || loadingIndex != null || sectionTimingOut;
 
   return (
-    <div className="page" style={{ maxWidth: 900 }}>
+    <div className="page">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.75rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
           {paperMeta ? (

@@ -59,9 +59,18 @@ h3 {
 }
 
 .page {
+  width: 70vw;
   max-width: 1100px;
+  min-width: 320px;
   margin: 0 auto;
   padding: 2rem 1.25rem 4rem;
+}
+
+.page > div,
+.page > section,
+.page > form {
+  width: 100%;
+  max-width: 100% !important;
 }
 
 /* Main fills below header with opaque bg so body gradient never shows through */
