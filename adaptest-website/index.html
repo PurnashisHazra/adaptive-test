@@ -255,6 +255,7 @@
         const leadSubmitBtn = document.getElementById("leadSubmitBtn");
         const leadSelectedModel = document.getElementById("leadSelectedModel");
         const leadModelInput = document.getElementById("leadModelInput");
+        const LEADS_API_URL = "https://adaptive-test-bknd.vercel.app/api/leads";
 
         const curveState = {
           waypointsBlue: [],
@@ -575,7 +576,7 @@
             leadSubmitBtn.disabled = true;
             leadSubmitBtn.textContent = "Saving...";
             try {
-              const res = await fetch("/api/leads", {
+              const res = await fetch(LEADS_API_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),

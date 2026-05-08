@@ -12,8 +12,36 @@ if (!MONGO_URI) {
   throw new Error("MONGO_URI is required");
 }
 
+/** Comma-separated list of allowed browser origins (scheme + host + port). Empty = allow any origin (dev). */
+function corsOptions() {
+  const allowed = new Set(
+    (process.env.CORS_ORIGINS || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
+  if (allowed.size === 0) {
+    return {
+      origin: true,
+      methods: ["GET", "HEAD", "POST", "OPTIONS"],
+      allowedHeaders: ["Content-Type"],
+      maxAge: 86_400,
+    };
+  }
+  return {
+    origin(origin, callback) {
+      if (!origin) return callback(null, true);
+      if (allowed.has(origin)) return callback(null, true);
+      return callback(null, false);
+    },
+    methods: ["GET", "HEAD", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type"],
+    maxAge: 86_400,
+  };
+}
+
 const app = express();
-app.use(cors());
+app.use(cors(corsOptions()));
 app.use(express.json({ limit: "256kb" }));
 
 const client = new MongoClient(MONGO_URI);
