@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { PaperReviewDifficultyChart } from "../components/PaperReviewDifficultyChart";
+import { StudentPerformanceSpiderChart } from "../components/StudentPerformanceSpiderChart";
 import { getMyPaperReview, getMyStandaloneReview } from "../api/client";
 import type {
   StudentInsightCapsule,
@@ -244,7 +245,13 @@ function PaperCohortBanner({ paper }: { paper: StudentPaperDetail }) {
   );
 }
 
-function StudentInsightsPanel({ insights }: { insights: StudentPerformanceInsights }) {
+function StudentInsightsPanel({
+  insights,
+  questions,
+}: {
+  insights: StudentPerformanceInsights;
+  questions: StudentQuestionReview[];
+}) {
   const chip: CSSProperties = {
     display: "inline-block",
     padding: "0.35rem 0.55rem",
@@ -304,6 +311,7 @@ function StudentInsightsPanel({ insights }: { insights: StudentPerformanceInsigh
           ))}
         </ul>
       </div>
+      <StudentPerformanceSpiderChart insights={insights} questions={questions} />
     </section>
   );
 }
@@ -379,7 +387,7 @@ export function StudentReviewSessionPage() {
             Started {new Date(standalone.started_at).toLocaleString()}
             {standalone.completed_at ? ` · Finished ${new Date(standalone.completed_at).toLocaleString()}` : ""}
           </p>
-          <StudentInsightsPanel insights={standalone.insights} />
+          <StudentInsightsPanel insights={standalone.insights} questions={standalone.questions} />
           <h2 style={{ fontSize: "1.05rem", marginTop: "2rem", marginBottom: "0.75rem" }}>Questions</h2>
           {standalone.questions.length === 0 ? (
             <p className="empty">No answers recorded yet.</p>
@@ -409,7 +417,7 @@ export function StudentReviewSessionPage() {
             Started {new Date(paper.started_at).toLocaleString()}
             {paper.completed_at ? ` · Finished ${new Date(paper.completed_at).toLocaleString()}` : ""}
           </p>
-          <StudentInsightsPanel insights={paper.insights} />
+          <StudentInsightsPanel insights={paper.insights} questions={paper.sections.flatMap((s) => s.questions)} />
           <PaperCohortBanner paper={paper} />
           <PaperReviewDifficultyChart paper={paper} />
           {paper.sections.map((sec) => (

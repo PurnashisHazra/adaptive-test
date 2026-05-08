@@ -17,6 +17,7 @@ import type {
   QuestionPaper,
   StudentHistoryStats,
   StudentPaperDetail,
+  StudentOverallAnalytics,
   StudentSessionSummary,
   QuestionReport,
   QuestionReportCreatePayload,
@@ -303,6 +304,11 @@ export async function getMyStudentHistory() {
 
 export async function listMyAnalyticsSessions() {
   const { data } = await api.get<StudentSessionSummary[]>("/me/analytics/sessions");
+  return data;
+}
+
+export async function getMyOverallAnalytics() {
+  const { data } = await api.get<StudentOverallAnalytics>("/me/analytics/overall");
   return data;
 }
 

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_student_analytics_service
 from app.api.deps_auth import get_current_claims
 from app.schemas.student_analytics import (
+    StudentOverallAnalytics,
     StudentPaperDetail,
     StudentSessionSummary,
     StudentStandaloneDetail,
@@ -27,6 +28,14 @@ async def list_my_sessions(
     svc: StudentAnalyticsService = Depends(get_student_analytics_service),
 ) -> List[StudentSessionSummary]:
     return await svc.list_sessions(_me(claims))
+
+
+@router.get("/overall", response_model=StudentOverallAnalytics)
+async def my_overall_analytics(
+    claims: dict = Depends(get_current_claims),
+    svc: StudentAnalyticsService = Depends(get_student_analytics_service),
+) -> StudentOverallAnalytics:
+    return await svc.overall_analytics(_me(claims))
 
 
 @router.get("/standalone/{attempt_id}", response_model=StudentStandaloneDetail)

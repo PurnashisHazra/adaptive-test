@@ -162,3 +162,50 @@ class StudentPaperDetail(BaseModel):
     )
     sections: List[StudentPaperSectionReview]
     insights: StudentPerformanceInsights
+
+
+class StudentOverallFactor(BaseModel):
+    name: str
+    strength: float = Field(..., ge=0, le=100)
+    weakness: float = Field(..., ge=0, le=100)
+
+
+class StudentOverallDimension(BaseModel):
+    key: Literal["time", "difficulty", "knowledge"]
+    label: str
+    factors: List[StudentOverallFactor] = Field(default_factory=list, min_length=3, max_length=4)
+    overall_strength: float = Field(..., ge=0, le=100)
+    overall_weakness: float = Field(..., ge=0, le=100)
+
+
+class StudentOverallAxisView(BaseModel):
+    key: Literal["time_knowledge", "time_difficulty", "difficulty_knowledge"]
+    label: str
+    x_dimension: Literal["time", "difficulty", "knowledge"]
+    y_dimension: Literal["time", "difficulty", "knowledge"]
+    x_strength: float = Field(..., ge=0, le=100)
+    y_strength: float = Field(..., ge=0, le=100)
+
+
+class StudentOverallAttemptPoint(BaseModel):
+    attempt_id: str
+    label: str
+    time_strength: float = Field(..., ge=0, le=100)
+    difficulty_strength: float = Field(..., ge=0, le=100)
+    knowledge_strength: float = Field(..., ge=0, le=100)
+
+
+class StudentOverallDesiredState(BaseModel):
+    time_strength: float = Field(..., ge=0, le=100)
+    difficulty_strength: float = Field(..., ge=0, le=100)
+    knowledge_strength: float = Field(..., ge=0, le=100)
+
+
+class StudentOverallAnalytics(BaseModel):
+    attempts_considered: int = Field(..., ge=0)
+    questions_considered: int = Field(..., ge=0)
+    dimensions: List[StudentOverallDimension] = Field(default_factory=list)
+    axis_views: List[StudentOverallAxisView] = Field(default_factory=list)
+    attempt_points: List[StudentOverallAttemptPoint] = Field(default_factory=list)
+    desired_state: StudentOverallDesiredState
+    strategy_to_desired_state: List[str] = Field(default_factory=list)

@@ -302,6 +302,56 @@ export interface StudentSessionSummary {
   kind_label: string;
 }
 
+export type StudentOverallDimensionKey = "time" | "difficulty" | "knowledge";
+export type StudentOverallAxisViewKey = "time_knowledge" | "time_difficulty" | "difficulty_knowledge";
+
+export interface StudentOverallFactor {
+  name: string;
+  strength: number;
+  weakness: number;
+}
+
+export interface StudentOverallDimension {
+  key: StudentOverallDimensionKey;
+  label: string;
+  factors: StudentOverallFactor[];
+  overall_strength: number;
+  overall_weakness: number;
+}
+
+export interface StudentOverallAxisView {
+  key: StudentOverallAxisViewKey;
+  label: string;
+  x_dimension: StudentOverallDimensionKey;
+  y_dimension: StudentOverallDimensionKey;
+  x_strength: number;
+  y_strength: number;
+}
+
+export interface StudentOverallAttemptPoint {
+  attempt_id: string;
+  label: string;
+  time_strength: number;
+  difficulty_strength: number;
+  knowledge_strength: number;
+}
+
+export interface StudentOverallDesiredState {
+  time_strength: number;
+  difficulty_strength: number;
+  knowledge_strength: number;
+}
+
+export interface StudentOverallAnalytics {
+  attempts_considered: number;
+  questions_considered: number;
+  dimensions: StudentOverallDimension[];
+  axis_views: StudentOverallAxisView[];
+  attempt_points: StudentOverallAttemptPoint[];
+  desired_state: StudentOverallDesiredState;
+  strategy_to_desired_state: string[];
+}
+
 export type StudentInsightCapsuleKey = "missed_opportunity" | "wasted_time" | "skip_revisit";
 
 export interface StudentInsightCapsule {

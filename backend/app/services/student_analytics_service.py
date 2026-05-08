@@ -1,4 +1,5 @@
 from collections import defaultdict
+from math import sqrt
 from typing import Any, Dict, List, Optional, Tuple
 
 from bson import ObjectId
@@ -8,6 +9,12 @@ from app.repositories.attempt_repository import AttemptRepository
 from app.repositories.paper_repository import PaperRepository
 from app.repositories.question_repository import QuestionRepository
 from app.schemas.student_analytics import (
+    StudentOverallAnalytics,
+    StudentOverallAttemptPoint,
+    StudentOverallAxisView,
+    StudentOverallDesiredState,
+    StudentOverallDimension,
+    StudentOverallFactor,
     StudentInsightCapsule,
     StudentPaperDetail,
     StudentPerformanceInsights,
@@ -517,4 +524,267 @@ class StudentAnalyticsService:
             your_score_better_than_percent=better_pct,
             sections=sections_out,
             insights=self._build_performance_insights(all_reviews, ended_early=ended_early),
+        )
+
+    @staticmethod
+    def _clamp_pct(v: float) -> float:
+        return round(max(0.0, min(100.0, float(v))), 1)
+
+    async def overall_analytics(self, username: str) -> StudentOverallAnalytics:
+        rows = await self._attempts.list_recent(limit=1000, student_name=username.strip())
+        attempts = [a for a in rows if self._owns_test_attempt(a, username) and list(a.get("answers") or [])]
+        attempts_considered = len(attempts)
+
+        q_cache: Dict[str, Optional[Dict[str, Any]]] = {}
+        times: List[int] = []
+        easy_c = easy_t = 0
+        hard_c = hard_t = 0
+        medhard_c = medhard_t = 0
+        correct = total = 0
+        unique_topics: set[str] = set()
+        unique_subjects: set[str] = set()
+        wasted = 0
+        wrong = 0
+        completed_like = 0
+        hard_times: List[int] = []
+        attempt_points: List[StudentOverallAttemptPoint] = []
+
+        for att in attempts:
+            status = str(att.get("status", "")).strip().lower()
+            if status in {"completed", "ended_early"}:
+                completed_like += 1
+            answers = list(att.get("answers") or [])
+            local_times = [int(a.get("time_spent_seconds")) for a in answers if a.get("time_spent_seconds") is not None]
+            local_avg = (sum(local_times) / len(local_times)) if local_times else None
+            local_long = max(local_avg * 1.35, local_avg + 20.0) if local_avg is not None else None
+            local_total = 0
+            local_correct = 0
+            local_hard_total = 0
+            local_hard_correct = 0
+
+            for a in answers:
+                total += 1
+                local_total += 1
+                ok = bool(a.get("is_correct"))
+                if ok:
+                    correct += 1
+                    local_correct += 1
+                else:
+                    wrong += 1
+
+                diff = str(a.get("difficulty_when_served", "MEDIUM")).upper()
+                if diff == "EASY":
+                    easy_t += 1
+                    if ok:
+                        easy_c += 1
+                if diff in {"HARD", "EXPERT"}:
+                    hard_t += 1
+                    local_hard_total += 1
+                    if ok:
+                        hard_c += 1
+                        local_hard_correct += 1
+                if diff in {"MEDIUM", "HARD", "EXPERT"}:
+                    medhard_t += 1
+                    if ok:
+                        medhard_c += 1
+
+                spent_raw = a.get("time_spent_seconds")
+                if spent_raw is not None and isinstance(spent_raw, (int, float)) and int(spent_raw) >= 0:
+                    spent = int(spent_raw)
+                    times.append(spent)
+                    if diff in {"HARD", "EXPERT"}:
+                        hard_times.append(spent)
+                    if (not ok) and local_long is not None and spent >= local_long:
+                        wasted += 1
+
+                qid = str(a.get("question_id", "") or "")
+                if qid:
+                    if qid not in q_cache:
+                        q_cache[qid] = await self._questions.get_by_id(qid)
+                    qd = q_cache.get(qid) or {}
+                    topic = str(qd.get("topic", "")).strip()
+                    subject = str(qd.get("subject", "")).strip()
+                    if topic:
+                        unique_topics.add(topic.lower())
+                    if subject:
+                        unique_subjects.add(subject.lower())
+
+            local_acc = (local_correct / max(1, local_total)) * 100.0
+            local_hard_acc = (
+                (local_hard_correct / local_hard_total) * 100.0 if local_hard_total > 0 else local_acc
+            )
+            local_avg_time = local_avg if local_avg is not None else 45.0
+            local_time_strength = self._clamp_pct(100.0 - ((local_avg_time - 35.0) / 90.0) * 100.0)
+            local_diff_strength = self._clamp_pct((0.65 * local_hard_acc) + (0.35 * local_acc))
+            local_know_strength = self._clamp_pct(local_acc)
+            label = str(att.get("started_at", ""))[:10] or f"Attempt {oid_str(att['_id'])[:6]}"
+            attempt_points.append(
+                StudentOverallAttemptPoint(
+                    attempt_id=oid_str(att["_id"]),
+                    label=label,
+                    time_strength=local_time_strength,
+                    difficulty_strength=local_diff_strength,
+                    knowledge_strength=local_know_strength,
+                )
+            )
+
+        questions_considered = total
+        avg_time = (sum(times) / len(times)) if times else 0.0
+        if len(times) >= 2 and avg_time > 0:
+            variance = sum((t - avg_time) ** 2 for t in times) / len(times)
+            cv = sqrt(variance) / avg_time
+        else:
+            cv = 0.0
+
+        overall_acc = (correct / total * 100.0) if total else 0.0
+        easy_acc = (easy_c / easy_t * 100.0) if easy_t else overall_acc
+        hard_acc = (hard_c / hard_t * 100.0) if hard_t else overall_acc
+        medhard_acc = (medhard_c / medhard_t * 100.0) if medhard_t else overall_acc
+        wasted_ratio = (wasted / max(1, total)) * 100.0
+        wrong_ratio = (wrong / max(1, total)) * 100.0
+        completion_ratio = (completed_like / max(1, attempts_considered)) * 100.0
+        hard_avg_time = (sum(hard_times) / len(hard_times)) if hard_times else avg_time
+
+        time_factors = [
+            StudentOverallFactor(
+                name="Speed",
+                strength=self._clamp_pct(100.0 - ((avg_time - 35.0) / 90.0) * 100.0),
+                weakness=self._clamp_pct(((avg_time - 35.0) / 90.0) * 100.0),
+            ),
+            StudentOverallFactor(
+                name="Pace consistency",
+                strength=self._clamp_pct(100.0 - cv * 100.0),
+                weakness=self._clamp_pct(cv * 100.0),
+            ),
+            StudentOverallFactor(
+                name="Overthinking control",
+                strength=self._clamp_pct(100.0 - wasted_ratio),
+                weakness=self._clamp_pct(wasted_ratio),
+            ),
+            StudentOverallFactor(
+                name="Completion discipline",
+                strength=self._clamp_pct(completion_ratio),
+                weakness=self._clamp_pct(100.0 - completion_ratio),
+            ),
+        ]
+
+        difficulty_factors = [
+            StudentOverallFactor(
+                name="Hard accuracy",
+                strength=self._clamp_pct(hard_acc),
+                weakness=self._clamp_pct(100.0 - hard_acc),
+            ),
+            StudentOverallFactor(
+                name="Medium+ transition",
+                strength=self._clamp_pct(medhard_acc),
+                weakness=self._clamp_pct(100.0 - medhard_acc),
+            ),
+            StudentOverallFactor(
+                name="Hard-time efficiency",
+                strength=self._clamp_pct(100.0 - ((hard_avg_time - 45.0) / 110.0) * 100.0),
+                weakness=self._clamp_pct(((hard_avg_time - 45.0) / 110.0) * 100.0),
+            ),
+            StudentOverallFactor(
+                name="Easy conversion",
+                strength=self._clamp_pct(easy_acc),
+                weakness=self._clamp_pct(100.0 - easy_acc),
+            ),
+        ]
+
+        breadth_score = self._clamp_pct((min(6, len(unique_topics)) / 6.0) * 100.0)
+        subject_score = self._clamp_pct((min(4, len(unique_subjects)) / 4.0) * 100.0)
+        knowledge_factors = [
+            StudentOverallFactor(
+                name="Overall accuracy",
+                strength=self._clamp_pct(overall_acc),
+                weakness=self._clamp_pct(100.0 - overall_acc),
+            ),
+            StudentOverallFactor(
+                name="Topic breadth",
+                strength=breadth_score,
+                weakness=self._clamp_pct(100.0 - breadth_score),
+            ),
+            StudentOverallFactor(
+                name="Subject coverage",
+                strength=subject_score,
+                weakness=self._clamp_pct(100.0 - subject_score),
+            ),
+            StudentOverallFactor(
+                name="Error control",
+                strength=self._clamp_pct(100.0 - wrong_ratio),
+                weakness=self._clamp_pct(wrong_ratio),
+            ),
+        ]
+
+        def dim(key: str, label: str, factors: List[StudentOverallFactor]) -> StudentOverallDimension:
+            s = sum(f.strength for f in factors) / max(1, len(factors))
+            w = sum(f.weakness for f in factors) / max(1, len(factors))
+            return StudentOverallDimension(
+                key=key,  # type: ignore[arg-type]
+                label=label,
+                factors=factors,
+                overall_strength=self._clamp_pct(s),
+                overall_weakness=self._clamp_pct(w),
+            )
+
+        time_dim = dim("time", "Time management", time_factors)
+        diff_dim = dim("difficulty", "Difficulty handling", difficulty_factors)
+        know_dim = dim("knowledge", "Knowledge quality", knowledge_factors)
+        desired = StudentOverallDesiredState(
+            time_strength=self._clamp_pct(min(92.0, time_dim.overall_strength + 15.0)),
+            difficulty_strength=self._clamp_pct(min(92.0, diff_dim.overall_strength + 15.0)),
+            knowledge_strength=self._clamp_pct(min(92.0, know_dim.overall_strength + 15.0)),
+        )
+
+        gaps = [
+            ("time", desired.time_strength - time_dim.overall_strength),
+            ("difficulty", desired.difficulty_strength - diff_dim.overall_strength),
+            ("knowledge", desired.knowledge_strength - know_dim.overall_strength),
+        ]
+        gaps.sort(key=lambda x: x[1], reverse=True)
+        strategy: List[str] = []
+        for key, _ in gaps:
+            if key == "time":
+                strategy.append("Adopt a two-pass time cap: skip after one full read if no solving path appears within your normal pace.")
+            elif key == "difficulty":
+                strategy.append("Increase medium-to-hard conversion with daily mixed-difficulty sets and post-test error review on hard questions.")
+            else:
+                strategy.append("Raise knowledge depth using topic-focused revision blocks and active recall of frequently missed concepts.")
+        strategy.append("Track weekly trend on this 3D map and target +5 points per axis every revision cycle.")
+
+        axis_views = [
+            StudentOverallAxisView(
+                key="time_knowledge",
+                label="Time vs Knowledge",
+                x_dimension="time",
+                y_dimension="knowledge",
+                x_strength=time_dim.overall_strength,
+                y_strength=know_dim.overall_strength,
+            ),
+            StudentOverallAxisView(
+                key="time_difficulty",
+                label="Time vs Difficulty",
+                x_dimension="time",
+                y_dimension="difficulty",
+                x_strength=time_dim.overall_strength,
+                y_strength=diff_dim.overall_strength,
+            ),
+            StudentOverallAxisView(
+                key="difficulty_knowledge",
+                label="Difficulty vs Knowledge",
+                x_dimension="difficulty",
+                y_dimension="knowledge",
+                x_strength=diff_dim.overall_strength,
+                y_strength=know_dim.overall_strength,
+            ),
+        ]
+
+        return StudentOverallAnalytics(
+            attempts_considered=attempts_considered,
+            questions_considered=questions_considered,
+            dimensions=[time_dim, diff_dim, know_dim],
+            axis_views=axis_views,
+            attempt_points=attempt_points[:20],
+            desired_state=desired,
+            strategy_to_desired_state=strategy[:4],
         )

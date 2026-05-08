@@ -134,11 +134,11 @@ class AnalyticsService:
             for i, ans in enumerate(answers, start=1):
                 qid = str(ans.get("question_id", ""))
                 qdoc = await self._questions.get_by_id(qid) if qid else None
-                qtext = (qdoc or {}).get("question_text", "") or ""
+                qtext = str((qdoc or {}).get("question_text", "") or "").strip()
                 if len(qtext) > 280:
                     qtext = qtext[:277] + "…"
                 if not qtext:
-                    qtext = f"(question {qid})"
+                    qtext = "Question text unavailable"
                 steps.append(
                     AttemptQuestionStep(
                         sequence=i,
