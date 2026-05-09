@@ -150,6 +150,33 @@ body {
   padding-top: 1rem;
 }
 
+.products-hero-layout {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+.hero-screen-3d {
+  margin: 0;
+  justify-self: end;
+  width: min(500px, 44vw);
+  border-radius: 1rem;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  transform: perspective(1200px) rotateY(-26deg) rotateX(10deg) rotateZ(-2deg);
+  transform-origin: right center;
+  box-shadow:
+    0 30px 55px rgba(2, 6, 23, 0.58),
+    -18px 0 30px rgba(37, 99, 235, 0.12);
+}
+
+.hero-screen-3d img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .chart-layout {
   display: grid;
   grid-template-columns: 1.1fr 1fr;
@@ -858,6 +885,16 @@ footer p {
 
   .chart-layout {
     grid-template-columns: 1fr;
+  }
+
+  .products-hero-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-screen-3d {
+    justify-self: center;
+    width: min(92vw, 460px);
+    transform: perspective(1100px) rotateY(-10deg) rotateX(6deg);
   }
 
   .spider-chart-wrap {

@@ -41,6 +41,9 @@ export function StudentHistoryPage() {
       <p style={{ marginTop: "0.5rem" }}>
         <Link to="/review">Question-by-question answer review</Link> (time spent, explanations, right/wrong)
       </p>
+      <p style={{ marginTop: "0.35rem" }}>
+        <Link to="/review?type=paper">Paper-wise summary</Link> (paper attempts, section-wise review, strategy insights)
+      </p>
 
       {loading ? (
         <p style={{ marginTop: "1.5rem", color: "var(--muted)" }}>Loading…</p>
@@ -64,7 +67,7 @@ export function StudentHistoryPage() {
               <div style={{ fontSize: "1.75rem", fontWeight: 700 }}>{data.best_percentage}%</div>
             </div>
           </div>
-          <h3>Recent attempts</h3>
+          <h3>All attempts</h3>
           <div className="table-wrap" style={{ marginTop: "0.75rem" }}>
             <table className="data">
               <thead>

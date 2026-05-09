@@ -1,14 +1,23 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { getMyOverallAnalytics, listMyAnalyticsSessions } from "../api/client";
 import { StudentOverall3DSpider } from "../components/StudentOverall3DSpider";
 import type { StudentOverallAnalytics, StudentSessionSummary } from "../api/types";
 
 export function StudentReviewListPage() {
+  const [searchParams] = useSearchParams();
   const [items, setItems] = useState<StudentSessionSummary[]>([]);
   const [overall, setOverall] = useState<StudentOverallAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
+  const filter = searchParams.get("type");
+
+  const filteredItems = useMemo(() => {
+    if (filter === "paper" || filter === "standalone") {
+      return items.filter((s) => s.session_type === filter);
+    }
+    return items;
+  }, [items, filter]);
 
   useEffect(() => {
     Promise.all([listMyAnalyticsSessions(), getMyOverallAnalytics()])
@@ -33,13 +42,19 @@ export function StudentReviewListPage() {
 
       {loading ? (
         <p style={{ marginTop: "1.5rem", color: "var(--muted)" }}>Loading…</p>
-      ) : items.length === 0 ? (
+      ) : filteredItems.length === 0 ? (
         <div className="card" style={{ marginTop: "1.5rem" }}>
-          <p style={{ margin: 0, color: "var(--muted)" }}>No tests or papers yet. Complete a session to review it here.</p>
+          <p style={{ margin: 0, color: "var(--muted)" }}>
+            {filter === "paper"
+              ? "No paper attempts yet. Complete a paper to review it here."
+              : filter === "standalone"
+              ? "No standalone attempts yet. Complete a standalone test to review it here."
+              : "No tests or papers yet. Complete a session to review it here."}
+          </p>
         </div>
       ) : (
         <ul className="review-snapshot-grid" style={{ listStyle: "none", padding: 0, marginTop: "1.25rem" }}>
-          {items.map((s) => (
+          {filteredItems.map((s) => (
             <li key={`${s.session_type}-${s.id}`}>
               <Link
                 to={`/review/${s.session_type}/${encodeURIComponent(s.id)}`}

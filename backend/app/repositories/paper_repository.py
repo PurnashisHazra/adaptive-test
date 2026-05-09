@@ -100,8 +100,14 @@ class PaperRepository:
     async def get_paper_attempt(self, paper_attempt_id: str) -> Optional[Dict[str, Any]]:
         return await self._attempts.find_one({"_id": ObjectId(paper_attempt_id)})
 
-    async def list_paper_attempts_for_student(self, student_username: str, limit: int = 100) -> List[Dict[str, Any]]:
-        cur = self._attempts.find({"student_username": student_username.strip()}).sort("started_at", -1).limit(limit)
+    async def list_paper_attempts_for_student(
+        self,
+        student_username: str,
+        limit: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        cur = self._attempts.find({"student_username": student_username.strip()}).sort("started_at", -1)
+        if limit is not None:
+            cur = cur.limit(limit)
         return [d async for d in cur]
 
     async def find_paper_attempt(self, paper_id: str, student_username: str) -> Optional[Dict[str, Any]]:

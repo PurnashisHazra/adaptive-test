@@ -48,5 +48,5 @@ class StudentHistoryService:
             average_score=round(avg_score, 2),
             best_score=float(best_score),
             best_percentage=round(best_pct, 2),
-            recent_attempts=items[:20],
+            recent_attempts=items,
         )

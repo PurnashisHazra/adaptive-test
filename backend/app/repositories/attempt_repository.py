@@ -51,7 +51,7 @@ class AttemptRepository:
         self,
         student_name: str,
         *,
-        limit: int = 100,
+        limit: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """Test attempts not tied to a question paper (no paper_attempt_id)."""
         sn = student_name.strip()
@@ -64,7 +64,9 @@ class AttemptRepository:
                 {"paper_attempt_id": ""},
             ],
         }
-        cursor = self._col.find(filt).sort("started_at", -1).limit(limit)
+        cursor = self._col.find(filt).sort("started_at", -1)
+        if limit is not None:
+            cursor = cursor.limit(limit)
         return [d async for d in cursor]
 
     async def count(self, filt: Optional[Dict[str, Any]] = None) -> int:
@@ -83,7 +85,6 @@ class AttemptRepository:
                 }
             )
             .sort("started_at", -1)
-            .limit(200)
         )
         return [d async for d in cursor]
 
