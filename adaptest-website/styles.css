@@ -205,9 +205,323 @@ body {
   padding: 0.8rem 1rem 1rem;
 }
 
+.journey-roadmap {
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.journey-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0.2rem 0 0.4rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.75rem;
+}
+
+.journey-step {
+  position: relative;
+  flex: 1 1 200px;
+  min-width: 0;
+  opacity: 0;
+  transform: translateY(14px);
+  animation: journeyStepIn 0.7s ease forwards;
+}
+
+.journey-step:not(:last-child)::after {
+  content: "→";
+  position: absolute;
+  right: -0.55rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(147, 197, 253, 0.7);
+  font-weight: 700;
+  z-index: 2;
+}
+
+.journey-step:nth-child(1) {
+  animation-delay: 0.05s;
+}
+
+.journey-step:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.journey-step:nth-child(3) {
+  animation-delay: 0.25s;
+}
+
+.journey-step:nth-child(4) {
+  animation-delay: 0.35s;
+}
+
+.journey-step:nth-child(5) {
+  animation-delay: 0.45s;
+}
+
+.journey-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  align-items: flex-start;
+  min-height: 100%;
+  padding: 0.95rem;
+}
+
+.journey-step__head {
+  margin-bottom: 0.2rem;
+}
+
+.journey-step__index {
+  margin: 0 0 0.2rem;
+  color: #93c5fd;
+  font-size: 0.78rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.journey-card p {
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.journey-step-image {
+  width: 100%;
+  max-width: 220px;
+  height: auto;
+  border-radius: 0.62rem;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.09);
+}
+
+.journey-visual {
+  justify-self: start;
+  width: 100%;
+  max-width: 160px;
+  height: 64px;
+  border-radius: 0.62rem;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.88) 0%, rgba(11, 18, 32, 0.88) 100%);
+  padding: 0.52rem;
+  display: grid;
+  gap: 0.34rem;
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.09);
+}
+
+.journey-visual span {
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.3);
+}
+
+.journey-visual--compose span {
+  height: 9px;
+  transform-origin: left center;
+  animation: composePulse 2.8s ease-in-out infinite;
+}
+
+.journey-visual--compose span:nth-child(1) {
+  width: 100%;
+}
+
+.journey-visual--compose span:nth-child(2) {
+  width: 82%;
+  animation-delay: 0.2s;
+}
+
+.journey-visual--compose span:nth-child(3) {
+  width: 64%;
+  animation-delay: 0.4s;
+}
+
+.journey-visual--assign {
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+}
+
+.journey-visual--assign span {
+  border-radius: 0.45rem;
+  animation: assignBlink 2.6s ease-in-out infinite;
+}
+
+.journey-visual--assign span:nth-child(2) {
+  animation-delay: 0.22s;
+}
+
+.journey-visual--assign span:nth-child(3) {
+  animation-delay: 0.44s;
+}
+
+.journey-visual--adaptive {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.journey-visual--adaptive span {
+  width: 22%;
+  border-radius: 0.5rem 0.5rem 0.2rem 0.2rem;
+  animation: adaptiveBars 2.2s ease-in-out infinite;
+}
+
+.journey-visual--adaptive span:nth-child(1) {
+  height: 30%;
+}
+
+.journey-visual--adaptive span:nth-child(2) {
+  height: 48%;
+  animation-delay: 0.15s;
+}
+
+.journey-visual--adaptive span:nth-child(3) {
+  height: 66%;
+  animation-delay: 0.3s;
+}
+
+.journey-visual--adaptive span:nth-child(4) {
+  height: 84%;
+  animation-delay: 0.45s;
+}
+
+.journey-visual--analytics {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.journey-visual--analytics span {
+  width: 19%;
+  border-radius: 0.38rem 0.38rem 0.1rem 0.1rem;
+  animation: analyticsBars 2.5s ease-in-out infinite;
+}
+
+.journey-visual--analytics span:nth-child(1) {
+  height: 34%;
+}
+
+.journey-visual--analytics span:nth-child(2) {
+  height: 58%;
+  animation-delay: 0.18s;
+}
+
+.journey-visual--analytics span:nth-child(3) {
+  height: 74%;
+  animation-delay: 0.36s;
+}
+
+.journey-visual--analytics span:nth-child(4) {
+  height: 52%;
+  animation-delay: 0.54s;
+}
+
+.journey-visual--strategy {
+  position: relative;
+  place-items: center;
+}
+
+.journey-visual--strategy span {
+  width: 100%;
+  height: 100%;
+  border-radius: 0.6rem;
+}
+
+.journey-visual--strategy span:nth-child(1) {
+  border: 2px solid rgba(96, 165, 250, 0.28);
+  background: transparent;
+}
+
+.journey-visual--strategy span:nth-child(2) {
+  position: absolute;
+  width: 54%;
+  height: 54%;
+  border: 2px solid rgba(96, 165, 250, 0.46);
+  background: transparent;
+}
+
+.journey-visual--strategy span:nth-child(3) {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: #60a5fa;
+  box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.7);
+  animation: strategyPing 2.1s ease-in-out infinite;
+}
+
+@keyframes journeyStepIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes composePulse {
+  0%,
+  100% {
+    background: rgba(148, 163, 184, 0.3);
+    transform: scaleX(0.94);
+  }
+  45% {
+    background: rgba(96, 165, 250, 0.78);
+    transform: scaleX(1);
+  }
+}
+
+@keyframes assignBlink {
+  0%,
+  100% {
+    background: rgba(148, 163, 184, 0.28);
+  }
+  50% {
+    background: rgba(37, 99, 235, 0.72);
+  }
+}
+
+@keyframes adaptiveBars {
+  0%,
+  100% {
+    background: rgba(148, 163, 184, 0.3);
+    transform: translateY(0);
+  }
+  50% {
+    background: rgba(37, 99, 235, 0.76);
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes analyticsBars {
+  0%,
+  100% {
+    background: rgba(148, 163, 184, 0.3);
+  }
+  45% {
+    background: rgba(59, 130, 246, 0.8);
+  }
+}
+
+@keyframes strategyPing {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.55);
+  }
+  60% {
+    transform: scale(1.2);
+    box-shadow: 0 0 0 8px rgba(96, 165, 250, 0);
+  }
+}
+
 @media (max-width: 1100px) {
   .snapshot-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .journey-step {
+    flex-basis: calc(50% - 0.38rem);
+  }
+
+  .journey-visual {
+    justify-self: start;
   }
 }
 
@@ -559,5 +873,22 @@ footer p {
 
   .snapshot-grid {
     grid-template-columns: 1fr;
+  }
+
+  .journey-step {
+    flex-basis: 100%;
+  }
+
+  .journey-step:not(:last-child)::after {
+    content: "";
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .journey-step,
+  .journey-visual span {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
   }
 }

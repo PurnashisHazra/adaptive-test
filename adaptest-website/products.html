@@ -20,9 +20,9 @@
   <body>
     <div class="tech-grid" aria-hidden="true"></div>
     <nav class="floating-tabs visible" aria-label="Quick navigation">
-      <a class="tab-link active" href="/products.html">Products</a>
-      <a class="tab-link" href="/#contact">Book a Demo</a>
-      <a class="tab-link" href="/#testimonials">Testimonials</a>
+      <a class="tab-link active" href="#modules">Modules</a>
+      <a class="tab-link" href="#journey-roadmap">Customer Journey</a>
+      <a class="tab-link" href="#testimonials">Testimonials</a>
     </nav>
 
     <header class="hero">
@@ -38,7 +38,7 @@
     </header>
 
     <main>
-      <section class="section products-showcase">
+      <section class="section products-showcase" id="modules">
         <div class="container">
           <h2>Core product modules</h2>
           <div class="grid grid-3">
@@ -46,7 +46,7 @@
               <h3>Adaptive Test Engine</h3>
               <p>
                 Dynamic question progression that adapts difficulty levels using learner
-                behavior and correctness trends.
+                behavior and correctness trends. Fully customizable to meet your needs.
               </p>
             </article>
             <article class="card">
@@ -67,49 +67,127 @@
         </div>
       </section>
 
-      <section class="section">
+      <section class="section section-accent journey-roadmap" id="journey-roadmap">
         <div class="container">
-          <h2>Product snapshots</h2>
+          <h2>Customer journey roadmap</h2>
           <p class="section-subtitle">
-            Real interface preview from AdapTest's personalized analysis module.
+            A simple view of how admins and students move through the AdapTest workflow.
           </p>
-          <div class="snapshot-grid">
-            <figure class="snapshot-card">
-              <img
-                src="/snapshots/personalized-analysis.png"
-                alt="AdapTest personalized analysis snapshot"
-                loading="lazy"
-              />
-              <figcaption>
-                Personalized insights and exam strategy recommendations generated after
-                each test attempt.
-              </figcaption>
-            </figure>
-            <figure class="snapshot-card">
-              <img
-                src="/snapshots/performance-analytics.png"
-                alt="AdapTest performance analytics timeline snapshot"
-                loading="lazy"
-              />
-              <figcaption>
-                Performance analytics timeline showing difficulty progression, response
-                behavior, and time-based attempt patterns.
-              </figcaption>
-            </figure>
-            <figure class="snapshot-card">
-              <img
-                src="/snapshots/learning-surface-analytics.png"
-                alt="AdapTest learning surface analytics visualization snapshot"
-                loading="lazy"
-              />
-              <figcaption>
-                3D learning-surface visualization mapping time management, knowledge
-                quality, and difficulty handling on a 0-100 performance scale.
-              </figcaption>
-            </figure>
+          <ol class="journey-steps">
+            <li class="journey-step">
+              <article class="card journey-card">
+                <div class="journey-step__head">
+                  <p class="journey-step__index">Step 1</p>
+                  <h3>Admin adds or generates questions</h3>
+                </div>
+                <p>
+                  Faculty can manually add questions, or use AI-assisted generation to build
+                  quality question banks faster.
+                </p>
+                <img
+                  class="journey-step-image"
+                  src="/snapshots/admin-add-question-flow.png"
+                  alt="Admin add question options: AI-add question and add question"
+                  loading="lazy"
+                />
+                <img
+                  class="journey-step-image"
+                  src="/snapshots/admin-open-question-bank.png"
+                  alt="Open question bank action in admin workflow"
+                  loading="lazy"
+                />
+              </article>
+            </li>
+            
+            <li class="journey-step">
+              <article class="card journey-card">
+                <div class="journey-step__head">
+                  <p class="journey-step__index">Step 2</p>
+                  <h3>Student takes an adaptive test</h3>
+                </div>
+                <p>
+                  Difficulty automatically adjusts with each response so every student gets a
+                  path aligned to current performance.
+                </p>
+                <img
+                  class="journey-step-image"
+                  src="/snapshots/student-adaptive-test-flow.png"
+                  alt="Student adaptive test interface showing test flow controls"
+                  loading="lazy"
+                />
+              </article>
+            </li>
+            <li class="journey-step">
+              <article class="card journey-card">
+                <div class="journey-step__head">
+                  <p class="journey-step__index">Step 4</p>
+                  <h3>Student reviews detailed analytics</h3>
+                </div>
+                <p>
+                  Students and mentors get breakdowns by topic, speed, accuracy, and attempt
+                  behavior to understand performance.
+                </p>
+                <img
+                  class="journey-step-image"
+                  src="/snapshots/student-analytics-radar.png"
+                  alt="Student analytics radar showing strengths and weaknesses"
+                  loading="lazy"
+                />
+              </article>
+            </li>
+            <li class="journey-step">
+              <article class="card journey-card">
+                <div class="journey-step__head">
+                  <p class="journey-step__index">Step 5</p>
+                  <h3>Student gets score-maximizing strategy</h3>
+                </div>
+                <p>
+                  The platform turns insights into exact actions so learners know what to
+                  practice, what to skip, and how to maximize score.
+                </p>
+                <img
+                  class="journey-step-image"
+                  src="/snapshots/student-max-score-strategy.png"
+                  alt="Personalized strategy recommendations to maximize student score"
+                  loading="lazy"
+                />
+              </article>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="section" id="testimonials">
+        <div class="container">
+          <h2>Testimonials from current partners</h2>
+          <p class="section-subtitle">
+            Feedback from institutions actively running assessments on AdapTest.
+          </p>
+          <div class="grid grid-3">
+            <article class="card testimonial">
+              <p>
+                "The adaptive flow helped us reduce drop-off and gave our team
+                clear signals on concept gaps of student"
+              </p>
+              <cite>— Program Lead, Mentora Academy</cite>
+            </article>
+            <article class="card testimonial">
+              <p>
+                "Students love exam strategy pointers. They know exactly what to target - time, knowledge or accuracy"
+              </p>
+              <cite>— Founder, EMGC Mumbai</cite>
+            </article>
+            <article class="card testimonial">
+              <p>
+                "We saw measurable score
+                improvement after two adaptive test cycles."
+              </p>
+              <cite>— Founder, BrightPath Test Prep</cite>
+            </article>
           </div>
         </div>
       </section>
+
     </main>
 
     <footer id="contact">
@@ -120,7 +198,7 @@
         </div>
         <div>
           <p class="footer-title">Contact</p>
-          <p>Email: partha.hazra000@gmail.com</p>
+          <p>Email: parthahazra000@gmail.com</p>
           <p>Phone: +91 9529624854</p>
           <p>Address: Mumbai, India</p>
         </div>
