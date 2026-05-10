@@ -114,6 +114,8 @@ docker compose up --build
 
 API on port **8000**. Run the frontend locally with `npm run dev` and set `CORS_ORIGINS` to match your origin.
 
+**HTTPS in production:** use a reverse proxy (nginx or Caddy) to terminate TLS, serve `frontend/dist`, and proxy `/api` to the API on `127.0.0.1:8000` when running without Docker. See `deploy/SSL.md` and `deploy/nginx.host.conf.example`. For Docker, see `deploy/nginx.prod.conf.example` and `deploy/docker-compose.ssl.yml`.
+
 ---
 
 ## Environment variables

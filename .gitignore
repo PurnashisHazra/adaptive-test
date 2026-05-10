@@ -52,3 +52,7 @@ temp/
 
 # Optional local tooling
 *.local
+
+# Production nginx configs (copies with real domains; keep out of git)
+deploy/nginx.prod.conf
+deploy/nginx.host.conf
