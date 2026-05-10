@@ -141,20 +141,100 @@ export async function importQuestionsCsv(file: File) {
   return data;
 }
 
-export async function previewPdfQuestions(file: File, subject: string, topic: string) {
+export type PdfPreviewProgress = {
+  /** 0–100 while bytes are uploading; `null` once the server is parsing the PDF. */
+  uploadPercent: number | null;
+};
+
+export async function previewPdfQuestions(
+  file: File,
+  subject: string,
+  topic: string,
+  options?: {
+    onProgress?: (p: PdfPreviewProgress) => void;
+    signal?: AbortSignal;
+  },
+) {
   const fd = new FormData();
   fd.append("file", file);
   fd.append("subject", subject || "General");
   fd.append("topic", topic || "General");
   const { data } = await api.post<PdfImportPreviewResponse>("/questions/import/pdf/preview", fd, {
     headers: { "Content-Type": "multipart/form-data" },
+    timeout: 600_000,
+    signal: options?.signal,
+    onUploadProgress: (evt) => {
+      if (evt.total && options?.onProgress) {
+        options.onProgress({ uploadPercent: Math.round((evt.loaded / evt.total) * 100) });
+      }
+    },
   });
   return data;
 }
 
-export async function commitPdfQuestions(questions: PdfImportPreviewItem[]) {
-  const { data } = await api.post<BulkImportResult>("/questions/import/pdf/commit", { questions });
+export async function commitPdfQuestions(
+  questions: PdfImportPreviewItem[],
+  options?: { timeout?: number; signal?: AbortSignal },
+) {
+  const { data } = await api.post<BulkImportResult>(
+    "/questions/import/pdf/commit",
+    { questions },
+    { timeout: options?.timeout ?? 180_000, signal: options?.signal },
+  );
   return data;
+}
+
+const DEFAULT_PDF_COMMIT_BATCH = 20;
+
+/** Commit many PDF draft rows in smaller HTTP requests to avoid timeouts and body-size limits. */
+export async function commitPdfQuestionsBatched(
+  questions: PdfImportPreviewItem[],
+  options?: {
+    batchSize?: number;
+    delayMsBetweenBatches?: number;
+    onProgress?: (p: { batchIndex: number; batchCount: number; percent: number; insertedSoFar: number; skippedSoFar: number }) => void;
+    signal?: AbortSignal;
+  },
+): Promise<BulkImportResult> {
+  const batchSize = Math.max(1, options?.batchSize ?? DEFAULT_PDF_COMMIT_BATCH);
+  const delayMs = options?.delayMsBetweenBatches ?? 100;
+  const total = questions.length;
+  if (total === 0) {
+    return { inserted: 0, skipped: 0, errors: [] };
+  }
+  const batchCount = Math.ceil(total / batchSize);
+  let inserted = 0;
+  let skipped = 0;
+  const errors: BulkImportResult["errors"] = [];
+
+  for (let b = 0, start = 0; start < total; b += 1, start += batchSize) {
+    const slice = questions.slice(start, start + batchSize);
+    options?.onProgress?.({
+      batchIndex: b,
+      batchCount,
+      percent: Math.round((start / total) * 100),
+      insertedSoFar: inserted,
+      skippedSoFar: skipped,
+    });
+    const r = await commitPdfQuestions(slice, { timeout: 240_000, signal: options?.signal });
+    inserted += r.inserted;
+    skipped += r.skipped;
+    const base = start;
+    for (const e of r.errors) {
+      errors.push({ ...e, row: base + e.row });
+    }
+    options?.onProgress?.({
+      batchIndex: b,
+      batchCount,
+      percent: Math.round((Math.min(start + slice.length, total) / total) * 100),
+      insertedSoFar: inserted,
+      skippedSoFar: skipped,
+    });
+    if (start + batchSize < total && delayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  return { inserted, skipped, errors };
 }
 
 export async function importQuestionsJson(file: File) {

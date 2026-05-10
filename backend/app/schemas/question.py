@@ -7,8 +7,8 @@ from app.models.domain import Difficulty, QuestionType
 
 
 class QuestionOption(BaseModel):
-    key: str
-    label: str
+    key: str = Field(..., min_length=1, max_length=64)
+    label: str = Field(..., max_length=8000)
 
 
 EXAM_TAGS: List[str] = ["CAT", "SSC", "BANK", "RAILWAY", "DEFENCE", "STATE", "OTHER"]
@@ -17,7 +17,7 @@ EXAM_TAGS: List[str] = ["CAT", "SSC", "BANK", "RAILWAY", "DEFENCE", "STATE", "OT
 class QuestionBase(BaseModel):
     question_text: str = Field(..., min_length=1)
     question_type: QuestionType
-    options: List[QuestionOption] = Field(default_factory=list)
+    options: List[QuestionOption] = Field(default_factory=list, max_length=40)
     correct_answer: str = Field(..., min_length=1)
     explanation: Optional[str] = None
     image_url: Optional[str] = Field(default=None, max_length=2048, description="Optional image URL (e.g. R2 public URL).")

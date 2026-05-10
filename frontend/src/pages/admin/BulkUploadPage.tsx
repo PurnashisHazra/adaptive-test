@@ -1,14 +1,16 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 import { AdminPanel } from "../../components/AdminPanel";
 import {
-  commitPdfQuestions,
+  commitPdfQuestionsBatched,
   importQuestionsCsv,
   importQuestionsJson,
   previewPdfQuestions,
 } from "../../api/client";
 import type { ExamTag, PdfImportPreviewItem, PdfImportPreviewResponse } from "../../api/types";
+
+const PDF_COMMIT_BATCH_SIZE = 20;
 
 const EXAM_TAGS: ExamTag[] = ["CAT", "SSC", "BANK", "RAILWAY", "DEFENCE", "STATE", "OTHER"];
 
@@ -39,6 +41,11 @@ export function BulkUploadPage() {
   const [pdfDrafts, setPdfDrafts] = useState<PdfImportPreviewItem[]>([]);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfCommitting, setPdfCommitting] = useState(false);
+  /** 0–100 upload; `null` while server parses (no byte progress). */
+  const [pdfUploadPercent, setPdfUploadPercent] = useState<number | null>(null);
+  const [pdfCommitPercent, setPdfCommitPercent] = useState(0);
+  const [pdfCommitLabel, setPdfCommitLabel] = useState("");
+  const previewAbortRef = useRef<AbortController | null>(null);
 
   const updateDraft = useCallback((index: number, patch: Partial<PdfImportPreviewItem>) => {
     setPdfDrafts((rows) => rows.map((r, i) => (i === index ? { ...r, ...patch } : r)));
@@ -68,10 +75,20 @@ export function BulkUploadPage() {
 
   async function onPdfPreview(file: File | null) {
     if (!file) return;
+    previewAbortRef.current?.abort();
+    const ac = new AbortController();
+    previewAbortRef.current = ac;
     setPdfLoading(true);
     setPdfMeta(null);
+    setPdfUploadPercent(null);
     try {
-      const res = await previewPdfQuestions(file, pdfSubject, pdfTopic);
+      const res = await previewPdfQuestions(file, pdfSubject, pdfTopic, {
+        signal: ac.signal,
+        onProgress: ({ uploadPercent }) => {
+          if (uploadPercent != null) setPdfUploadPercent(uploadPercent);
+        },
+      });
+      setPdfUploadPercent(100);
       setPdfMeta(res);
       setPdfDrafts(res.drafts.map((d) => ({ ...d, exam_tag: (d.exam_tag || "OTHER") as ExamTag })));
       if (res.drafts.length === 0) {
@@ -80,6 +97,12 @@ export function BulkUploadPage() {
         toast.success(`Extracted ${res.drafts.length} draft(s) — review and set correct answers`);
       }
     } catch (err: unknown) {
+      const canceled =
+        err &&
+        typeof err === "object" &&
+        (("code" in err && (err as { code?: string }).code === "ERR_CANCELED") ||
+          ("name" in err && (err as { name?: string }).name === "CanceledError"));
+      if (canceled) return;
       const msg =
         err && typeof err === "object" && "response" in err
           ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
@@ -87,6 +110,8 @@ export function BulkUploadPage() {
       toast.error(typeof msg === "string" ? msg : "PDF preview failed");
     } finally {
       setPdfLoading(false);
+      setPdfUploadPercent(null);
+      previewAbortRef.current = null;
     }
   }
 
@@ -96,10 +121,20 @@ export function BulkUploadPage() {
       return;
     }
     setPdfCommitting(true);
+    setPdfCommitPercent(0);
+    setPdfCommitLabel(`Saving in batches of ${PDF_COMMIT_BATCH_SIZE}…`);
     try {
-      const r = await commitPdfQuestions(pdfDrafts);
+      const r = await commitPdfQuestionsBatched(pdfDrafts, {
+        batchSize: PDF_COMMIT_BATCH_SIZE,
+        delayMsBetweenBatches: 120,
+        onProgress: ({ percent, batchIndex, batchCount, insertedSoFar, skippedSoFar }) => {
+          setPdfCommitPercent(percent);
+          setPdfCommitLabel(`Batch ${batchIndex + 1} / ${batchCount} · inserted ${insertedSoFar}, skipped ${skippedSoFar}`);
+        },
+      });
+      setPdfCommitPercent(100);
       setResult(r);
-      toast.success(`Inserted ${r.inserted}, skipped ${r.skipped}`);
+      toast.success(`Inserted ${r.inserted}, skipped ${r.skipped}${r.errors.length ? ` (${r.errors.length} row errors)` : ""}`);
       if (r.errors.length === 0) {
         setPdfDrafts([]);
         setPdfMeta(null);
@@ -112,6 +147,8 @@ export function BulkUploadPage() {
       toast.error(typeof msg === "string" ? msg : "Save failed");
     } finally {
       setPdfCommitting(false);
+      setPdfCommitPercent(0);
+      setPdfCommitLabel("");
     }
   }
 
@@ -147,8 +184,35 @@ export function BulkUploadPage() {
           </div>
         </div>
         <div style={{ marginTop: "0.75rem" }}>
-          <input type="file" accept=".pdf,application/pdf" disabled={pdfLoading} onChange={(e) => onPdfPreview(e.target.files?.[0] ?? null)} />
-          {pdfLoading ? <p style={{ marginTop: "0.5rem", color: "var(--muted)" }}>Reading PDF…</p> : null}
+          <input
+            type="file"
+            accept=".pdf,application/pdf"
+            disabled={pdfLoading}
+            onChange={(e) => {
+              const f = e.target.files?.[0] ?? null;
+              e.target.value = "";
+              void onPdfPreview(f);
+            }}
+          />
+          {pdfLoading ? (
+            <div style={{ marginTop: "0.65rem" }}>
+              <p style={{ margin: "0 0 0.35rem", color: "var(--muted)", fontSize: "0.9rem" }}>
+                {pdfUploadPercent != null && pdfUploadPercent < 100
+                  ? "Uploading PDF…"
+                  : "Server is extracting questions (this can take a few minutes for large files)…"}
+              </p>
+              {pdfUploadPercent != null ? (
+                <progress
+                  style={{ width: "100%", maxWidth: 480, height: 10 }}
+                  max={100}
+                  value={pdfUploadPercent}
+                  aria-label="PDF upload progress"
+                />
+              ) : (
+                <progress style={{ width: "100%", maxWidth: 480, height: 10 }} aria-label="PDF upload and processing" />
+              )}
+            </div>
+          ) : null}
         </div>
         {pdfMeta ? (
           <p style={{ marginTop: "0.75rem", fontSize: "0.85rem", color: "var(--muted)" }}>
@@ -175,6 +239,17 @@ export function BulkUploadPage() {
                 {pdfCommitting ? "Saving…" : "Save all to question bank"}
               </button>
             </div>
+            {pdfCommitting ? (
+              <div style={{ marginBottom: "0.85rem" }}>
+                <p style={{ margin: "0 0 0.35rem", fontSize: "0.85rem", color: "var(--muted)" }}>{pdfCommitLabel}</p>
+                <progress
+                  style={{ width: "100%", maxWidth: 480, height: 10 }}
+                  max={100}
+                  value={pdfCommitPercent}
+                  aria-label="Save progress"
+                />
+              </div>
+            ) : null}
             {pdfDrafts.map((d, idx) => (
               <div
                 key={idx}

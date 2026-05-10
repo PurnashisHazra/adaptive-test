@@ -33,14 +33,14 @@ def _normalize_exam_tags(tags: List[str]) -> List[str]:
 def normalize_correct_answer(question_type: QuestionType, correct_answer: str) -> str:
     """Normalize external inputs to the internal representation.
 
-    For `mcq_single`, the backend stores option keys as `a`/`b`/`c`/`d`.
-    We accept also `option_a`/`option_b`/`option_c`/`option_d` from CSV-like inputs.
+    For `mcq_single`, option keys are stored as provided (e.g. ``a``, ``e``, ``opt1``).
+    CSV-style ``option_<key>`` is accepted for any key suffix (e.g. ``option_e`` → ``e``).
     """
 
     ca = correct_answer.strip().lower()
     if question_type == QuestionType.MCQ_SINGLE and ca.startswith("option_"):
-        suffix = ca.split("_", 1)[-1]
-        if suffix in ("a", "b", "c", "d"):
+        suffix = ca.removeprefix("option_")
+        if suffix:
             return suffix
     return ca
 
@@ -71,7 +71,9 @@ def validate_question_payload(
         if len(set(keys)) != len(keys):
             raise QuestionValidationError("MCQ option keys must be unique")
         if ca not in keys:
-            raise QuestionValidationError("correct_answer must match an option key (a/b/c/d or option_a/option_b/option_c/option_d)")
+            raise QuestionValidationError(
+                "correct_answer must match one of the option keys (or CSV-style option_<key>, e.g. option_a)"
+            )
 
 
 def question_create_to_doc(data: QuestionCreate) -> Dict[str, Any]:

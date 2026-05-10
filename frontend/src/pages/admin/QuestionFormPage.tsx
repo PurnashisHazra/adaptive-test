@@ -7,12 +7,25 @@ import type { Difficulty, ExamTag, QuestionOption, QuestionType } from "../../ap
 
 const EXAM_TAGS: ExamTag[] = ["CAT", "SSC", "BANK", "RAILWAY", "DEFENCE", "STATE", "OTHER"];
 
+const MCQ_MAX_OPTIONS = 40;
+
 const defaultMcqOptions = (): QuestionOption[] => [
   { key: "a", label: "" },
   { key: "b", label: "" },
   { key: "c", label: "" },
   { key: "d", label: "" },
 ];
+
+function nextOptionKey(existing: QuestionOption[]): string {
+  const used = new Set(existing.map((o) => o.key.trim().toLowerCase()).filter(Boolean));
+  for (let code = 97; code <= 122; code += 1) {
+    const k = String.fromCharCode(code);
+    if (!used.has(k)) return k;
+  }
+  let n = 1;
+  while (used.has(`opt${n}`)) n += 1;
+  return `opt${n}`;
+}
 
 function applyQuestionTypeChange(next: QuestionType, setOptions: (o: QuestionOption[]) => void, setCorrectAnswer: (s: string) => void) {
   if (next === "true_false") {
@@ -212,11 +225,14 @@ export function QuestionFormPage() {
         {questionType === "mcq_single" && (
           <div style={{ marginTop: "1rem" }}>
             <label className="label">Options</label>
+            <p style={{ margin: "0 0 0.65rem", fontSize: "0.85rem", color: "var(--muted)" }}>
+              Add as many choices as you need (up to {MCQ_MAX_OPTIONS}). Each option needs a unique key (shown to grading) and a label (shown to students).
+            </p>
             {options.map((o, i) => (
-              <div key={i} style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
+              <div key={`${o.key}-${i}`} style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem", alignItems: "center" }}>
                 <input
                   className="input"
-                  style={{ maxWidth: 80 }}
+                  style={{ maxWidth: 100 }}
                   value={o.key}
                   onChange={(e) => {
                     const next = [...options];
@@ -227,6 +243,7 @@ export function QuestionFormPage() {
                 />
                 <input
                   className="input"
+                  style={{ flex: 1, minWidth: 0 }}
                   value={o.label}
                   onChange={(e) => {
                     const next = [...options];
@@ -235,8 +252,36 @@ export function QuestionFormPage() {
                   }}
                   placeholder="Label"
                 />
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  style={{ flexShrink: 0 }}
+                  disabled={options.length <= 2}
+                  onClick={() => {
+                    const removedKey = options[i]?.key.trim().toLowerCase();
+                    const next = options.filter((_, j) => j !== i);
+                    setOptions(next);
+                    if (removedKey && correctAnswer.trim().toLowerCase() === removedKey) {
+                      const firstKey = next.find((x) => x.key.trim())?.key.trim().toLowerCase() ?? "a";
+                      setCorrectAnswer(firstKey);
+                    }
+                  }}
+                >
+                  Remove
+                </button>
               </div>
             ))}
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ marginTop: "0.35rem" }}
+              disabled={options.length >= MCQ_MAX_OPTIONS}
+              onClick={() => {
+                setOptions((prev) => [...prev, { key: nextOptionKey(prev), label: "" }]);
+              }}
+            >
+              Add option
+            </button>
           </div>
         )}
         <div style={{ marginTop: "1rem" }}>
@@ -245,6 +290,27 @@ export function QuestionFormPage() {
           </label>
           {questionType === "tita" ? (
             <input className="input" value={correctAnswer} onChange={(e) => setCorrectAnswer(e.target.value)} required placeholder="e.g. 42 or Newton" />
+          ) : questionType === "mcq_single" ? (
+            <>
+              <input
+                className="input"
+                list="mcq-correct-answer-keys"
+                value={correctAnswer}
+                onChange={(e) => setCorrectAnswer(e.target.value)}
+                required
+                placeholder="Must match one option key (e.g. a, e, opt1)"
+              />
+              <datalist id="mcq-correct-answer-keys">
+                {options
+                  .filter((o) => o.key.trim())
+                  .map((o) => (
+                    <option key={o.key.trim().toLowerCase()} value={o.key.trim().toLowerCase()} />
+                  ))}
+              </datalist>
+              <p style={{ margin: "0.35rem 0 0", fontSize: "0.82rem", color: "var(--muted)" }}>
+                Keys are matched case-insensitively against your options above.
+              </p>
+            </>
           ) : (
             <input className="input" value={correctAnswer} onChange={(e) => setCorrectAnswer(e.target.value)} required />
           )}
