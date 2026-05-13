@@ -33,14 +33,14 @@ def _normalize_exam_tags(tags: List[str]) -> List[str]:
 def normalize_correct_answer(question_type: QuestionType, correct_answer: str) -> str:
     """Normalize external inputs to the internal representation.
 
-    For `mcq_single`, the backend stores option keys as `a`/`b`/`c`/`d`.
-    We accept also `option_a`/`option_b`/`option_c`/`option_d` from CSV-like inputs.
+    For `mcq_single`, option keys are stored as provided (e.g. ``a``, ``e``, ``opt1``).
+    CSV-style ``option_<key>`` is accepted for any key suffix (e.g. ``option_e`` → ``e``).
     """
 
     ca = correct_answer.strip().lower()
     if question_type == QuestionType.MCQ_SINGLE and ca.startswith("option_"):
-        suffix = ca.split("_", 1)[-1]
-        if suffix in ("a", "b", "c", "d"):
+        suffix = ca.removeprefix("option_")
+        if suffix:
             return suffix
     return ca
 
@@ -71,7 +71,9 @@ def validate_question_payload(
         if len(set(keys)) != len(keys):
             raise QuestionValidationError("MCQ option keys must be unique")
         if ca not in keys:
-            raise QuestionValidationError("correct_answer must match an option key (a/b/c/d or option_a/option_b/option_c/option_d)")
+            raise QuestionValidationError(
+                "correct_answer must match one of the option keys (or CSV-style option_<key>, e.g. option_a)"
+            )
 
 
 def question_create_to_doc(data: QuestionCreate) -> Dict[str, Any]:
@@ -242,6 +244,55 @@ class QuestionService:
         async for doc in self._repo.iter_all_docs():
             writer.writerow(self._raw_doc_to_csv_row(doc))
         return buf.getvalue().encode("utf-8-sig")
+
+    async def auto_assign_difficulty_with_ai(self, question_ids: List[str]) -> "AutoAssignDifficultyResponse":
+        """Set difficulty using OpenAI from question text and exam tags (batched)."""
+        from app.core.config import get_settings
+        from app.schemas.question import AutoAssignDifficultyResponse
+        from app.services.ai_question_generator import AIQuestionGenerator
+
+        settings = get_settings()
+        if not (settings.openai_api_key or "").strip():
+            return AutoAssignDifficultyResponse(
+                updated=0,
+                errors=["OpenAI API key is not configured (OPENAI_API_KEY)."],
+            )
+
+        gen = AIQuestionGenerator()
+        updated = 0
+        errors: List[str] = []
+        batch_size = 6
+
+        for i in range(0, len(question_ids), batch_size):
+            chunk_ids = question_ids[i : i + batch_size]
+            docs: List[Dict[str, Any]] = []
+            for qid in chunk_ids:
+                doc = await self._repo.get_by_id(qid)
+                if not doc:
+                    errors.append(f"{qid}: not found")
+                    continue
+                docs.append(doc)
+            if not docs:
+                continue
+            mapping = await gen.classify_difficulties_batch(docs)
+            if not mapping:
+                errors.append(f"OpenAI returned no classifications for batch starting {chunk_ids[0]}")
+                continue
+            for qid in chunk_ids:
+                diff = mapping.get(qid)
+                if diff is None:
+                    errors.append(f"{qid}: missing from AI response")
+                    continue
+                try:
+                    ok = await self.update(qid, QuestionUpdate(difficulty=diff))
+                    if ok:
+                        updated += 1
+                    else:
+                        errors.append(f"{qid}: not found on update")
+                except QuestionValidationError as e:
+                    errors.append(f"{qid}: {e}")
+
+        return AutoAssignDifficultyResponse(updated=updated, errors=errors)
 
     async def delete_all(self) -> int:
         return await self._repo.delete_all()

@@ -8,6 +8,7 @@ from motor.motor_asyncio import AsyncIOMotorCollection
 from app.db.mongodb import get_database
 from app.models.domain import Difficulty, QuestionType
 from app.utils.ids import oid_str
+from app.utils.text_search import build_search_filter
 
 
 def _utc_now() -> datetime:
@@ -21,6 +22,7 @@ class QuestionRepository:
     async def ensure_indexes(self) -> None:
         await self._col.create_index([("subject", 1), ("topic", 1), ("difficulty", 1)])
         await self._col.create_index([("question_text", "text")])
+        await self._col.create_index([("question_text_norm", 1)])
 
     def _doc_to_admin(self, doc: Dict[str, Any]) -> Dict[str, Any]:
         return {
@@ -80,22 +82,29 @@ class QuestionRepository:
         difficulty: Optional[Difficulty] = None,
         search: Optional[str] = None,
         question_type: Optional[str] = None,
+        exam_tag: Optional[str] = None,
     ) -> Dict[str, Any]:
-        q: Dict[str, Any] = {}
+        parts: List[Dict[str, Any]] = []
         if subject:
-            q["subject"] = subject
+            parts.append({"subject": subject})
         if topic:
-            q["topic"] = topic
+            parts.append({"topic": topic})
         if difficulty:
-            q["difficulty"] = difficulty.value
+            parts.append({"difficulty": difficulty.value})
         if question_type and str(question_type).strip():
-            q["question_type"] = str(question_type).strip().lower()
-        if search:
-            q["$or"] = [
-                {"question_text": {"$regex": search, "$options": "i"}},
-                {"tags": {"$regex": search, "$options": "i"}},
-            ]
-        return q
+            parts.append({"question_type": str(question_type).strip().lower()})
+        if exam_tag:
+            t = str(exam_tag).strip().upper()
+            if t:
+                parts.append({"tags": {"$in": [t]}})
+        search_frag = build_search_filter(search)
+        if search_frag is not None:
+            parts.append(search_frag)
+        if not parts:
+            return {}
+        if len(parts) == 1:
+            return parts[0]
+        return {"$and": parts}
 
     async def list_paginated(
         self,
@@ -104,10 +113,11 @@ class QuestionRepository:
         difficulty: Optional[Difficulty] = None,
         search: Optional[str] = None,
         question_type: Optional[str] = None,
+        exam_tag: Optional[str] = None,
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[List[Dict[str, Any]], int]:
-        filt = self._build_filter(subject, topic, difficulty, search, question_type)
+        filt = self._build_filter(subject, topic, difficulty, search, question_type, exam_tag)
         total = await self._col.count_documents(filt)
         cursor = (
             self._col.find(filt)
@@ -131,16 +141,30 @@ class QuestionRepository:
         subject: Optional[str] = None,
         topic: Optional[str] = None,
         exam_tag: Optional[str] = None,
+        pool_ids: Optional[Sequence[str]] = None,
     ) -> List[ObjectId]:
         filt: Dict[str, Any] = {"difficulty": difficulty.value}
+        pool_oids: List[ObjectId] = []
+        if pool_ids:
+            pool_oids = [ObjectId(str(x).strip()) for x in pool_ids if x and ObjectId.is_valid(str(x).strip())]
+            if not pool_oids:
+                return []
+        id_clause: Dict[str, Any] = {}
+        if pool_oids:
+            id_clause["$in"] = pool_oids
         if exclude_ids:
-            filt["_id"] = {"$nin": [ObjectId(x) for x in exclude_ids]}
-        if subject:
-            filt["subject"] = subject
-        if topic:
-            filt["topic"] = topic
-        if exam_tag:
-            filt["tags"] = {"$in": [str(exam_tag).strip().upper()]}
+            ex = [ObjectId(x) for x in exclude_ids if ObjectId.is_valid(str(x).strip())]
+            if ex:
+                id_clause["$nin"] = ex
+        if id_clause:
+            filt["_id"] = id_clause
+        if not pool_oids:
+            if subject:
+                filt["subject"] = subject
+            if topic:
+                filt["topic"] = topic
+            if exam_tag:
+                filt["tags"] = {"$in": [str(exam_tag).strip().upper()]}
         cursor = self._col.find(filt, {"_id": 1})
         return [d["_id"] async for d in cursor]
 
@@ -151,8 +175,11 @@ class QuestionRepository:
         subject: Optional[str] = None,
         topic: Optional[str] = None,
         exam_tag: Optional[str] = None,
+        pool_ids: Optional[Sequence[str]] = None,
     ) -> Optional[str]:
-        ids = await self.list_ids_by_difficulty_excluding(difficulty, exclude_ids, subject, topic, exam_tag)
+        ids = await self.list_ids_by_difficulty_excluding(
+            difficulty, exclude_ids, subject, topic, exam_tag, pool_ids
+        )
         if not ids:
             return None
         return oid_str(random.choice(ids))

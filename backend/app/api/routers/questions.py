@@ -13,11 +13,15 @@ from app.api.deps import (
 from app.models.domain import Difficulty
 from app.schemas.common import BulkImportResult, Message, Paginated, RowError
 from app.schemas.question import (
+    EXAM_TAGS,
     AIGenerateQuestionRequest,
+    AutoAssignDifficultyRequest,
+    AutoAssignDifficultyResponse,
     PdfImportCommitRequest,
     PdfImportPreviewResponse,
     QuestionAdmin,
     QuestionCreate,
+    QuestionListRequest,
     QuestionUpdate,
 )
 from app.services.ai_question_generator import AIQuestionGenerator
@@ -30,6 +34,15 @@ from app.api.deps_auth import require_admin
 router = APIRouter(prefix="/questions", tags=["questions"], dependencies=[Depends(require_admin)])
 
 
+def _parse_exam_tag_filter(exam_tag: Optional[str]) -> Optional[str]:
+    if not exam_tag or not str(exam_tag).strip():
+        return None
+    t = str(exam_tag).strip().upper()
+    if t not in EXAM_TAGS:
+        raise HTTPException(status_code=400, detail=f"Invalid exam_tag. Allowed: {', '.join(EXAM_TAGS)}")
+    return t
+
+
 @router.get("", response_model=Paginated[QuestionAdmin])
 async def list_questions(
     subject: Optional[str] = None,
@@ -37,20 +50,50 @@ async def list_questions(
     difficulty: Optional[Difficulty] = None,
     search: Optional[str] = None,
     question_type: Optional[str] = None,
+    exam_tag: Optional[str] = Query(
+        default=None,
+        description="Filter by exam category tag on the question (must match a stored tag, e.g. CAT).",
+    ),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     svc: QuestionService = Depends(get_question_service),
 ) -> Paginated[QuestionAdmin]:
+    exam_f = _parse_exam_tag_filter(exam_tag)
+    sub = subject.strip() if subject and str(subject).strip() else None
+    top = topic.strip() if topic and str(topic).strip() else None
     items, total = await svc.list_page(
-        subject=subject,
-        topic=topic,
+        subject=sub,
+        topic=top,
         difficulty=difficulty,
         search=search,
         question_type=question_type,
+        exam_tag=exam_f,
         page=page,
         page_size=page_size,
     )
     return Paginated(items=[QuestionAdmin.model_validate(i) for i in items], total=total, page=page, page_size=page_size)
+
+
+@router.post("/list", response_model=Paginated[QuestionAdmin])
+async def list_questions_post(
+    body: QuestionListRequest,
+    svc: QuestionService = Depends(get_question_service),
+) -> Paginated[QuestionAdmin]:
+    """List questions with filters in JSON body (use for long search text; avoids URL length limits)."""
+    exam_f = _parse_exam_tag_filter(body.exam_tag)
+    sub = body.subject.strip() if body.subject and body.subject.strip() else None
+    top = body.topic.strip() if body.topic and body.topic.strip() else None
+    items, total = await svc.list_page(
+        subject=sub,
+        topic=top,
+        difficulty=body.difficulty,
+        search=body.search,
+        question_type=body.question_type,
+        exam_tag=exam_f,
+        page=body.page,
+        page_size=body.page_size,
+    )
+    return Paginated(items=[QuestionAdmin.model_validate(i) for i in items], total=total, page=body.page, page_size=body.page_size)
 
 
 @router.get("/count")
@@ -153,6 +196,15 @@ async def ai_generate_draft(body: AIGenerateQuestionRequest) -> QuestionCreate:
             detail="Could not generate a question draft. Check OpenAI settings and try another prompt.",
         )
     return draft
+
+
+@router.post("/auto-assign-difficulty", response_model=AutoAssignDifficultyResponse)
+async def auto_assign_difficulty(
+    body: AutoAssignDifficultyRequest,
+    svc: QuestionService = Depends(get_question_service),
+) -> AutoAssignDifficultyResponse:
+    """Use OpenAI to set difficulty from question text and exam category tags."""
+    return await svc.auto_assign_difficulty_with_ai(body.question_ids)
 
 
 @router.get("/{question_id}", response_model=QuestionAdmin)

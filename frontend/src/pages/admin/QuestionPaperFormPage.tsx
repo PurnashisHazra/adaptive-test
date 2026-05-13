@@ -8,12 +8,22 @@ import {
   getQuestionPaper,
   getTestSubjects,
   getTestTopics,
+  listQuestions,
   listPaperAssignments,
   listStudentUsernames,
   syncPaperAssignments,
   updateQuestionPaper,
 } from "../../api/client";
-import type { AppConfig, ExamTag, QuestionPaperSection } from "../../api/types";
+import type { AppConfig, Difficulty, ExamTag, QuestionAdmin, QuestionPaperSection } from "../../api/types";
+
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(id);
+  }, [value, delayMs]);
+  return debounced;
+}
 
 const EXAM_TAG_OPTIONS: Array<{ label: string; value: "" | ExamTag }> = [
   { label: "Mixed (all exams)", value: "" },
@@ -24,6 +34,14 @@ const EXAM_TAG_OPTIONS: Array<{ label: string; value: "" | ExamTag }> = [
   { label: "DEFENCE", value: "DEFENCE" },
   { label: "STATE", value: "STATE" },
   { label: "OTHER", value: "OTHER" },
+];
+
+const POOL_DIFFICULTY_OPTIONS: Array<{ label: string; value: "" | Difficulty }> = [
+  { label: "Any difficulty", value: "" },
+  { label: "Easy", value: "EASY" },
+  { label: "Medium", value: "MEDIUM" },
+  { label: "Hard", value: "HARD" },
+  { label: "Expert", value: "EXPERT" },
 ];
 
 function generateSectionId(): string {
@@ -148,6 +166,280 @@ function SectionFilterFields({
   );
 }
 
+const MAX_QUESTION_POOL = 2000;
+const POOL_PAGE_SIZE = 40;
+
+function SectionQuestionPoolEditor({
+  sec,
+  setSection,
+}: {
+  sec: QuestionPaperSection;
+  setSection: (next: QuestionPaperSection) => void;
+}) {
+  const pool = sec.question_pool_ids ?? [];
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search.trim(), 350);
+  const [browseExamTag, setBrowseExamTag] = useState<"" | ExamTag>("");
+  const [browseDifficulty, setBrowseDifficulty] = useState<"" | Difficulty>("");
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [rows, setRows] = useState<QuestionAdmin[]>([]);
+  const [total, setTotal] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    listQuestions({
+      page,
+      page_size: POOL_PAGE_SIZE,
+      subject: sec.subject?.trim() || undefined,
+      topic: sec.topic?.trim() || undefined,
+      search: debouncedSearch || undefined,
+      difficulty: browseDifficulty || undefined,
+      exam_tag: browseExamTag || undefined,
+    })
+      .then((res) => {
+        if (!alive) return;
+        setRows(res.items);
+        setTotal(res.total);
+      })
+      .catch(() => {
+        if (alive) {
+          setRows([]);
+          setTotal(0);
+        }
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [page, debouncedSearch, sec.subject, sec.topic, browseDifficulty, browseExamTag]);
+
+  const poolTooSmall = pool.length > 0 && pool.length < sec.total_questions;
+
+  function mergeIds(add: string[]) {
+    const s = new Set(pool);
+    for (const id of add) {
+      if (s.size >= MAX_QUESTION_POOL) break;
+      s.add(id);
+    }
+    setSection({ ...sec, question_pool_ids: Array.from(s) });
+  }
+
+  function toggle(id: string) {
+    const s = new Set(pool);
+    if (s.has(id)) s.delete(id);
+    else {
+      if (s.size >= MAX_QUESTION_POOL) {
+        toast.error(`At most ${MAX_QUESTION_POOL} questions per section.`);
+        return;
+      }
+      s.add(id);
+    }
+    setSection({ ...sec, question_pool_ids: Array.from(s) });
+  }
+
+  function selectPage() {
+    mergeIds(rows.map((q) => q.id));
+  }
+
+  async function selectAllMatchingFilters() {
+    setBulkLoading(true);
+    try {
+      const merged = new Set(pool);
+      let p = 1;
+      const pageSize = 100;
+      while (merged.size < MAX_QUESTION_POOL) {
+        const res = await listQuestions({
+          page: p,
+          page_size: pageSize,
+          subject: sec.subject?.trim() || undefined,
+          topic: sec.topic?.trim() || undefined,
+          search: debouncedSearch || undefined,
+          difficulty: browseDifficulty || undefined,
+          exam_tag: browseExamTag || undefined,
+        });
+        for (const q of res.items) {
+          merged.add(q.id);
+          if (merged.size >= MAX_QUESTION_POOL) break;
+        }
+        if (res.items.length < pageSize) break;
+        p += 1;
+        if (p > 60) break;
+      }
+      const next = Array.from(merged).slice(0, MAX_QUESTION_POOL);
+      setSection({ ...sec, question_pool_ids: next });
+      if (merged.size >= MAX_QUESTION_POOL) {
+        toast(`Selected up to ${MAX_QUESTION_POOL} questions (maximum per section).`);
+      }
+    } catch {
+      toast.error("Could not load questions from the bank");
+    } finally {
+      setBulkLoading(false);
+    }
+  }
+
+  const totalPages = Math.max(1, Math.ceil(total / POOL_PAGE_SIZE));
+
+  return (
+    <div style={{ marginTop: "0.75rem", paddingTop: "0.75rem", borderTop: "1px solid var(--border)" }}>
+      <label className="label">Question set (optional)</label>
+      <p style={{ margin: "0 0 0.5rem", fontSize: "0.82rem", color: "var(--muted)" }}>
+        Leave empty to use the full bank with the section filters above. Use the bank browser (subject/topic from the
+        section, plus optional exam category and difficulty) to pick questions; the section can still adapt difficulty
+        within the selected set.
+      </p>
+      {poolTooSmall ? (
+        <p style={{ margin: "0 0 0.5rem", fontSize: "0.82rem", color: "#b45309" }}>
+          Selected {pool.length} question{pool.length === 1 ? "" : "s"}, but this section is set to{" "}
+          {sec.total_questions}. Add more to the set or lower &quot;Questions in section&quot; before saving.
+        </p>
+      ) : null}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem" }}>
+        <span style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+          {pool.length === 0 ? "Using full bank" : `${pool.length} selected`}
+        </span>
+        <button type="button" className="btn btn-ghost" onClick={selectPage} disabled={loading || rows.length === 0}>
+          Select page
+        </button>
+        <button type="button" className="btn btn-ghost" onClick={selectAllMatchingFilters} disabled={bulkLoading || total === 0}>
+          {bulkLoading ? "Loading…" : "Select all (current browse filters)"}
+        </button>
+        <button type="button" className="btn btn-ghost" onClick={() => setSection({ ...sec, question_pool_ids: [] })} disabled={pool.length === 0}>
+          Clear set
+        </button>
+      </div>
+      <div className="grid-2" style={{ marginBottom: "0.5rem", gridTemplateColumns: "1fr 1fr" }}>
+        <div>
+          <label className="label" style={{ fontSize: "0.8rem" }}>
+            Exam category (browse)
+          </label>
+          <select
+            className="input"
+            value={browseExamTag}
+            onChange={(e) => {
+              setBrowseExamTag(e.target.value as "" | ExamTag);
+              setPage(1);
+            }}
+          >
+            {EXAM_TAG_OPTIONS.map((o) => (
+              <option key={o.label} value={o.value}>
+                {o.value === "" ? "Any category" : o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="label" style={{ fontSize: "0.8rem" }}>
+            Difficulty (browse)
+          </label>
+          <select
+            className="input"
+            value={browseDifficulty}
+            onChange={(e) => {
+              setBrowseDifficulty(e.target.value as "" | Difficulty);
+              setPage(1);
+            }}
+          >
+            {POOL_DIFFICULTY_OPTIONS.map((o) => (
+              <option key={o.label} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem", flexWrap: "wrap" }}>
+        <input
+          className="input"
+          style={{ flex: "1 1 160px", minWidth: 120 }}
+          placeholder="Search question text…"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+        />
+      </div>
+      <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: "0.35rem" }}>
+        Bank preview (section subject/topic + browse filters){loading ? " — loading…" : ` — ${total} match`}
+      </div>
+      <div
+        style={{
+          maxHeight: 220,
+          overflowY: "auto",
+          border: "1px solid var(--border)",
+          borderRadius: 8,
+          background: "#fff",
+        }}
+      >
+        {rows.length === 0 && !loading ? (
+          <p style={{ padding: "0.75rem", margin: 0, color: "var(--muted)", fontSize: "0.85rem" }}>No questions match.</p>
+        ) : (
+          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+            {rows.map((q) => {
+              const checked = pool.includes(q.id);
+              const preview =
+                q.question_text.length > 100 ? `${q.question_text.slice(0, 100)}…` : q.question_text;
+              return (
+                <li
+                  key={q.id}
+                  style={{
+                    borderBottom: "1px solid #f1f5f9",
+                    padding: "0.35rem 0.5rem",
+                    display: "flex",
+                    gap: "0.5rem",
+                    alignItems: "flex-start",
+                    fontSize: "0.82rem",
+                  }}
+                >
+                  <input type="checkbox" checked={checked} onChange={() => toggle(q.id)} style={{ marginTop: 3 }} />
+                  <button
+                    type="button"
+                    onClick={() => toggle(q.id)}
+                    style={{
+                      flex: 1,
+                      textAlign: "left",
+                      border: "none",
+                      background: "none",
+                      cursor: "pointer",
+                      padding: 0,
+                      color: "#0f172a",
+                    }}
+                  >
+                    <span style={{ color: "var(--muted)", fontSize: "0.75rem" }}>{q.difficulty}</span> · {preview}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+      {totalPages > 1 ? (
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginTop: "0.5rem", fontSize: "0.85rem" }}>
+          <button type="button" className="btn btn-ghost" disabled={page <= 1 || loading} onClick={() => setPage((p) => p - 1)}>
+            Prev
+          </button>
+          <span>
+            Page {page} / {totalPages}
+          </span>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            disabled={page >= totalPages || loading}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            Next
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function newSection(): QuestionPaperSection {
   return {
     id: generateSectionId(),
@@ -158,6 +450,7 @@ function newSection(): QuestionPaperSection {
     exam_tag: null,
     total_questions: 5,
     time_limit_seconds: 600,
+    question_pool_ids: [],
   };
 }
 
@@ -217,6 +510,7 @@ export function QuestionPaperFormPage() {
             exam_tag: s.exam_tag ?? null,
             total_questions: s.total_questions,
             time_limit_seconds: s.time_limit_seconds,
+            question_pool_ids: s.question_pool_ids?.length ? [...s.question_pool_ids] : [],
           }))
         );
         return listPaperAssignments(id);
@@ -259,6 +553,7 @@ export function QuestionPaperFormPage() {
         exam_tag: s.exam_tag || null,
         total_questions: s.total_questions,
         time_limit_seconds: s.time_limit_seconds,
+        question_pool_ids: s.question_pool_ids?.length ? s.question_pool_ids : null,
       })),
     };
     setSaving(true);
@@ -333,7 +628,10 @@ export function QuestionPaperFormPage() {
           </div>
         </div>
         <h3 style={{ marginBottom: "0.75rem" }}>Sections</h3>
-        <p style={{ color: "var(--muted)", fontSize: "0.9rem", marginTop: 0 }}>Each section is an adaptive test with its own subject/topic filters, length, and time limit.</p>
+        <p style={{ color: "var(--muted)", fontSize: "0.9rem", marginTop: 0 }}>
+          Each section is an adaptive test with its own length and time limit. Use subject/topic filters for the whole bank,
+          or pick a question set below to restrict the section to specific questions.
+        </p>
         {sections.map((sec, idx) => (
           <div key={sec.id} className="card" style={{ marginBottom: "1rem", background: "#f8fafc" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
@@ -361,6 +659,10 @@ export function QuestionPaperFormPage() {
               }
               onTopicChange={(v) => setSections(sections.map((s) => (s.id === sec.id ? { ...s, topic: v } : s)))}
               onExamTagChange={(v) => setSections(sections.map((s) => (s.id === sec.id ? { ...s, exam_tag: v || null } : s)))}
+            />
+            <SectionQuestionPoolEditor
+              sec={sec}
+              setSection={(next) => setSections(sections.map((s) => (s.id === sec.id ? next : s)))}
             />
             <div className="grid-2">
               <div>

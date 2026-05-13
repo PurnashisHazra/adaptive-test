@@ -9,6 +9,7 @@ from app.models.domain import Difficulty, QuestionType
 from app.repositories.question_repository import QuestionRepository
 from app.schemas.question import QuestionCreate, QuestionOption
 from app.services.question_service import question_create_to_doc
+from app.utils.ids import oid_str
 
 logger = logging.getLogger(__name__)
 
@@ -185,3 +186,101 @@ class AIQuestionGenerator:
             tags=clean_tags,
             is_ai_generated=True,
         )
+
+    async def classify_difficulties_batch(self, docs: List[Dict[str, Any]]) -> Dict[str, Difficulty]:
+        """Return ``question_id`` → ``Difficulty`` for each document in ``docs`` (single OpenAI call)."""
+        settings = get_settings()
+        if not (settings.openai_api_key or "").strip() or not docs:
+            return {}
+        return await asyncio.to_thread(self._classify_difficulties_sync, docs)
+
+    def _classify_difficulties_sync(self, docs: List[Dict[str, Any]]) -> Dict[str, Difficulty]:
+        settings = get_settings()
+        items: List[Dict[str, Any]] = []
+        for d in docs:
+            qid = oid_str(d["_id"])
+            text = str(d.get("question_text", "")).strip()
+            if len(text) > 2400:
+                text = text[:2400] + "…"
+            tags = d.get("tags") or []
+            if not isinstance(tags, list):
+                tags = []
+            tag_list = [str(t).strip().upper() for t in tags if str(t).strip()]
+            items.append(
+                {
+                    "question_id": qid,
+                    "exam_categories": tag_list or ["OTHER"],
+                    "subject": str(d.get("subject", "General")).strip() or "General",
+                    "topic": str(d.get("topic", "General")).strip() or "General",
+                    "question_type": str(d.get("question_type", "mcq_single")).strip().lower(),
+                    "question_text": text,
+                }
+            )
+
+        body = {
+            "model": settings.openai_model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "You assign difficulty labels for Indian competitive-exam practice questions. "
+                        "Use norms for the stated exam categories (e.g. CAT quant is often harder than "
+                        "equivalent SSC for the same mathematical topic). "
+                        "Each question must get exactly one of: EASY, MEDIUM, HARD, EXPERT. "
+                        "Reply with ONLY valid JSON, no markdown: "
+                        '{"results":[{"question_id":"<id>","difficulty":"EASY|MEDIUM|HARD|EXPERT"}]} '
+                        "Include one entry for every question_id you were given, in any order."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": json.dumps({"questions": items}, ensure_ascii=False),
+                },
+            ],
+            "temperature": 0.25,
+            "max_tokens": 800,
+        }
+
+        req = request.Request(
+            settings.openai_api_url,
+            data=json.dumps(body).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {settings.openai_api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with request.urlopen(req, timeout=60) as resp:
+                raw = resp.read().decode("utf-8")
+        except Exception as exc:
+            logger.warning("OpenAI request failed for difficulty classification: %s", exc)
+            return {}
+
+        try:
+            data = json.loads(raw)
+            content = data["choices"][0]["message"]["content"]
+            cleaned = self._strip_markdown_fence(content)
+            parsed = json.loads(cleaned)
+        except Exception as exc:
+            logger.warning("OpenAI difficulty classification parse failed: %s", exc)
+            return {}
+
+        results = parsed.get("results")
+        if not isinstance(results, list):
+            return {}
+
+        expected = {it["question_id"] for it in items}
+        out: Dict[str, Difficulty] = {}
+        for row in results:
+            if not isinstance(row, dict):
+                continue
+            qid = str(row.get("question_id", "")).strip()
+            raw_d = str(row.get("difficulty", "")).strip().upper()
+            if qid not in expected or qid in out:
+                continue
+            try:
+                out[qid] = Difficulty(raw_d)
+            except Exception:
+                continue
+        return out

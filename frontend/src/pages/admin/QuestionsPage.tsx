@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
+  autoAssignQuestionDifficulties,
   countQuestions,
   createQuestion,
   deleteAllQuestions,
@@ -12,6 +13,15 @@ import {
 } from "../../api/client";
 import type { Difficulty, QuestionAdmin, QuestionCreatePayload, QuestionType } from "../../api/types";
 import { AdminPanel } from "../../components/AdminPanel";
+
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(id);
+  }, [value, delayMs]);
+  return debounced;
+}
 
 export function QuestionsPage() {
   const [items, setItems] = useState<QuestionAdmin[]>([]);
@@ -31,21 +41,24 @@ export function QuestionsPage() {
   const [aiDraft, setAiDraft] = useState<QuestionCreatePayload | null>(null);
   const [exportingCsv, setExportingCsv] = useState(false);
   const [deletingAll, setDeletingAll] = useState(false);
+  const [assigningDifficulty, setAssigningDifficulty] = useState(false);
 
   const pageSize = 15;
+  const debouncedSearch = useDebouncedValue(search.trim(), 400);
+  const prevDebouncedSearch = useRef<string | null>(null);
 
-  async function load() {
+  async function loadWithPage(p: number) {
     setLoading(true);
     try {
       const [res, allN] = await Promise.all([
         listQuestions({
-          page,
+          page: p,
           page_size: pageSize,
           subject: subject || undefined,
           topic: topic || undefined,
           difficulty: difficulty || undefined,
           question_type: questionType || undefined,
-          search: search || undefined,
+          search: debouncedSearch || undefined,
         }),
         countQuestions(),
       ]);
@@ -60,9 +73,21 @@ export function QuestionsPage() {
   }
 
   useEffect(() => {
-    load();
+    const searchChanged =
+      prevDebouncedSearch.current !== null && prevDebouncedSearch.current !== debouncedSearch;
+    prevDebouncedSearch.current = debouncedSearch;
+
+    if (searchChanged && page !== 1) {
+      setPage(1);
+      return;
+    }
+    void loadWithPage(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page]);
+  }, [page, debouncedSearch]);
+
+  async function load() {
+    await loadWithPage(page);
+  }
 
   async function onDelete(id: string) {
     if (!confirm("Delete this question?")) return;
@@ -131,6 +156,42 @@ export function QuestionsPage() {
     }
   }
 
+  async function onAutoAssignDifficulty() {
+    if (items.length === 0) {
+      toast.error("No questions on this page. Apply filters and go to a page with questions.");
+      return;
+    }
+    if (
+      !window.confirm(
+        `Use OpenAI to set difficulty for ${items.length} question(s) on this page, using each question’s text and exam tags? This uses your API key and may take a little while.`,
+      )
+    ) {
+      return;
+    }
+    setAssigningDifficulty(true);
+    try {
+      const res = await autoAssignQuestionDifficulties({ question_ids: items.map((q) => q.id) });
+      if (res.updated > 0) {
+        toast.success(`Updated difficulty for ${res.updated} question(s).`);
+      }
+      if (res.errors.length > 0) {
+        const msg = res.errors.slice(0, 4).join(" · ");
+        toast.error(res.errors.length > 4 ? `${msg}…` : msg);
+      } else if (res.updated === 0) {
+        toast.error("No questions were updated. Check the OpenAI key and try again.");
+      }
+      await load();
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "response" in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
+      toast.error(typeof msg === "string" ? msg : "Auto-assign difficulty failed");
+    } finally {
+      setAssigningDifficulty(false);
+    }
+  }
+
   async function onApproveAiDraft() {
     if (!aiDraft) return;
     setAiApproving(true);
@@ -163,6 +224,15 @@ export function QuestionsPage() {
           <button type="button" className="btn btn-danger" onClick={onDeleteAll} disabled={deletingAll || globalQuestionCount === 0}>
             {deletingAll ? "Deleting…" : "Delete all"}
           </button>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={onAutoAssignDifficulty}
+            disabled={assigningDifficulty || loading || items.length === 0}
+            title="Assigns EASY/MEDIUM/HARD/EXPERT using OpenAI from question text and exam category tags (current page only, max 30)."
+          >
+            {assigningDifficulty ? "Assigning…" : "Auto assign difficulty"}
+          </button>
           <button type="button" className="btn btn-ghost" onClick={() => setShowAiModal(true)}>
             AI-Add Question
           </button>
@@ -176,7 +246,13 @@ export function QuestionsPage() {
           <div className="admin-filter-grid" style={{ marginBottom: "0.75rem" }}>
             <div>
               <label className="label">Search</label>
-              <input className="input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Text or tag" />
+              <input className="input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Question text, explanation, or tag" />
+              <p style={{ margin: "0.25rem 0 0", fontSize: "0.75rem", color: "var(--muted)" }}>
+                Searches question text, normalized text, explanations, tags, and MCQ option labels. Case-insensitive;
+                full-width / odd Unicode is normalized; long pastes use POST (no URL limit). Multiple words: every word
+                must appear somewhere. Updates shortly after you stop typing; use Apply filters for subject, topic,
+                type, and difficulty.
+              </p>
             </div>
             <div>
               <label className="label">Subject</label>
@@ -206,7 +282,7 @@ export function QuestionsPage() {
               </select>
             </div>
           </div>
-          <button type="button" className="btn btn-primary" onClick={() => { setPage(1); load(); }}>
+          <button type="button" className="btn btn-primary" onClick={() => { if (page !== 1) setPage(1); else void loadWithPage(1); }}>
             Apply filters
           </button>
         </div>
