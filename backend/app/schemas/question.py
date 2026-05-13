@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from bson import ObjectId
 from pydantic import BaseModel, Field, field_validator
 
 from app.models.domain import Difficulty, QuestionType
@@ -103,6 +104,19 @@ class QuestionFilterParams(BaseModel):
     page_size: int = Field(20, ge=1, le=100)
 
 
+class QuestionListRequest(BaseModel):
+    """Body for POST /questions/list — supports long ``search`` without URL limits."""
+
+    subject: Optional[str] = Field(default=None, max_length=400)
+    topic: Optional[str] = Field(default=None, max_length=400)
+    difficulty: Optional[Difficulty] = None
+    search: Optional[str] = Field(default=None, max_length=50_000)
+    question_type: Optional[str] = Field(default=None, max_length=32)
+    exam_tag: Optional[str] = Field(default=None, max_length=16)
+    page: int = Field(1, ge=1)
+    page_size: int = Field(20, ge=1, le=100)
+
+
 class BulkJsonPayload(BaseModel):
     questions: List[QuestionCreate]
 
@@ -116,6 +130,36 @@ class AIGenerateQuestionRequest(BaseModel):
     prompt: str = Field(..., min_length=8, max_length=4000)
     subject: Optional[str] = None
     topic: Optional[str] = None
+
+
+class AutoAssignDifficultyRequest(BaseModel):
+    """Assign difficulty via OpenAI using each question's text and exam tags."""
+
+    question_ids: List[str] = Field(..., min_length=1, max_length=30)
+
+    @field_validator("question_ids", mode="before")
+    @classmethod
+    def normalize_question_ids(cls, v: Any) -> List[str]:
+        if not isinstance(v, list):
+            raise ValueError("question_ids must be a list")
+        out: List[str] = []
+        seen: set[str] = set()
+        for x in v:
+            s = str(x).strip()
+            if not s or s in seen:
+                continue
+            if not ObjectId.is_valid(s):
+                raise ValueError(f"Invalid question id: {x}")
+            seen.add(s)
+            out.append(s)
+        if not out:
+            raise ValueError("question_ids must contain at least one valid id")
+        return out[:30]
+
+
+class AutoAssignDifficultyResponse(BaseModel):
+    updated: int
+    errors: List[str] = Field(default_factory=list)
 
 
 class PdfImportPreviewItem(BaseModel):

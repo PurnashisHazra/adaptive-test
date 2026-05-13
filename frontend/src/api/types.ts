@@ -49,6 +49,11 @@ export interface QuestionCreatePayload {
   is_ai_generated?: boolean;
 }
 
+export interface AutoAssignDifficultyResponse {
+  updated: number;
+  errors: string[];
+}
+
 export interface QuestionStudent {
   id: string;
   question_text: string;
@@ -139,6 +144,8 @@ export interface QuestionPaperSection {
   exam_tag?: ExamTag | null;
   total_questions: number;
   time_limit_seconds: number;
+  /** When non-empty, the section only serves these questions (adaptive within the set). */
+  question_pool_ids?: string[] | null;
 }
 
 export interface QuestionPaper {

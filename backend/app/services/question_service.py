@@ -245,5 +245,54 @@ class QuestionService:
             writer.writerow(self._raw_doc_to_csv_row(doc))
         return buf.getvalue().encode("utf-8-sig")
 
+    async def auto_assign_difficulty_with_ai(self, question_ids: List[str]) -> "AutoAssignDifficultyResponse":
+        """Set difficulty using OpenAI from question text and exam tags (batched)."""
+        from app.core.config import get_settings
+        from app.schemas.question import AutoAssignDifficultyResponse
+        from app.services.ai_question_generator import AIQuestionGenerator
+
+        settings = get_settings()
+        if not (settings.openai_api_key or "").strip():
+            return AutoAssignDifficultyResponse(
+                updated=0,
+                errors=["OpenAI API key is not configured (OPENAI_API_KEY)."],
+            )
+
+        gen = AIQuestionGenerator()
+        updated = 0
+        errors: List[str] = []
+        batch_size = 6
+
+        for i in range(0, len(question_ids), batch_size):
+            chunk_ids = question_ids[i : i + batch_size]
+            docs: List[Dict[str, Any]] = []
+            for qid in chunk_ids:
+                doc = await self._repo.get_by_id(qid)
+                if not doc:
+                    errors.append(f"{qid}: not found")
+                    continue
+                docs.append(doc)
+            if not docs:
+                continue
+            mapping = await gen.classify_difficulties_batch(docs)
+            if not mapping:
+                errors.append(f"OpenAI returned no classifications for batch starting {chunk_ids[0]}")
+                continue
+            for qid in chunk_ids:
+                diff = mapping.get(qid)
+                if diff is None:
+                    errors.append(f"{qid}: missing from AI response")
+                    continue
+                try:
+                    ok = await self.update(qid, QuestionUpdate(difficulty=diff))
+                    if ok:
+                        updated += 1
+                    else:
+                        errors.append(f"{qid}: not found on update")
+                except QuestionValidationError as e:
+                    errors.append(f"{qid}: {e}")
+
+        return AutoAssignDifficultyResponse(updated=updated, errors=errors)
+
     async def delete_all(self) -> int:
         return await self._repo.delete_all()

@@ -120,12 +120,16 @@ class TestService:
         total_questions: int,
         time_limit_seconds: Optional[int],
         paper_context: Optional[Dict[str, Any]] = None,
+        question_pool_ids: Optional[List[str]] = None,
     ) -> TestStartResponse:
         cfg = await self._config.get_or_create()
-        if not cfg.get("subject_filter_enabled", True):
-            subject = None
-        if not cfg.get("topic_filter_enabled", True):
-            topic = None
+        pool = [str(x).strip() for x in question_pool_ids] if question_pool_ids else []
+        pool = [x for x in pool if x] or None
+        if not pool:
+            if not cfg.get("subject_filter_enabled", True):
+                subject = None
+            if not cfg.get("topic_filter_enabled", True):
+                topic = None
 
         if time_limit_seconds is None:
             time_limit_seconds = int(cfg.get("default_time_limit_seconds", 1800))
@@ -141,10 +145,11 @@ class TestService:
             subject,
             topic,
             exam_tag,
+            pool,
         )
         if not first_id:
             raise ValueError(
-                "No EASY questions available for the selected filters. Add questions or relax filters."
+                "No questions available for this section (check filters or question set and difficulty mix)."
             )
 
         doc: Dict[str, Any] = {
@@ -161,6 +166,8 @@ class TestService:
             "exam_tag_filter": exam_tag,
             "time_limit_seconds": time_limit_seconds,
         }
+        if pool:
+            doc["question_pool_ids"] = pool
         if paper_context:
             doc["paper_attempt_id"] = paper_context["paper_attempt_id"]
             doc["paper_section_index"] = int(paper_context["paper_section_index"])
@@ -268,7 +275,11 @@ class TestService:
         generation_started = perf_counter()
         generated = False
         hard_pair_topic = _is_hard_correct_same_topic_pair(answers)
-        should_generate_expert = (last_diff == Difficulty.EXPERT and is_correct) or (hard_pair_topic is not None)
+        pool_raw = att.get("question_pool_ids")
+        pool_active = isinstance(pool_raw, list) and len([x for x in pool_raw if str(x).strip()]) > 0
+        should_generate_expert = not pool_active and (
+            (last_diff == Difficulty.EXPERT and is_correct) or (hard_pair_topic is not None)
+        )
         if should_generate_expert:
             # If student succeeds at EXPERT OR solves two HARD questions in same topic,
             # create a fresh EXPERT question via AI.
@@ -286,6 +297,10 @@ class TestService:
             patch["answers"] = answers
 
         if not next_qid:
+            pool_for_next: Optional[List[str]] = None
+            pr = att.get("question_pool_ids")
+            if isinstance(pr, list) and pr:
+                pool_for_next = [str(x).strip() for x in pr if str(x).strip()]
             next_qid = await get_next_question_id(
                 self._questions,
                 next_diff,
@@ -293,6 +308,7 @@ class TestService:
                 att.get("subject_filter"),
                 att.get("topic_filter"),
                 att.get("exam_tag_filter"),
+                pool_for_next,
             )
         if not next_qid:
             patch["status"] = AttemptStatus.COMPLETED.value

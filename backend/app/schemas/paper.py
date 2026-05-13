@@ -1,7 +1,8 @@
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from bson import ObjectId
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.schemas.question import EXAM_TAGS
 
@@ -15,6 +16,10 @@ class PaperSectionIn(BaseModel):
     exam_tag: Optional[str] = Field(default=None, description="Exam category tag filter (e.g. CAT/SSC/BANK). Null means mixed.")
     total_questions: int = Field(default=5, ge=1, le=100)
     time_limit_seconds: int = Field(default=600, ge=60, le=7200)
+    question_pool_ids: Optional[List[str]] = Field(
+        default=None,
+        description="If set, the section only serves questions from this pool (adaptive difficulty within the pool).",
+    )
 
     @field_validator("exam_tag")
     @classmethod
@@ -27,6 +32,36 @@ class PaperSectionIn(BaseModel):
         if t not in EXAM_TAGS:
             raise ValueError(f"Invalid exam_tag '{v}'. Allowed: {', '.join(EXAM_TAGS)}")
         return t
+
+    @field_validator("question_pool_ids", mode="before")
+    @classmethod
+    def normalize_pool_ids(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        if v is None:
+            return None
+        if not isinstance(v, list):
+            raise ValueError("question_pool_ids must be a list of id strings")
+        out: List[str] = []
+        seen: set[str] = set()
+        for x in v:
+            s = str(x).strip()
+            if not s or s in seen:
+                continue
+            if not ObjectId.is_valid(s):
+                raise ValueError(f"Invalid question id in pool: {x}")
+            seen.add(s)
+            out.append(s)
+        return out or None
+
+    @model_validator(mode="after")
+    def pool_covers_section_length(self) -> "PaperSectionIn":
+        if self.question_pool_ids and len(self.question_pool_ids) < self.total_questions:
+            raise ValueError(
+                "Question set must include at least as many questions as 'questions in section' "
+                f"(pool has {len(self.question_pool_ids)}, section asks for {self.total_questions})."
+            )
+        if self.question_pool_ids and len(self.question_pool_ids) > 2000:
+            raise ValueError("Question set cannot exceed 2000 questions per section.")
+        return self
 
 
 class QuestionPaperCreate(BaseModel):
@@ -52,6 +87,7 @@ class PaperSectionOut(BaseModel):
     exam_tag: Optional[str] = None
     total_questions: int
     time_limit_seconds: int
+    question_pool_ids: Optional[List[str]] = None
 
 
 class QuestionPaperOut(BaseModel):

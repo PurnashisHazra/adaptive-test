@@ -2,6 +2,7 @@ import axios from "axios";
 import type {
   AnalyticsOverview,
   AppConfig,
+  AutoAssignDifficultyResponse,
   AssignPaperByTitleBody,
   AssignPaperByTitleResult,
   AssignedPaperItem,
@@ -66,9 +67,23 @@ export async function patchConfig(body: Partial<AppConfig>) {
 }
 
 export async function listQuestions(
-  params: Record<string, string | number | undefined> & { question_type?: string },
+  params: Record<string, string | number | undefined> & {
+    question_type?: string;
+    difficulty?: string;
+    exam_tag?: string;
+  },
 ) {
-  const { data } = await api.get<Paginated<QuestionAdmin>>("/questions", { params });
+  const body = {
+    subject: params.subject,
+    topic: params.topic,
+    difficulty: params.difficulty,
+    search: params.search,
+    question_type: params.question_type,
+    exam_tag: params.exam_tag,
+    page: params.page ?? 1,
+    page_size: params.page_size ?? 20,
+  };
+  const { data } = await api.post<Paginated<QuestionAdmin>>("/questions/list", body);
   return data;
 }
 
@@ -98,6 +113,11 @@ export async function uploadQuestionImage(file: File) {
 
 export async function generateAiQuestionDraft(body: { prompt: string; subject?: string; topic?: string }) {
   const { data } = await api.post<QuestionCreatePayload>("/questions/ai-generate-draft", body);
+  return data;
+}
+
+export async function autoAssignQuestionDifficulties(body: { question_ids: string[] }) {
+  const { data } = await api.post<AutoAssignDifficultyResponse>("/questions/auto-assign-difficulty", body);
   return data;
 }
 

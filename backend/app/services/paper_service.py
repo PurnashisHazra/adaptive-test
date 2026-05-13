@@ -69,6 +69,9 @@ class PaperService:
                     exam_tag=s.get("exam_tag"),
                     total_questions=int(s["total_questions"]),
                     time_limit_seconds=int(s["time_limit_seconds"]),
+                    question_pool_ids=list(s["question_pool_ids"])
+                    if isinstance(s.get("question_pool_ids"), list) and s.get("question_pool_ids")
+                    else None,
                 )
                 for s in secs
             ],
@@ -128,6 +131,14 @@ class PaperService:
         if not got:
             raise ValueError("Paper not found")
         await self._papers.upsert_assignment(paper_id, student_username)
+
+    async def ensure_assigned(self, paper_id: str, student_username: str) -> bool:
+        """Assign the paper to the student if not already assigned. Returns True if a new row was created."""
+        uname = student_username.strip()
+        if await self._papers.has_assignment(paper_id, uname):
+            return False
+        await self.assign(paper_id, uname)
+        return True
 
     async def unassign(self, paper_id: str, student_username: str) -> None:
         await self._papers.remove_assignment(paper_id, student_username)
@@ -202,6 +213,11 @@ class PaperService:
         sec = secs[section_index]
         pa_id = oid_str(paper_attempt["_id"])
         ctx = {"paper_attempt_id": pa_id, "paper_section_index": section_index}
+        pool = sec.get("question_pool_ids")
+        pool_list = [str(x).strip() for x in pool] if isinstance(pool, list) else None
+        if pool_list:
+            pool_list = [x for x in pool_list if x]
+        pool_arg = pool_list if pool_list else None
         res = await self._tests.start_test(
             student_name=paper_attempt["student_username"],
             subject=sec.get("subject"),
@@ -210,6 +226,7 @@ class PaperService:
             total_questions=int(sec["total_questions"]),
             time_limit_seconds=int(sec["time_limit_seconds"]),
             paper_context=ctx,
+            question_pool_ids=pool_arg,
         )
         meta = self._session_meta(paper, pa_id, section_index)
         return TestStartResponse(

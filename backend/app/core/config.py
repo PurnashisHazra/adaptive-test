@@ -78,7 +78,7 @@ class Settings(BaseSettings):
     public_assign_api_keys: str = Field(
         default="",
         validation_alias=AliasChoices("PUBLIC_ASSIGN_API_KEYS", "PUBLIC_ASSIGN_API_KEY"),
-        description="Comma-separated API keys allowed to call the public paper assignment endpoint.",
+        description="Comma-separated API keys for public integration: assign-by-title and student provisioning.",
     )
 
     # Cloudflare R2 (S3-compatible) for question images
