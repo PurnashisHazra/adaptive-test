@@ -248,10 +248,7 @@ export function QuestionsPage() {
               <label className="label">Search</label>
               <input className="input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Question text, explanation, or tag" />
               <p style={{ margin: "0.25rem 0 0", fontSize: "0.75rem", color: "var(--muted)" }}>
-                Searches question text, normalized text, explanations, tags, and MCQ option labels. Case-insensitive;
-                full-width / odd Unicode is normalized; long pastes use POST (no URL limit). Multiple words: every word
-                must appear somewhere. Updates shortly after you stop typing; use Apply filters for subject, topic,
-                type, and difficulty.
+                Match/Contains search term in question text, explanation, tags, and MCQ option labels. Case-insensitive;
               </p>
             </div>
             <div>
