@@ -3,7 +3,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
-from app.schemas.admin_limits import AdminLimits, AdminLimitsUpdate, AdminLimitsUsage
+from app.schemas.admin_limits import AdminLimits, AdminLimitsUsage
 from app.schemas.auth import Role
 
 
