@@ -16,6 +16,15 @@ export function AppShell() {
   const logout = useAuthStore((s) => s.logout);
   const isAdmin = role === "admin";
   const isAdminSection = pathname.startsWith("/admin");
+  const isExamFullscreen = pathname === "/test" || pathname === "/instructions";
+
+  if (isExamFullscreen) {
+    return (
+      <main style={{ flex: 1, width: "100%", minHeight: "100vh", margin: 0, padding: 0, display: "flex", flexDirection: "column" }}>
+        <Outlet />
+      </main>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100%", display: "flex", flexDirection: "column" }}>

@@ -10,7 +10,7 @@ function kindForIndex(
   totalQuestions: number,
   maxReachableIndex: number,
   questionsAnswered: number,
-  markedForReview: Set<number>
+  markedForReview: Set<number>,
 ): NumpadCellVisual {
   if (index > totalQuestions) return "locked";
   if (index > maxReachableIndex) return "locked";
@@ -24,6 +24,63 @@ function kindForIndex(
   return "locked";
 }
 
+export function computePaletteStats(
+  totalQuestions: number,
+  maxReachableIndex: number,
+  questionsAnswered: number,
+  markedForReview: number[],
+) {
+  const marked = new Set(markedForReview);
+  let answeredMarked = 0;
+  let markedOnly = 0;
+  for (const i of marked) {
+    if (i <= questionsAnswered) answeredMarked += 1;
+    else markedOnly += 1;
+  }
+  const notAnswered = maxReachableIndex > questionsAnswered ? 1 : 0;
+  const notVisited = Math.max(0, totalQuestions - maxReachableIndex);
+  return {
+    answered: questionsAnswered,
+    notAnswered,
+    notVisited,
+    markedOnly,
+    answeredMarked,
+  };
+}
+
+function PaletteLegend({ variant, stats }: { variant: "default" | "exam"; stats: ReturnType<typeof computePaletteStats> }) {
+  const count = (n: number) => (variant === "exam" ? <span className="qnp-legend__counts">{n} </span> : null);
+  return (
+    <div className="qnp-legend" aria-hidden>
+      <div className="qnp-legend__row">
+        <span className="qnp-legend__sample qnp-cell qnp-cell--answered qnp-legend__mini" />
+        <span>{count(stats.answered)}Answered</span>
+      </div>
+      <div className="qnp-legend__row">
+        <span className="qnp-legend__sample qnp-cell qnp-cell--visitedUnanswered qnp-legend__mini" />
+        <span>{count(stats.notAnswered)}Not Answered</span>
+      </div>
+      <div className="qnp-legend__row">
+        <span className="qnp-legend__sample qnp-cell qnp-cell--locked qnp-legend__mini" />
+        <span>{count(stats.notVisited)}Not Visited</span>
+      </div>
+      <div className="qnp-legend__row">
+        <span className="qnp-legend__sample qnp-cell qnp-cell--markedUnanswered qnp-legend__mini" />
+        <span>{count(stats.markedOnly)}Marked for Review</span>
+      </div>
+      <div className="qnp-legend__row">
+        <span className="qnp-legend__answered-marked-wrap">
+          <span className="qnp-cell qnp-cell--answeredMarked qnp-legend__mini">
+            <span className="qnp-cell__num">5</span>
+            <span className="qnp-cell__badge" />
+          </span>
+        </span>
+        <span>{count(stats.answeredMarked)}Answered &amp; Marked for Review</span>
+      </div>
+    </div>
+  );
+}
+
 export function QuestionNumpad(props: {
   totalQuestions: number;
   currentIndex: number;
@@ -32,6 +89,8 @@ export function QuestionNumpad(props: {
   markedForReview: number[];
   loadingIndex: number | null;
   onSelect: (index: number) => void;
+  variant?: "default" | "exam";
+  sectionTitle?: string;
 }) {
   const {
     totalQuestions,
@@ -41,70 +100,61 @@ export function QuestionNumpad(props: {
     markedForReview,
     loadingIndex,
     onSelect,
+    variant = "default",
+    sectionTitle,
   } = props;
   const marked = new Set(markedForReview);
-
+  const stats = computePaletteStats(totalQuestions, maxReachableIndex, questionsAnswered, markedForReview);
   const cells = Array.from({ length: totalQuestions }, (_, i) => i + 1);
+
+  const grid = (
+    <div className="qnp-grid">
+      {cells.map((n) => {
+        const kind = kindForIndex(n, totalQuestions, maxReachableIndex, questionsAnswered, marked);
+        const enabled = n <= maxReachableIndex && n >= 1;
+        const isCurrent = n === currentIndex;
+        const loading = loadingIndex === n;
+        return (
+          <button
+            key={n}
+            type="button"
+            className={[
+              "qnp-cell",
+              `qnp-cell--${kind}`,
+              isCurrent ? "qnp-cell--current" : "",
+              loading ? "qnp-cell--loading" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            disabled={!enabled || loading}
+            aria-current={isCurrent ? "true" : undefined}
+            aria-label={`Question ${n}${kind === "locked" ? " (not available yet)" : ""}`}
+            onClick={() => enabled && onSelect(n)}
+          >
+            <span className="qnp-cell__num">{n}</span>
+            {kind === "answeredMarked" && <span className="qnp-cell__badge" aria-hidden />}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  if (variant === "exam") {
+    return (
+      <>
+        <PaletteLegend variant="exam" stats={stats} />
+        {sectionTitle ? <p className="exam-sidebar__palette-title">{sectionTitle}</p> : null}
+        <p className="exam-sidebar__hint">Choose a Question</p>
+        {grid}
+      </>
+    );
+  }
 
   return (
     <div className="qnp-wrap card" style={{ margin: 0 }}>
       <p className="qnp-title">Question palette</p>
-      <div className="qnp-grid">
-        {cells.map((n) => {
-          const kind = kindForIndex(n, totalQuestions, maxReachableIndex, questionsAnswered, marked);
-          const enabled = n <= maxReachableIndex && n >= 1;
-          const isCurrent = n === currentIndex;
-          const loading = loadingIndex === n;
-          return (
-            <button
-              key={n}
-              type="button"
-              className={[
-                "qnp-cell",
-                `qnp-cell--${kind}`,
-                isCurrent ? "qnp-cell--current" : "",
-                loading ? "qnp-cell--loading" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-              disabled={!enabled || loading}
-              aria-current={isCurrent ? "true" : undefined}
-              aria-label={`Question ${n}${kind === "locked" ? " (not available yet)" : ""}`}
-              onClick={() => enabled && onSelect(n)}
-            >
-              <span className="qnp-cell__num">{n}</span>
-              {kind === "answeredMarked" && <span className="qnp-cell__badge" aria-hidden />}
-            </button>
-          );
-        })}
-      </div>
-      <div className="qnp-legend" aria-hidden>
-        <div className="qnp-legend__row">
-          <span className="qnp-legend__sample qnp-cell qnp-cell--locked qnp-legend__mini" />
-          <span>Not visited</span>
-        </div>
-        <div className="qnp-legend__row">
-          <span className="qnp-legend__sample qnp-cell qnp-cell--visitedUnanswered qnp-legend__mini" />
-          <span>Visited, not answered</span>
-        </div>
-        <div className="qnp-legend__row">
-          <span className="qnp-legend__sample qnp-cell qnp-cell--answered qnp-legend__mini" />
-          <span>Answered</span>
-        </div>
-        <div className="qnp-legend__row">
-          <span className="qnp-legend__sample qnp-cell qnp-cell--markedUnanswered qnp-legend__mini" />
-          <span>Marked for review (not answered)</span>
-        </div>
-        <div className="qnp-legend__row">
-          <span className="qnp-legend__answered-marked-wrap">
-            <span className="qnp-cell qnp-cell--answeredMarked qnp-legend__mini">
-              <span className="qnp-cell__num">5</span>
-              <span className="qnp-cell__badge" />
-            </span>
-          </span>
-          <span>Answered &amp; marked for review</span>
-        </div>
-      </div>
+      {grid}
+      <PaletteLegend variant="default" stats={stats} />
     </div>
   );
 }

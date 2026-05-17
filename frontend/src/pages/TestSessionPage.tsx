@@ -11,7 +11,7 @@ import {
   timeoutPaperSection,
 } from "../api/client";
 import type { PaperNextSection } from "../api/types";
-import { QuestionNumpad } from "../components/QuestionNumpad";
+import { ExamSessionShell } from "../components/ExamSessionShell";
 import { useTestSession } from "../store/testSession";
 
 export function TestSessionPage() {
@@ -34,6 +34,7 @@ export function TestSessionPage() {
   const paperMeta = useTestSession((s) => s.paperMeta);
   const paperAttemptId = useTestSession((s) => s.paperAttemptId);
   const sectionStartedAt = useTestSession((s) => s.sectionStartedAt);
+  const studentName = useTestSession((s) => s.studentName);
 
   const [selected, setSelected] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -339,198 +340,101 @@ export function TestSessionPage() {
     }
   }
 
-  const progress = totalQuestions > 0 ? (questionsAnswered / totalQuestions) * 100 : 0;
   const optionsDisabled = !canSubmit || loadingIndex != null || sectionTimingOut;
+  const timerSeconds = paperMeta && sectionRemaining != null ? sectionRemaining : remaining;
+  const timerWarn = timerSeconds != null && timerSeconds < 120;
+
+  function onClearResponse() {
+    setSelected(null);
+    delete draftByIndex.current[currentIndex];
+  }
+
+  async function onMarkReviewAndNext() {
+    if (loadingIndex != null || sectionTimingOut) return;
+    if (!markedForReview.includes(currentIndex)) {
+      await onToggleMarkReview();
+    }
+    if (currentIndex < maxReachableIndex) {
+      await goToQuestion(currentIndex + 1);
+    }
+  }
 
   return (
-    <div className="page" style={{ maxWidth: 900 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.75rem" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
-          {paperMeta ? (
-            <span className="badge">
-              {paperMeta.paper_title} · {paperMeta.section_title} ({paperMeta.section_index + 1}/{paperMeta.total_sections})
-            </span>
-          ) : (
-            <span className="badge">
-              Question {currentIndex} of {totalQuestions}
-            </span>
-          )}
-          <button
-            type="button"
-            className="btn btn-danger"
-            onClick={onEndTest}
-            disabled={submitting || ending || loadingIndex != null || sectionTimingOut}
-          >
-            {ending ? "Ending…" : paperMeta ? "End question paper" : "End test"}
-          </button>
-        </div>
-        {paperMeta && sectionRemaining != null ? (
-          <span
+    <ExamSessionShell
+      studentName={studentName}
+      paperMeta={paperMeta}
+      currentQuestion={currentQuestion}
+      currentIndex={currentIndex}
+      totalQuestions={totalQuestions}
+      maxReachableIndex={maxReachableIndex}
+      questionsAnswered={questionsAnswered}
+      markedForReview={markedForReview}
+      loadingIndex={loadingIndex}
+      timerSeconds={timerSeconds}
+      timerWarn={timerWarn}
+      selected={selected}
+      isTita={isTita}
+      optionsDisabled={optionsDisabled}
+      canSubmit={canSubmit}
+      submitting={submitting}
+      ending={ending}
+      sectionTimingOut={sectionTimingOut}
+      onSelectQuestion={goToQuestion}
+      onClearResponse={onClearResponse}
+      onMarkReviewAndNext={onMarkReviewAndNext}
+      onSaveAndNext={onSubmit}
+      onEndTest={onEndTest}
+      onReport={() => setShowReportModal(true)}
+      onSelectOption={(key) => {
+        setSelected(key);
+        if (canSubmit) draftByIndex.current[currentIndex] = key;
+      }}
+      onTitaChange={(v) => {
+        setSelected(v);
+        if (canSubmit) draftByIndex.current[currentIndex] = v;
+      }}
+      reportModal={
+        showReportModal ? (
+          <div
             style={{
-              fontFamily: "var(--mono)",
-              fontSize: "0.95rem",
-              color: sectionRemaining < 120 ? "var(--danger)" : "var(--muted)",
+              position: "fixed",
+              inset: 0,
+              background: "rgba(15,23,42,0.45)",
+              display: "grid",
+              placeItems: "center",
+              zIndex: 60,
+              padding: "1rem",
             }}
+            onClick={() => !reportSending && setShowReportModal(false)}
           >
-            Section: {Math.floor(sectionRemaining / 60)}:{String(sectionRemaining % 60).padStart(2, "0")}
-          </span>
-        ) : remaining != null ? (
-          <span style={{ fontFamily: "var(--mono)", fontSize: "0.95rem", color: remaining < 120 ? "var(--danger)" : "var(--muted)" }}>
-            {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, "0")}
-          </span>
-        ) : null}
-      </div>
-      <div style={{ height: 6, borderRadius: 999, background: "#e2e8f0", overflow: "hidden", marginBottom: "1.5rem" }}>
-        <div style={{ width: `${progress}%`, height: "100%", background: "linear-gradient(90deg, var(--primary), var(--accent))", transition: "width 0.35s ease" }} />
-      </div>
-      <div className="test-session-layout" style={{ display: "grid", gap: "1.5rem", alignItems: "start" }}>
-        <div className="card" style={{ margin: 0 }}>
-          <p style={{ color: "var(--muted)", fontSize: "0.85rem", marginBottom: "0.5rem" }}>
-            {currentQuestion.subject} · {currentQuestion.topic}
-          </p>
-          {currentQuestion.image_url ? (
-            <div style={{ marginBottom: "1rem" }}>
-              <img
-                src={currentQuestion.image_url}
-                alt=""
-                style={{ maxWidth: "100%", maxHeight: 280, borderRadius: 10, border: "1px solid var(--border)", display: "block" }}
-              />
-            </div>
-          ) : null}
-          <h2 style={{ fontSize: "1.35rem", marginBottom: "1.25rem" }}>{currentQuestion.question_text}</h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-            {isTita ? (
-              <input
-                type="text"
+            <div className="card" style={{ width: "min(480px, 96vw)", margin: 0 }} onClick={(e) => e.stopPropagation()}>
+              <h3 style={{ marginTop: 0 }}>Report this question</h3>
+              <p style={{ color: "var(--muted)", fontSize: "0.92rem", marginTop: "-0.25rem" }}>
+                Tell us what is wrong (optional). Your attempt and question are recorded for administrators.
+              </p>
+              <label className="label" style={{ marginTop: "0.75rem" }}>
+                Details
+              </label>
+              <textarea
                 className="input"
-                autoComplete="off"
-                placeholder="Type your answer"
-                value={selected ?? ""}
-                disabled={optionsDisabled}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setSelected(v);
-                  if (canSubmit) draftByIndex.current[currentIndex] = v;
-                }}
-                style={{ fontSize: "1.05rem", padding: "0.75rem 0.85rem" }}
+                rows={4}
+                value={reportMessage}
+                onChange={(e) => setReportMessage(e.target.value)}
+                placeholder="e.g. Option B should be marked correct, or there is a typo in the stem…"
+                disabled={reportSending}
               />
-            ) : (
-              currentQuestion.options.map((o) => (
-                <label
-                  key={o.key}
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "0.65rem",
-                    padding: "0.75rem 0.85rem",
-                    borderRadius: 10,
-                    border: selected === o.key ? "2px solid var(--primary)" : "1px solid var(--border)",
-                    cursor: optionsDisabled ? "default" : "pointer",
-                    background: selected === o.key ? "rgba(14,165,233,0.08)" : "#fff",
-                    opacity: optionsDisabled ? 0.92 : 1,
-                  }}
-                >
-                  <input
-                    type="radio"
-                    name="opt"
-                    checked={selected === o.key}
-                    disabled={optionsDisabled}
-                    onChange={() => {
-                      setSelected(o.key);
-                      if (canSubmit) draftByIndex.current[currentIndex] = o.key;
-                    }}
-                    style={{ marginTop: 4 }}
-                  />
-                  <span>{o.label}</span>
-                </label>
-              ))
-            )}
-          </div>
-          {!canSubmit && (
-            <p style={{ marginTop: "1rem", fontSize: "0.85rem", color: "var(--muted)" }}>You are reviewing a submitted answer. Only the active question can be changed.</p>
-          )}
-          <div style={{ marginTop: "1.25rem", display: "flex", flexWrap: "wrap", gap: "0.75rem", alignItems: "center" }}>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={onSubmit}
-              disabled={
-                submitting ||
-                !canSubmit ||
-                loadingIndex != null ||
-                sectionTimingOut ||
-                (isTita ? !selected?.trim() : selected == null)
-              }
-              style={{ minWidth: 160 }}
-            >
-              {submitting ? "Checking…" : "Submit answer"}
-            </button>
-            <button type="button" className="btn btn-ghost" onClick={onToggleMarkReview} disabled={loadingIndex != null || sectionTimingOut}>
-              {markedForReview.includes(currentIndex) ? "Unmark review" : "Mark for review"}
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={() => setShowReportModal(true)}
-              disabled={loadingIndex != null || sectionTimingOut}
-              title="Flag a typo, wrong answer key, or unclear wording"
-            >
-              Report question
-            </button>
-          </div>
-        </div>
-
-        <QuestionNumpad
-          totalQuestions={totalQuestions}
-          currentIndex={currentIndex}
-          maxReachableIndex={maxReachableIndex}
-          questionsAnswered={questionsAnswered}
-          markedForReview={markedForReview}
-          loadingIndex={loadingIndex}
-          onSelect={goToQuestion}
-        />
-      </div>
-
-      {showReportModal ? (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(15,23,42,0.45)",
-            display: "grid",
-            placeItems: "center",
-            zIndex: 60,
-            padding: "1rem",
-          }}
-          onClick={() => !reportSending && setShowReportModal(false)}
-        >
-          <div className="card" style={{ width: "min(480px, 96vw)", margin: 0 }} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ marginTop: 0 }}>Report this question</h3>
-            <p style={{ color: "var(--muted)", fontSize: "0.92rem", marginTop: "-0.25rem" }}>
-              Tell us what is wrong (optional). Your attempt and question are recorded for administrators.
-            </p>
-            <label className="label" style={{ marginTop: "0.75rem" }}>
-              Details
-            </label>
-            <textarea
-              className="input"
-              rows={4}
-              value={reportMessage}
-              onChange={(e) => setReportMessage(e.target.value)}
-              placeholder="e.g. Option B should be marked correct, or there is a typo in the stem…"
-              disabled={reportSending}
-            />
-            <div style={{ display: "flex", gap: "0.6rem", marginTop: "1rem", flexWrap: "wrap" }}>
-              <button type="button" className="btn btn-primary" onClick={onSubmitReport} disabled={reportSending}>
-                {reportSending ? "Sending…" : "Submit report"}
-              </button>
-              <button type="button" className="btn btn-ghost" onClick={() => setShowReportModal(false)} disabled={reportSending}>
-                Cancel
-              </button>
+              <div style={{ display: "flex", gap: "0.6rem", marginTop: "1rem", flexWrap: "wrap" }}>
+                <button type="button" className="btn btn-primary" onClick={onSubmitReport} disabled={reportSending}>
+                  {reportSending ? "Sending…" : "Submit report"}
+                </button>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowReportModal(false)} disabled={reportSending}>
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      ) : null}
-    </div>
+        ) : null
+      }
+    />
   );
 }
