@@ -26,6 +26,7 @@ export interface QuestionAdmin {
   correct_answer: string;
   explanation?: string | null;
   image_url?: string | null;
+  explanation_image_url?: string | null;
   difficulty: Difficulty;
   subject: string;
   topic: string;
@@ -42,6 +43,7 @@ export interface QuestionCreatePayload {
   correct_answer: string;
   explanation?: string | null;
   image_url?: string | null;
+  explanation_image_url?: string | null;
   difficulty: Difficulty;
   subject: string;
   topic: string;
@@ -172,6 +174,7 @@ export interface AssignPaperByTitleResult {
 export interface SubmitAnswerResponse {
   is_correct: boolean;
   explanation?: string | null;
+  explanation_image_url?: string | null;
   completed: boolean;
   next_question?: QuestionStudent | null;
   question_index?: number | null;
@@ -327,6 +330,7 @@ export interface StudentQuestionReview {
   correct_label: string;
   is_correct: boolean;
   explanation?: string | null;
+  explanation_image_url?: string | null;
   time_spent_seconds?: number | null;
   difficulty_when_served?: string | null;
   answer_attempt_id?: string;

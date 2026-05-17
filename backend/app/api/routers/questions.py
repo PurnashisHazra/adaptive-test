@@ -122,7 +122,7 @@ async def upload_question_image(
     file: UploadFile = File(...),
     r2: R2StorageService = Depends(get_r2_storage_service),
 ) -> dict:
-    """Upload an image to R2; returns public URL for optional `image_url` on questions."""
+    """Upload an image to R2; returns public URL for question `image_url` or `explanation_image_url`."""
     url = await r2.upload_question_image(file)
     return {"url": url}
 

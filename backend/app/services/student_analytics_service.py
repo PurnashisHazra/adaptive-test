@@ -150,6 +150,8 @@ class StudentAnalyticsService:
             correct_key = str(qdoc.get("correct_answer", ""))
             raw_img = qdoc.get("image_url")
             img = str(raw_img).strip() if raw_img else None
+            raw_expl_img = qdoc.get("explanation_image_url")
+            expl_img = str(raw_expl_img).strip() if raw_expl_img else None
             out.append(
                 StudentQuestionReview(
                     index=i,
@@ -164,6 +166,7 @@ class StudentAnalyticsService:
                     correct_label=_option_label(raw_opts, correct_key),
                     is_correct=bool(a.get("is_correct")),
                     explanation=qdoc.get("explanation"),
+                    explanation_image_url=expl_img or None,
                     time_spent_seconds=a.get("time_spent_seconds"),
                     difficulty_when_served=diff_served,
                     answer_attempt_id=answer_attempt_id,

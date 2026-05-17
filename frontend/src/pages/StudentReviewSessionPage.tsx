@@ -124,7 +124,7 @@ function QuestionReviewCard({ q }: { q: StudentQuestionReview }) {
         </dl>
       </div>
 
-      {q.explanation ? (
+      {q.explanation || q.explanation_image_url ? (
         <div
           style={{
             marginTop: "1rem",
@@ -136,7 +136,16 @@ function QuestionReviewCard({ q }: { q: StudentQuestionReview }) {
           }}
         >
           <strong style={{ display: "block", marginBottom: "0.35rem" }}>Explanation</strong>
-          <span style={{ whiteSpace: "pre-wrap" }}>{q.explanation}</span>
+          {q.explanation ? <span style={{ whiteSpace: "pre-wrap" }}>{q.explanation}</span> : null}
+          {q.explanation_image_url ? (
+            <div style={{ marginTop: q.explanation ? "0.75rem" : 0 }}>
+              <img
+                src={q.explanation_image_url}
+                alt=""
+                style={{ maxWidth: "100%", maxHeight: 280, borderRadius: 8, border: "1px solid var(--border)" }}
+              />
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

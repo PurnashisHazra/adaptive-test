@@ -22,6 +22,14 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _explanation_from_qdoc(qdoc: Dict[str, Any]) -> tuple[Optional[str], Optional[str]]:
+    expl_raw = qdoc.get("explanation")
+    explanation = str(expl_raw).strip() if expl_raw else None
+    img_raw = qdoc.get("explanation_image_url")
+    explanation_image_url = str(img_raw).strip() if img_raw else None
+    return explanation, explanation_image_url
+
+
 def _to_student_payload(doc: Dict[str, Any]) -> QuestionPayload:
     raw_img = doc.get("image_url")
     img = str(raw_img).strip() if raw_img else None
@@ -259,11 +267,13 @@ class TestService:
             await self._attempts.update(attempt_id, patch)
             att_done = await self._attempts.get(attempt_id) or att
             mf = list(att_done.get("marked_for_review", []) or [])
+            expl, expl_img = _explanation_from_qdoc(qdoc)
             return await self._submit_completed_response(
                 att_done=att_done,
                 attempt_id=attempt_id,
                 is_correct=is_correct,
-                explanation=qdoc.get("explanation"),
+                explanation=expl,
+                explanation_image_url=expl_img,
                 new_answered=new_answered,
                 answers=answers,
                 new_score=new_score,
@@ -318,11 +328,13 @@ class TestService:
             await self._attempts.update(attempt_id, patch)
             att_done = await self._attempts.get(attempt_id) or att
             mf = list(att_done.get("marked_for_review", []) or [])
+            expl, expl_img = _explanation_from_qdoc(qdoc)
             return await self._submit_completed_response(
                 att_done=att_done,
                 attempt_id=attempt_id,
                 is_correct=is_correct,
-                explanation=qdoc.get("explanation"),
+                explanation=expl,
+                explanation_image_url=expl_img,
                 new_answered=new_answered,
                 answers=answers,
                 new_score=new_score,
@@ -338,9 +350,11 @@ class TestService:
         att_after = await self._attempts.get(attempt_id) or att
         qids_after = list(att_after.get("question_ids", []))
         mf = list(att_after.get("marked_for_review", []) or [])
+        expl, expl_img = _explanation_from_qdoc(qdoc)
         return SubmitAnswerResponse(
             is_correct=is_correct,
-            explanation=qdoc.get("explanation"),
+            explanation=expl,
+            explanation_image_url=expl_img,
             completed=False,
             next_question=_to_student_payload(nq),
             question_index=new_answered + 1,
@@ -374,6 +388,7 @@ class TestService:
         attempt_id: str,
         is_correct: bool,
         explanation: Optional[str],
+        explanation_image_url: Optional[str] = None,
         new_answered: int,
         answers: List[Dict[str, Any]],
         new_score: int,
@@ -391,12 +406,14 @@ class TestService:
                 section_summary=summary,
                 is_correct=is_correct,
                 explanation=explanation,
+                explanation_image_url=explanation_image_url,
                 mf=mf,
                 new_answered=new_answered,
             )
         return SubmitAnswerResponse(
             is_correct=is_correct,
             explanation=explanation,
+            explanation_image_url=explanation_image_url,
             completed=True,
             next_question=None,
             question_index=None,

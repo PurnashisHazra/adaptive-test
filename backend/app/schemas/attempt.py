@@ -75,6 +75,7 @@ class SubmitAnswerRequest(BaseModel):
 class SubmitAnswerResponse(BaseModel):
     is_correct: bool
     explanation: Optional[str] = None
+    explanation_image_url: Optional[str] = None
     completed: bool
     next_question: Optional[QuestionPayload] = None
     question_index: Optional[int] = None

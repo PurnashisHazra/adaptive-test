@@ -330,6 +330,7 @@ class PaperService:
         section_summary: AttemptSummary,
         is_correct: bool,
         explanation: Optional[str],
+        explanation_image_url: Optional[str] = None,
         mf: List[int],
         new_answered: int,
     ) -> SubmitAnswerResponse:
@@ -392,6 +393,7 @@ class PaperService:
             return SubmitAnswerResponse(
                 is_correct=is_correct,
                 explanation=explanation,
+                explanation_image_url=explanation_image_url,
                 completed=False,
                 next_question=None,
                 question_index=None,
@@ -443,6 +445,7 @@ class PaperService:
         return SubmitAnswerResponse(
             is_correct=is_correct,
             explanation=explanation,
+            explanation_image_url=explanation_image_url,
             completed=True,
             next_question=None,
             question_index=None,

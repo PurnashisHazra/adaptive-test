@@ -22,6 +22,7 @@ class StudentQuestionReview(BaseModel):
     correct_label: str
     is_correct: bool
     explanation: Optional[str] = None
+    explanation_image_url: Optional[str] = None
     time_spent_seconds: Optional[int] = None
     difficulty_when_served: Optional[str] = Field(
         default=None,

@@ -94,6 +94,7 @@ def question_create_to_doc(data: QuestionCreate) -> Dict[str, Any]:
     is_ai_generated = bool(data.is_ai_generated)
     tags = _normalize_exam_tags(list(data.tags))
     img = (data.image_url or "").strip() if data.image_url else None
+    expl_img = (data.explanation_image_url or "").strip() if data.explanation_image_url else None
     return {
         "question_text": data.question_text.strip(),
         "question_text_norm": norm,
@@ -102,6 +103,7 @@ def question_create_to_doc(data: QuestionCreate) -> Dict[str, Any]:
         "correct_answer": ca,
         "explanation": data.explanation.strip() if data.explanation else None,
         "image_url": img or None,
+        "explanation_image_url": expl_img or None,
         "difficulty": data.difficulty.value,
         "subject": data.subject.strip(),
         "topic": data.topic.strip(),
@@ -126,6 +128,9 @@ def merge_update_doc(existing: Dict[str, Any], upd: QuestionUpdate) -> Dict[str,
     if upd.image_url is not None:
         s = upd.image_url.strip()
         patch["image_url"] = s if s else None
+    if upd.explanation_image_url is not None:
+        s = upd.explanation_image_url.strip()
+        patch["explanation_image_url"] = s if s else None
     if upd.difficulty is not None:
         patch["difficulty"] = upd.difficulty.value
     if upd.subject is not None:

@@ -22,6 +22,11 @@ class QuestionBase(BaseModel):
     correct_answer: str = Field(..., min_length=1)
     explanation: Optional[str] = None
     image_url: Optional[str] = Field(default=None, max_length=2048, description="Optional image URL (e.g. R2 public URL).")
+    explanation_image_url: Optional[str] = Field(
+        default=None,
+        max_length=2048,
+        description="Optional image for the explanation (e.g. R2 public URL).",
+    )
     difficulty: Difficulty
     subject: str = Field(default="General", min_length=1)
     topic: str = Field(..., min_length=1, description="CAT topic of the question (e.g., Algebra, Time-Speed-Distance).")
@@ -68,6 +73,7 @@ class QuestionUpdate(BaseModel):
     correct_answer: Optional[str] = Field(default=None, min_length=1)
     explanation: Optional[str] = None
     image_url: Optional[str] = Field(default=None, max_length=2048)
+    explanation_image_url: Optional[str] = Field(default=None, max_length=2048)
     difficulty: Optional[Difficulty] = None
     subject: Optional[str] = Field(default=None, min_length=1)
     topic: Optional[str] = Field(default=None, min_length=1)
@@ -133,7 +139,7 @@ class AIGenerateQuestionRequest(BaseModel):
 
 
 class AutoAssignDifficultyRequest(BaseModel):
-    """Assign difficulty via OpenAI using each question's text and exam tags."""
+    """Assign difficulty via Adaptest AI using each question's text and exam tags."""
 
     question_ids: List[str] = Field(..., min_length=1, max_length=30)
 

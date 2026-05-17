@@ -59,6 +59,8 @@ export function QuestionFormPage() {
   const [examTag, setExamTag] = useState<ExamTag>("CAT");
   const [imageUrl, setImageUrl] = useState("");
   const [imageUploading, setImageUploading] = useState(false);
+  const [explanationImageUrl, setExplanationImageUrl] = useState("");
+  const [explanationImageUploading, setExplanationImageUploading] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -77,6 +79,7 @@ export function QuestionFormPage() {
         const firstTag = (q.tags[0] || "OTHER").toUpperCase();
         setExamTag((EXAM_TAGS.includes(firstTag as ExamTag) ? firstTag : "OTHER") as ExamTag);
         setImageUrl(q.image_url?.trim() ?? "");
+        setExplanationImageUrl(q.explanation_image_url?.trim() ?? "");
       })
       .catch(() => toast.error("Failed to load"))
       .finally(() => setLoading(false));
@@ -101,6 +104,7 @@ export function QuestionFormPage() {
       topic,
       tags: [examTag],
       image_url: imageUrl.trim() || null,
+      explanation_image_url: explanationImageUrl.trim() || null,
     };
     try {
       if (isEdit && id) {
@@ -317,7 +321,61 @@ export function QuestionFormPage() {
         </div>
         <div style={{ marginTop: "1rem" }}>
           <label className="label">Explanation (optional)</label>
-          <textarea className="input" rows={2} value={explanation} onChange={(e) => setExplanation(e.target.value)} />
+          <textarea className="input" rows={3} value={explanation} onChange={(e) => setExplanation(e.target.value)} />
+          <p style={{ margin: "0.65rem 0 0.5rem", fontSize: "0.85rem", color: "var(--muted)" }}>
+            Optional image for the explanation (upload to R2 or paste a URL). Shown in answer review.
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem" }}>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="input"
+              style={{ maxWidth: 280 }}
+              disabled={explanationImageUploading}
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (!f) return;
+                setExplanationImageUploading(true);
+                try {
+                  const url = await uploadQuestionImage(f);
+                  setExplanationImageUrl(url);
+                  toast.success("Explanation image uploaded");
+                } catch (err: unknown) {
+                  const msg =
+                    err && typeof err === "object" && "response" in err
+                      ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+                      : undefined;
+                  toast.error(typeof msg === "string" ? msg : "Upload failed");
+                } finally {
+                  setExplanationImageUploading(false);
+                }
+              }}
+            />
+            {explanationImageUploading ? (
+              <span style={{ fontSize: "0.85rem", color: "var(--muted)" }}>Uploading…</span>
+            ) : null}
+            {explanationImageUrl ? (
+              <button type="button" className="btn btn-ghost" onClick={() => setExplanationImageUrl("")}>
+                Remove image
+              </button>
+            ) : null}
+          </div>
+          <input
+            className="input"
+            value={explanationImageUrl}
+            onChange={(e) => setExplanationImageUrl(e.target.value)}
+            placeholder="https://…"
+          />
+          {explanationImageUrl ? (
+            <div style={{ marginTop: "0.65rem" }}>
+              <img
+                src={explanationImageUrl}
+                alt=""
+                style={{ maxWidth: "100%", maxHeight: 220, borderRadius: 8, border: "1px solid var(--border)" }}
+              />
+            </div>
+          ) : null}
         </div>
         <div className="grid-2" style={{ marginTop: "1rem" }}>
           <div>
