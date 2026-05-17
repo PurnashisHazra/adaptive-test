@@ -69,6 +69,10 @@ class QuestionPaperCreate(BaseModel):
     sections: List[PaperSectionIn] = Field(..., min_length=1)
     marks_per_correct: float = Field(default=1.0, gt=0, le=1000)
     marks_per_incorrect: float = Field(default=0.0, ge=0, le=1000)
+    is_adaptive: bool = Field(
+        default=True,
+        description="Adaptive papers adjust difficulty per answer. Non-adaptive papers use a fixed question set with full navigation, skip, and mark-for-review.",
+    )
 
 
 class QuestionPaperUpdate(BaseModel):
@@ -76,6 +80,7 @@ class QuestionPaperUpdate(BaseModel):
     sections: Optional[List[PaperSectionIn]] = None
     marks_per_correct: Optional[float] = Field(default=None, gt=0, le=1000)
     marks_per_incorrect: Optional[float] = Field(default=None, ge=0, le=1000)
+    is_adaptive: Optional[bool] = None
 
 
 class PaperSectionOut(BaseModel):
@@ -96,6 +101,7 @@ class QuestionPaperOut(BaseModel):
     sections: List[PaperSectionOut]
     marks_per_correct: float
     marks_per_incorrect: float
+    is_adaptive: bool = True
     created_at: datetime
     updated_at: datetime
 
@@ -130,6 +136,7 @@ class PaperSessionMeta(BaseModel):
     total_sections: int
     marks_per_correct: float
     marks_per_incorrect: float
+    is_adaptive: bool = True
 
 
 class PaperSectionResultItem(BaseModel):
@@ -159,6 +166,7 @@ class AssignedPaperItem(BaseModel):
     title: str
     marks_per_correct: float
     marks_per_incorrect: float
+    is_adaptive: bool = True
     section_count: int
     has_started: bool
     completed: bool

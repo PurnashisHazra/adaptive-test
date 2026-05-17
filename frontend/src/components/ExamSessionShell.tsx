@@ -12,6 +12,8 @@ export function ExamSessionShell(props: {
   maxReachableIndex: number;
   questionsAnswered: number;
   markedForReview: number[];
+  skippedIndices: number[];
+  isAdaptive: boolean;
   loadingIndex: number | null;
   timerSeconds: number | null;
   timerWarn: boolean;
@@ -25,6 +27,7 @@ export function ExamSessionShell(props: {
   onSelectQuestion: (index: number) => void;
   onClearResponse: () => void;
   onMarkReviewAndNext: () => void;
+  onSkip: () => void;
   onSaveAndNext: () => void;
   onEndTest: () => void;
   onReport: () => void;
@@ -41,6 +44,8 @@ export function ExamSessionShell(props: {
     maxReachableIndex,
     questionsAnswered,
     markedForReview,
+    skippedIndices,
+    isAdaptive,
     loadingIndex,
     timerSeconds,
     timerWarn,
@@ -54,6 +59,7 @@ export function ExamSessionShell(props: {
     onSelectQuestion,
     onClearResponse,
     onMarkReviewAndNext,
+    onSkip,
     onSaveAndNext,
     onEndTest,
     onReport,
@@ -136,6 +142,17 @@ export function ExamSessionShell(props: {
             </button>
             <span className="exam-section-bar__title" title={sectionBarTitle}>
               {sectionBarTitle}
+              {isAdaptive ? (
+                <span
+                  className="exam-adaptive-badge"
+                  title="Adaptive test: question difficulty adjusts based on your answers. Skipped questions cannot be revisited."
+                >
+                  Adaptive
+                  <span className="exam-section-tab__info" aria-hidden>
+                    i
+                  </span>
+                </span>
+              ) : null}
             </span>
             <button type="button" className="exam-section-bar__arrow" disabled aria-label="Next section">
               ›
@@ -216,6 +233,7 @@ export function ExamSessionShell(props: {
               maxReachableIndex={maxReachableIndex}
               questionsAnswered={questionsAnswered}
               markedForReview={markedForReview}
+              skippedIndices={skippedIndices}
               loadingIndex={loadingIndex}
               onSelect={onSelectQuestion}
             />
@@ -236,6 +254,15 @@ export function ExamSessionShell(props: {
             </button>
             <button type="button" className="exam-footer__btn" onClick={onClearResponse} disabled={optionsDisabled || selected == null}>
               Clear Response
+            </button>
+            <button
+              type="button"
+              className="exam-footer__btn"
+              onClick={onSkip}
+              disabled={!canSubmit || loadingIndex != null || sectionTimingOut}
+              title="Skip counts as unanswered (0 marks, no negative marking). You cannot return to a skipped question."
+            >
+              Skip
             </button>
             <button
               type="button"

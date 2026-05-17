@@ -6,6 +6,7 @@ import {
   endTest,
   getQuestionAt,
   patchMarkReview,
+  skipQuestion,
   submitAnswer,
   submitQuestionReport,
   timeoutPaperSection,
@@ -30,6 +31,8 @@ export function TestSessionPage() {
   const questionsAnswered = useTestSession((s) => s.questionsAnswered);
   const maxReachableIndex = useTestSession((s) => s.maxReachableIndex);
   const markedForReview = useTestSession((s) => s.markedForReview);
+  const skippedIndices = useTestSession((s) => s.skippedIndices);
+  const isAdaptive = useTestSession((s) => s.isAdaptive);
   const canSubmit = useTestSession((s) => s.canSubmit);
   const paperMeta = useTestSession((s) => s.paperMeta);
   const paperAttemptId = useTestSession((s) => s.paperAttemptId);
@@ -168,6 +171,10 @@ export function TestSessionPage() {
 
   async function goToQuestion(idx: number) {
     if (idx < 1 || idx > maxReachableIndex) return;
+    if (skippedIndices.includes(idx)) {
+      toast.error("This question was skipped and cannot be reopened");
+      return;
+    }
     if (idx === currentIndex) return;
     setLoadingIndex(idx);
     try {
@@ -178,6 +185,8 @@ export function TestSessionPage() {
         questionsAnswered: res.questions_answered,
         maxReachableIndex: res.max_reachable_index,
         markedForReview: res.marked_for_review,
+        skippedIndices: res.skipped_indices ?? [],
+        isAdaptive: res.is_adaptive ?? isAdaptive,
         canSubmit: res.can_submit,
       });
       if (res.can_submit) {
@@ -311,8 +320,10 @@ export function TestSessionPage() {
           questionIndex: null,
           summary: res.summary,
           markedForReview: res.marked_for_review,
+          skippedIndices: res.skipped_indices,
           questionsAnswered: res.questions_answered,
           maxReachableIndex: res.max_reachable_index,
+          isAdaptive: res.is_adaptive,
         });
         nav("/result");
         return;
@@ -327,14 +338,84 @@ export function TestSessionPage() {
         questionIndex: res.question_index ?? currentIndex + 1,
         summary: null,
         markedForReview: res.marked_for_review,
+        skippedIndices: res.skipped_indices,
         questionsAnswered: res.questions_answered,
         maxReachableIndex: res.max_reachable_index,
+        isAdaptive: res.is_adaptive,
       });
       questionShownAtMs.current = Date.now();
     } catch (err: unknown) {
       const msg =
         err && typeof err === "object" && "response" in err ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail : undefined;
       toast.error(typeof msg === "string" ? msg : "Submit failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function onSkip() {
+    if (!canSubmit) {
+      toast.error("You can only skip the active question");
+      return;
+    }
+    const ok = window.confirm(
+      "Skip this question? It scores 0 with no negative marking. You will not be able to return to it.",
+    );
+    if (!ok) return;
+    setSubmitting(true);
+    try {
+      const secondsOnQuestion = Math.max(0, Math.floor((Date.now() - questionShownAtMs.current) / 1000));
+      const res = await skipQuestion(stableAttemptId, {
+        question_id: currentQuestion.id,
+        elapsed_seconds: secondsOnQuestion,
+      });
+      delete draftByIndex.current[currentIndex];
+
+      if (res.paper_summary) {
+        setLastPaperSummary(res.paper_summary);
+        nav("/result");
+        return;
+      }
+      if (res.paper_next) {
+        setPendingSectionNext(res.paper_next);
+        setSectionGateReason("submit");
+        setSelected(null);
+        return;
+      }
+      if (res.completed && res.summary) {
+        setAfterSubmit({
+          nextQuestion: null,
+          questionIndex: null,
+          summary: res.summary,
+          markedForReview: res.marked_for_review,
+          skippedIndices: res.skipped_indices,
+          questionsAnswered: res.questions_answered,
+          maxReachableIndex: res.max_reachable_index,
+          isAdaptive: res.is_adaptive,
+        });
+        nav("/result");
+        return;
+      }
+      if (!res.next_question) {
+        toast.error("Unexpected response from server");
+        return;
+      }
+      setSelected(null);
+      setAfterSubmit({
+        nextQuestion: res.next_question,
+        questionIndex: res.question_index ?? currentIndex + 1,
+        summary: null,
+        markedForReview: res.marked_for_review,
+        skippedIndices: res.skipped_indices,
+        questionsAnswered: res.questions_answered,
+        maxReachableIndex: res.max_reachable_index,
+        isAdaptive: res.is_adaptive,
+      });
+      questionShownAtMs.current = Date.now();
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "response" in err ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail : undefined;
+      toast.error(typeof msg === "string" ? msg : "Skip failed");
     } finally {
       setSubmitting(false);
     }
@@ -369,6 +450,8 @@ export function TestSessionPage() {
       maxReachableIndex={maxReachableIndex}
       questionsAnswered={questionsAnswered}
       markedForReview={markedForReview}
+      skippedIndices={skippedIndices}
+      isAdaptive={isAdaptive}
       loadingIndex={loadingIndex}
       timerSeconds={timerSeconds}
       timerWarn={timerWarn}
@@ -382,6 +465,7 @@ export function TestSessionPage() {
       onSelectQuestion={goToQuestion}
       onClearResponse={onClearResponse}
       onMarkReviewAndNext={onMarkReviewAndNext}
+      onSkip={onSkip}
       onSaveAndNext={onSubmit}
       onEndTest={onEndTest}
       onReport={() => setShowReportModal(true)}

@@ -75,6 +75,7 @@ export interface PaperSessionMeta {
   total_sections: number;
   marks_per_correct: number;
   marks_per_incorrect: number;
+  is_adaptive: boolean;
 }
 
 export interface TestStartResponse {
@@ -85,9 +86,11 @@ export interface TestStartResponse {
   time_limit_seconds?: number | null;
   started_at: string;
   marked_for_review?: number[];
+  skipped_indices?: number[];
   questions_answered?: number;
   max_reachable_index?: number;
   can_submit?: boolean;
+  is_adaptive?: boolean;
   paper?: PaperSessionMeta | null;
 }
 
@@ -99,8 +102,10 @@ export interface PaperNextSection {
   time_limit_seconds?: number | null;
   started_at: string;
   marked_for_review: number[];
+  skipped_indices: number[];
   questions_answered: number;
   max_reachable_index: number;
+  is_adaptive: boolean;
   paper: PaperSessionMeta;
 }
 
@@ -131,6 +136,7 @@ export interface AssignedPaperItem {
   title: string;
   marks_per_correct: number;
   marks_per_incorrect: number;
+  is_adaptive: boolean;
   section_count: number;
   has_started: boolean;
   completed: boolean;
@@ -156,6 +162,7 @@ export interface QuestionPaper {
   sections: QuestionPaperSection[];
   marks_per_correct: number;
   marks_per_incorrect: number;
+  is_adaptive: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -173,6 +180,7 @@ export interface AssignPaperByTitleResult {
 
 export interface SubmitAnswerResponse {
   is_correct: boolean;
+  skipped?: boolean;
   explanation?: string | null;
   explanation_image_url?: string | null;
   completed: boolean;
@@ -180,8 +188,10 @@ export interface SubmitAnswerResponse {
   question_index?: number | null;
   summary?: AttemptSummary | null;
   marked_for_review?: number[];
+  skipped_indices?: number[];
   questions_answered?: number;
   max_reachable_index?: number;
+  is_adaptive?: boolean;
   paper_next?: PaperNextSection | null;
   paper_summary?: PaperResultSummary | null;
 }
@@ -191,10 +201,13 @@ export interface TestQuestionAtResponse {
   question_index: number;
   chosen_answer: string | null;
   can_submit: boolean;
+  is_skipped?: boolean;
   total_questions: number;
   max_reachable_index: number;
   questions_answered: number;
   marked_for_review: number[];
+  skipped_indices?: number[];
+  is_adaptive?: boolean;
 }
 
 export interface AnswerRecord {

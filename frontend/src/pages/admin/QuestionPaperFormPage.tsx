@@ -462,6 +462,7 @@ export function QuestionPaperFormPage() {
   const [title, setTitle] = useState("");
   const [marksCorrect, setMarksCorrect] = useState(1);
   const [marksIncorrect, setMarksIncorrect] = useState(0);
+  const [isAdaptive, setIsAdaptive] = useState(true);
   const [sections, setSections] = useState<QuestionPaperSection[]>([newSection()]);
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
@@ -500,6 +501,7 @@ export function QuestionPaperFormPage() {
         setTitle(p.title);
         setMarksCorrect(p.marks_per_correct);
         setMarksIncorrect(p.marks_per_incorrect);
+        setIsAdaptive(p.is_adaptive ?? true);
         setSections(
           p.sections.map((s, i) => ({
             id: s.id,
@@ -544,6 +546,7 @@ export function QuestionPaperFormPage() {
       title: title.trim(),
       marks_per_correct: marksCorrect,
       marks_per_incorrect: marksIncorrect,
+      is_adaptive: isAdaptive,
       sections: sections.map((s, i) => ({
         id: s.id,
         title: s.title.trim(),
@@ -617,6 +620,18 @@ export function QuestionPaperFormPage() {
           <label className="label">Title</label>
           <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} required />
         </div>
+        <div style={{ marginBottom: "1rem" }}>
+          <label className="label" style={{ display: "flex", alignItems: "flex-start", gap: "0.6rem", cursor: "pointer" }}>
+            <input type="checkbox" checked={isAdaptive} onChange={(e) => setIsAdaptive(e.target.checked)} style={{ marginTop: "0.2rem" }} />
+            <span>
+              <strong>Adaptive paper</strong>
+              <span style={{ display: "block", color: "var(--muted)", fontSize: "0.88rem", fontWeight: 400, marginTop: "0.25rem" }}>
+                When enabled, each section adapts difficulty question by question. When disabled, all questions are fixed up front and students can
+                navigate freely, mark for review, and skip.
+              </span>
+            </span>
+          </label>
+        </div>
         <div className="grid-2" style={{ marginBottom: "1rem" }}>
           <div>
             <label className="label">Marks per correct answer</label>
@@ -629,8 +644,10 @@ export function QuestionPaperFormPage() {
         </div>
         <h3 style={{ marginBottom: "0.75rem" }}>Sections</h3>
         <p style={{ color: "var(--muted)", fontSize: "0.9rem", marginTop: 0 }}>
-          Each section is an adaptive test with its own length and time limit. Use subject/topic filters for the whole bank,
-          or pick a question set below to restrict the section to specific questions.
+          {isAdaptive
+            ? "Each section is an adaptive test with its own length and time limit."
+            : "Each section presents a fixed set of questions with free navigation, mark for review, and skip."}{" "}
+          Use subject/topic filters for the whole bank, or pick a question set below to restrict the section to specific questions.
         </p>
         {sections.map((sec, idx) => (
           <div key={sec.id} className="card" style={{ marginBottom: "1rem", background: "#f8fafc" }}>

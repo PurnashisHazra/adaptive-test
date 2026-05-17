@@ -14,6 +14,7 @@ class AnswerRecord(BaseModel):
     topic_when_served: Optional[str] = None
     target_difficulty_after: Optional[Difficulty] = None
     time_spent_seconds: Optional[int] = None
+    skipped: bool = False
 
 
 class TestStartRequest(BaseModel):
@@ -33,9 +34,11 @@ class TestStartResponse(BaseModel):
     time_limit_seconds: Optional[int] = None
     started_at: datetime
     marked_for_review: List[int] = Field(default_factory=list)
+    skipped_indices: List[int] = Field(default_factory=list)
     questions_answered: int = 0
     max_reachable_index: int = 1
     can_submit: bool = True
+    is_adaptive: bool = True
     paper: Optional["PaperSessionMeta"] = None
 
 
@@ -57,8 +60,10 @@ class PaperNextSection(BaseModel):
     time_limit_seconds: Optional[int] = None
     started_at: datetime
     marked_for_review: List[int] = Field(default_factory=list)
+    skipped_indices: List[int] = Field(default_factory=list)
     questions_answered: int = 0
     max_reachable_index: int = 1
+    is_adaptive: bool = True
     paper: "PaperSessionMeta"
 
 
@@ -74,6 +79,7 @@ class SubmitAnswerRequest(BaseModel):
 
 class SubmitAnswerResponse(BaseModel):
     is_correct: bool
+    skipped: bool = False
     explanation: Optional[str] = None
     explanation_image_url: Optional[str] = None
     completed: bool
@@ -81,10 +87,17 @@ class SubmitAnswerResponse(BaseModel):
     question_index: Optional[int] = None
     summary: Optional["AttemptSummary"] = None
     marked_for_review: List[int] = Field(default_factory=list)
+    skipped_indices: List[int] = Field(default_factory=list)
     questions_answered: int = 0
     max_reachable_index: int = 0
+    is_adaptive: bool = True
     paper_next: Optional[PaperNextSection] = None
     paper_summary: Optional["PaperResultSummary"] = None
+
+
+class SkipQuestionRequest(BaseModel):
+    question_id: str
+    elapsed_seconds: Optional[int] = Field(default=None, ge=0)
 
 
 class QuestionAtIndexResponse(BaseModel):
@@ -92,10 +105,13 @@ class QuestionAtIndexResponse(BaseModel):
     question_index: int
     chosen_answer: Optional[str] = None
     can_submit: bool
+    is_skipped: bool = False
     total_questions: int
     max_reachable_index: int
     questions_answered: int
     marked_for_review: List[int] = Field(default_factory=list)
+    skipped_indices: List[int] = Field(default_factory=list)
+    is_adaptive: bool = True
 
 
 class MarkReviewRequest(BaseModel):

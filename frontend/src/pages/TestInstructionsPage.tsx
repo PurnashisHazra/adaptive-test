@@ -44,8 +44,10 @@ export function TestInstructionsPage() {
         timeLimitSeconds: res.time_limit_seconds,
         startedAt: res.started_at,
         markedForReview: res.marked_for_review ?? [],
+        skippedIndices: res.skipped_indices ?? [],
         questionsAnswered: res.questions_answered ?? 0,
         maxReachableIndex: res.max_reachable_index ?? 1,
+        isAdaptive: res.is_adaptive ?? true,
       });
       clearPendingStart();
       nav("/test");
@@ -66,7 +68,8 @@ export function TestInstructionsPage() {
       <div className="card" style={{ marginTop: "1rem" }}>
         <ol style={{ marginTop: 0, lineHeight: 1.7 }}>
           <li>Read each question carefully before choosing your answer.</li>
-          <li>Difficulty adapts as you answer; focus on accuracy, not guessing.</li>
+          <li>This is an <strong>adaptive</strong> test: difficulty adjusts as you answer. Focus on accuracy, not guessing.</li>
+          <li>You may <strong>skip</strong> a question (0 marks, no negative marking), but you cannot return to a skipped question.</li>
           <li>Do not refresh or close the tab during an active test.</li>
           <li>Timer (if enabled) continues until test completion.</li>
           <li>Once submitted, an answer cannot be changed.</li>

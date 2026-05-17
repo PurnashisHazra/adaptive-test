@@ -26,7 +26,24 @@ function PaperRow({
       style={{ margin: 0, display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}
     >
       <div>
-        <h3 style={{ margin: "0 0 0.35rem" }}>{p.title}</h3>
+        <h3 style={{ margin: "0 0 0.35rem", display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+          {p.title}
+          {p.is_adaptive ? (
+            <span
+              className="exam-adaptive-badge exam-adaptive-badge--list"
+              title="Adaptive paper: question difficulty adjusts as you answer. Skipped questions cannot be revisited."
+            >
+              Adaptive
+              <span className="exam-section-tab__info" aria-hidden>
+                i
+              </span>
+            </span>
+          ) : (
+            <span className="badge" style={{ fontWeight: 600 }}>
+              Fixed order
+            </span>
+          )}
+        </h3>
         <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--muted)" }}>
           {p.section_count} section{p.section_count === 1 ? "" : "s"} · +{p.marks_per_correct} / −{p.marks_per_incorrect} per wrong
         </p>

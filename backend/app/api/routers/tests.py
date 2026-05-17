@@ -9,6 +9,7 @@ from app.schemas.attempt import (
     MarkReviewRequest,
     MarkReviewResponse,
     QuestionAtIndexResponse,
+    SkipQuestionRequest,
     SubmitAnswerRequest,
     SubmitAnswerResponse,
     TestStartRequest,
@@ -62,6 +63,22 @@ async def submit_answer(
             attempt_id=attempt_id,
             question_id=body.question_id,
             chosen_answer=body.chosen_answer,
+            time_spent_seconds=body.elapsed_seconds,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/{attempt_id}/skip", response_model=SubmitAnswerResponse)
+async def skip_question(
+    attempt_id: str,
+    body: SkipQuestionRequest,
+    svc: TestService = Depends(get_test_service),
+) -> SubmitAnswerResponse:
+    try:
+        return await svc.skip_question(
+            attempt_id=attempt_id,
+            question_id=body.question_id,
             time_spent_seconds=body.elapsed_seconds,
         )
     except ValueError as e:

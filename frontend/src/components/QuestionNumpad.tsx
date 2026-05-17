@@ -3,7 +3,8 @@ export type NumpadCellVisual =
   | "visitedUnanswered"
   | "answered"
   | "markedUnanswered"
-  | "answeredMarked";
+  | "answeredMarked"
+  | "skipped";
 
 function kindForIndex(
   index: number,
@@ -11,8 +12,10 @@ function kindForIndex(
   maxReachableIndex: number,
   questionsAnswered: number,
   markedForReview: Set<number>,
+  skippedIndices: Set<number>,
 ): NumpadCellVisual {
   if (index > totalQuestions) return "locked";
+  if (skippedIndices.has(index)) return "skipped";
   if (index > maxReachableIndex) return "locked";
   const marked = markedForReview.has(index);
   if (index <= questionsAnswered) {
@@ -29,22 +32,30 @@ export function computePaletteStats(
   maxReachableIndex: number,
   questionsAnswered: number,
   markedForReview: number[],
+  skippedIndices: number[] = [],
 ) {
   const marked = new Set(markedForReview);
+  const skipped = new Set(skippedIndices);
   let answeredMarked = 0;
   let markedOnly = 0;
   for (const i of marked) {
+    if (skipped.has(i)) continue;
     if (i <= questionsAnswered) answeredMarked += 1;
     else markedOnly += 1;
   }
-  const notAnswered = maxReachableIndex > questionsAnswered ? 1 : 0;
+  let answered = 0;
+  for (let i = 1; i <= questionsAnswered; i += 1) {
+    if (!skipped.has(i)) answered += 1;
+  }
+  const notAnswered = maxReachableIndex > questionsAnswered && !skipped.has(questionsAnswered + 1) ? 1 : 0;
   const notVisited = Math.max(0, totalQuestions - maxReachableIndex);
   return {
-    answered: questionsAnswered,
+    answered,
     notAnswered,
     notVisited,
     markedOnly,
     answeredMarked,
+    skipped: skipped.size,
   };
 }
 
@@ -69,6 +80,10 @@ function PaletteLegend({ variant, stats }: { variant: "default" | "exam"; stats:
         <span>{count(stats.markedOnly)}Marked for Review</span>
       </div>
       <div className="qnp-legend__row">
+        <span className="qnp-legend__sample qnp-cell qnp-cell--skipped qnp-legend__mini" />
+        <span>{count(stats.skipped)}Skipped</span>
+      </div>
+      <div className="qnp-legend__row">
         <span className="qnp-legend__answered-marked-wrap">
           <span className="qnp-cell qnp-cell--answeredMarked qnp-legend__mini">
             <span className="qnp-cell__num">5</span>
@@ -87,6 +102,7 @@ export function QuestionNumpad(props: {
   maxReachableIndex: number;
   questionsAnswered: number;
   markedForReview: number[];
+  skippedIndices?: number[];
   loadingIndex: number | null;
   onSelect: (index: number) => void;
   variant?: "default" | "exam";
@@ -98,20 +114,22 @@ export function QuestionNumpad(props: {
     maxReachableIndex,
     questionsAnswered,
     markedForReview,
+    skippedIndices = [],
     loadingIndex,
     onSelect,
     variant = "default",
     sectionTitle,
   } = props;
   const marked = new Set(markedForReview);
-  const stats = computePaletteStats(totalQuestions, maxReachableIndex, questionsAnswered, markedForReview);
+  const skipped = new Set(skippedIndices);
+  const stats = computePaletteStats(totalQuestions, maxReachableIndex, questionsAnswered, markedForReview, skippedIndices);
   const cells = Array.from({ length: totalQuestions }, (_, i) => i + 1);
 
   const grid = (
     <div className="qnp-grid">
       {cells.map((n) => {
-        const kind = kindForIndex(n, totalQuestions, maxReachableIndex, questionsAnswered, marked);
-        const enabled = n <= maxReachableIndex && n >= 1;
+        const kind = kindForIndex(n, totalQuestions, maxReachableIndex, questionsAnswered, marked, skipped);
+        const enabled = n <= maxReachableIndex && n >= 1 && !skipped.has(n);
         const isCurrent = n === currentIndex;
         const loading = loadingIndex === n;
         return (
@@ -128,7 +146,7 @@ export function QuestionNumpad(props: {
               .join(" ")}
             disabled={!enabled || loading}
             aria-current={isCurrent ? "true" : undefined}
-            aria-label={`Question ${n}${kind === "locked" ? " (not available yet)" : ""}`}
+            aria-label={`Question ${n}${kind === "locked" ? " (not available yet)" : kind === "skipped" ? " (skipped)" : ""}`}
             onClick={() => enabled && onSelect(n)}
           >
             <span className="qnp-cell__num">{n}</span>

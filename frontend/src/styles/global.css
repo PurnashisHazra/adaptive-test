@@ -925,6 +925,42 @@ table.data th {
   border-radius: 50%;
 }
 
+.qnp-cell--skipped {
+  background: linear-gradient(180deg, #94a3b8 0%, #64748b 100%);
+  color: #fff;
+  border-radius: 8px;
+  opacity: 0.88;
+}
+
+.qnp-cell--skipped:disabled {
+  cursor: not-allowed;
+}
+
+.exam-adaptive-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: 0.5rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.exam-adaptive-badge--list {
+  margin-left: 0;
+  font-size: 0.68rem;
+}
+
+.exam-section-bar__title .exam-adaptive-badge {
+  margin-left: 0.65rem;
+}
+
 .qnp-cell__badge {
   position: absolute;
   bottom: 2px;

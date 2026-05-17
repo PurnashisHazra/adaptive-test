@@ -34,6 +34,8 @@ def _marks_from_answers(answers: List[Dict[str, Any]], mpc: float, mpi: float) -
     wrong = 0
     m = 0.0
     for a in answers:
+        if a.get("skipped"):
+            continue
         if bool(a.get("is_correct")):
             correct += 1
             m += mpc
@@ -77,6 +79,7 @@ class PaperService:
             ],
             marks_per_correct=float(doc.get("marks_per_correct", 1)),
             marks_per_incorrect=float(doc.get("marks_per_incorrect", 0)),
+            is_adaptive=bool(doc.get("is_adaptive", True)),
             created_at=doc["created_at"],
             updated_at=doc.get("updated_at") or doc["created_at"],
         )
@@ -87,6 +90,7 @@ class PaperService:
             "sections": [s.model_dump() for s in body.sections],
             "marks_per_correct": float(body.marks_per_correct),
             "marks_per_incorrect": float(body.marks_per_incorrect),
+            "is_adaptive": bool(body.is_adaptive),
             "created_by": created_by,
         }
         pid = await self._papers.insert_paper(doc)
@@ -104,6 +108,8 @@ class PaperService:
             p["marks_per_correct"] = float(patch.marks_per_correct)
         if patch.marks_per_incorrect is not None:
             p["marks_per_incorrect"] = float(patch.marks_per_incorrect)
+        if patch.is_adaptive is not None:
+            p["is_adaptive"] = bool(patch.is_adaptive)
         if not p:
             got = await self._papers.get_paper(paper_id)
             if not got:
@@ -199,6 +205,7 @@ class PaperService:
             total_sections=len(secs),
             marks_per_correct=float(paper.get("marks_per_correct", 1)),
             marks_per_incorrect=float(paper.get("marks_per_incorrect", 0)),
+            is_adaptive=bool(paper.get("is_adaptive", True)),
         )
 
     async def _start_section_attempt(
@@ -212,7 +219,11 @@ class PaperService:
             raise ValueError("Invalid section")
         sec = secs[section_index]
         pa_id = oid_str(paper_attempt["_id"])
-        ctx = {"paper_attempt_id": pa_id, "paper_section_index": section_index}
+        ctx = {
+            "paper_attempt_id": pa_id,
+            "paper_section_index": section_index,
+            "is_adaptive": bool(paper.get("is_adaptive", True)),
+        }
         pool = sec.get("question_pool_ids")
         pool_list = [str(x).strip() for x in pool] if isinstance(pool, list) else None
         if pool_list:
@@ -240,6 +251,8 @@ class PaperService:
             questions_answered=res.questions_answered,
             max_reachable_index=res.max_reachable_index,
             can_submit=True,
+            is_adaptive=res.is_adaptive,
+            skipped_indices=res.skipped_indices,
             paper=meta,
         )
 
@@ -319,6 +332,8 @@ class PaperService:
             questions_answered=qi.questions_answered,
             max_reachable_index=qi.max_reachable_index,
             can_submit=qi.can_submit,
+            is_adaptive=qi.is_adaptive,
+            skipped_indices=qi.skipped_indices,
             paper=meta,
         )
 
@@ -386,8 +401,10 @@ class PaperService:
                 time_limit_seconds=nxt.time_limit_seconds,
                 started_at=nxt.started_at,
                 marked_for_review=nxt.marked_for_review,
+                skipped_indices=nxt.skipped_indices,
                 questions_answered=nxt.questions_answered,
                 max_reachable_index=nxt.max_reachable_index,
+                is_adaptive=nxt.is_adaptive,
                 paper=nxt.paper,
             )
             return SubmitAnswerResponse(
@@ -607,12 +624,15 @@ class PaperService:
                 time_limit_seconds=nxt.time_limit_seconds,
                 started_at=nxt.started_at,
                 marked_for_review=nxt.marked_for_review,
+                skipped_indices=nxt.skipped_indices,
                 questions_answered=nxt.questions_answered,
                 max_reachable_index=nxt.max_reachable_index,
+                is_adaptive=nxt.is_adaptive,
                 paper=nxt.paper,
             )
             return SubmitAnswerResponse(
                 is_correct=False,
+                skipped=False,
                 explanation=None,
                 completed=False,
                 next_question=None,
@@ -666,6 +686,7 @@ class PaperService:
                     "title": pdoc["title"],
                     "marks_per_correct": float(pdoc.get("marks_per_correct", 1)),
                     "marks_per_incorrect": float(pdoc.get("marks_per_incorrect", 0)),
+                    "is_adaptive": bool(pdoc.get("is_adaptive", True)),
                     "section_count": len(secs),
                     "has_started": pa is not None,
                     "completed": pa is not None and pa.get("status") in ("completed", "ended_early"),

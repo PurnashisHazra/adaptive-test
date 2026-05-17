@@ -295,6 +295,11 @@ export async function submitAnswer(attemptId: string, body: { question_id: strin
   return data;
 }
 
+export async function skipQuestion(attemptId: string, body: { question_id: string; elapsed_seconds?: number }) {
+  const { data } = await api.post<SubmitAnswerResponse>(`/tests/${attemptId}/skip`, body);
+  return data;
+}
+
 export async function getQuestionAt(attemptId: string, questionIndex: number) {
   const { data } = await api.get<TestQuestionAtResponse>(`/tests/${attemptId}/question/${questionIndex}`);
   return data;
