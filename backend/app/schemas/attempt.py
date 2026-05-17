@@ -25,6 +25,14 @@ class TestStartRequest(BaseModel):
     time_limit_seconds: Optional[int] = Field(default=None, ge=60, le=7200)
 
 
+class AttemptSessionFilters(BaseModel):
+    """Subject / topic / exam lens stored on the attempt (for coach plan lookup)."""
+
+    subject: Optional[str] = None
+    topic: Optional[str] = None
+    exam_tag: Optional[str] = None
+
+
 class TestStartResponse(BaseModel):
     attempt_id: str
     question: "QuestionPayload"
@@ -37,6 +45,7 @@ class TestStartResponse(BaseModel):
     max_reachable_index: int = 1
     can_submit: bool = True
     paper: Optional["PaperSessionMeta"] = None
+    attempt_filters: AttemptSessionFilters = Field(default_factory=AttemptSessionFilters)
 
 
 class QuestionPayload(BaseModel):
@@ -47,6 +56,10 @@ class QuestionPayload(BaseModel):
     subject: str
     topic: str
     image_url: Optional[str] = None
+    difficulty: Optional[str] = Field(
+        default=None,
+        description="Difficulty tier when served (EASY/MEDIUM/HARD/EXPERT), for in-session pacing hints.",
+    )
 
 
 class PaperNextSection(BaseModel):
@@ -60,6 +73,17 @@ class PaperNextSection(BaseModel):
     questions_answered: int = 0
     max_reachable_index: int = 1
     paper: "PaperSessionMeta"
+
+
+class CoachExplanationHintRequest(BaseModel):
+    question_id: str = Field(..., min_length=1, description="Must match the attempt's current active question.")
+
+
+class CoachExplanationHintResponse(BaseModel):
+    openai_configured: bool = Field(..., description="Whether OPENAI_API_KEY is set on the server.")
+    used_openai: bool = Field(default=False, description="True if a model-produced hint was returned.")
+    hint: str = Field(default="", max_length=1200, description="Short nudge derived from the official explanation.")
+    error: Optional[str] = Field(default=None, description="Set when the hint cannot be produced.")
 
 
 class SubmitAnswerRequest(BaseModel):

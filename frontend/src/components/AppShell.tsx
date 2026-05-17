@@ -1,4 +1,5 @@
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { AdminCodeModal } from "./AdminCodeModal";
 import { useAuthStore } from "../store/authStore";
 
 const linkStyle = ({ isActive }: { isActive: boolean }) => ({
@@ -13,9 +14,13 @@ const linkStyle = ({ isActive }: { isActive: boolean }) => ({
 export function AppShell() {
   const { pathname } = useLocation();
   const role = useAuthStore((s) => s.role);
+  const needsAdminCode = useAuthStore((s) => s.needsAdminCode);
   const logout = useAuthStore((s) => s.logout);
   const isAdmin = role === "admin";
-  const isAdminSection = pathname.startsWith("/admin");
+  const isSuperAdmin = role === "super_admin";
+  const isStaff = isAdmin || isSuperAdmin;
+  const isAdminSection = pathname.startsWith("/admin") || pathname.startsWith("/super-admin");
+  const homeTo = isSuperAdmin ? "/super-admin" : isAdmin ? "/admin" : "/";
 
   return (
     <div style={{ minHeight: "100%", display: "flex", flexDirection: "column" }}>
@@ -31,19 +36,19 @@ export function AppShell() {
         }}
       >
         <div
+          className="app-shell-header-inner"
           style={{
-            maxWidth: 1100,
-            margin: "0 auto",
-            padding: "0.85rem 1.25rem",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
             gap: "1rem",
             flexWrap: "wrap",
+            paddingTop: "0.85rem",
+            paddingBottom: "0.85rem",
           }}
         >
           <Link
-            to="/"
+            to={homeTo}
             style={{
               fontWeight: 700,
               fontSize: "1.05rem",
@@ -55,9 +60,9 @@ export function AppShell() {
             }}
           >
             <img
-              src="https://emgc.in/wp-content/uploads/2026/02/EMGC-PNG-New-Logo.png"
-              alt="EMGC"
-              style={{ height: 28, width: "auto", objectFit: "contain" }}
+              src="/catking-logo.png"
+              alt="CATKing"
+              style={{ height: 32, maxWidth: 220, width: "auto", objectFit: "contain" }}
             />
             <span
               aria-hidden="true"
@@ -72,17 +77,17 @@ export function AppShell() {
             <span>AdapTest</span>
           </Link>
           <nav style={{ display: "flex", gap: "0.35rem", alignItems: "center", flexWrap: "wrap" }}>
-            <NavLink to="/" end style={linkStyle}>
-              Home
-            </NavLink>
-            <NavLink to="/start" style={linkStyle}>
-              Take test
-            </NavLink>
-            <NavLink to="/history" style={linkStyle}>
-              My results
-            </NavLink>
-            {!isAdmin ? (
+            {!isStaff ? (
               <>
+                <NavLink to="/" end style={linkStyle}>
+                  Home
+                </NavLink>
+                <NavLink to="/take-test" style={linkStyle}>
+                  Take test
+                </NavLink>
+                <NavLink to="/history" style={linkStyle}>
+                  My results
+                </NavLink>
                 <NavLink to="/review" style={linkStyle}>
                   Analytics
                 </NavLink>
@@ -90,14 +95,14 @@ export function AppShell() {
                   Papers
                 </NavLink>
               </>
-            ) : null}
-            {isAdmin && (
-              <>
-                <span style={{ color: "#cbd5e1", margin: "0 0.25rem" }}>|</span>
-                <NavLink to="/admin" style={linkStyle}>
-                  Admin
-                </NavLink>
-              </>
+            ) : isSuperAdmin ? (
+              <NavLink to="/super-admin" style={linkStyle}>
+                Super admin
+              </NavLink>
+            ) : (
+              <NavLink to="/admin" style={linkStyle}>
+                Admin
+              </NavLink>
             )}
             {role ? (
               <button type="button" className="btn btn-ghost" onClick={logout} style={{ padding: "0.35rem 0.65rem" }}>
@@ -124,6 +129,7 @@ export function AppShell() {
       >
         <Outlet />
       </main>
+      {role === "student" && needsAdminCode ? <AdminCodeModal /> : null}
       <footer style={{ padding: "1.5rem", textAlign: "center", color: "#94a3b8", fontSize: "0.85rem" }}>
         <a
           href="https://github.com/lobrockyl"

@@ -11,7 +11,7 @@ from app.repositories.attempt_repository import AttemptRepository
 from app.schemas.attempt import AttemptListItem, StudentHistoryStats
 from app.services.student_history_service import StudentHistoryService
 from app.utils.ids import oid_str, try_object_id
-from app.api.deps_auth import get_current_claims, require_admin
+from app.api.deps_auth import require_admin, require_student_with_admin_code
 
 router = APIRouter(prefix="/attempts", tags=["attempts"])
 
@@ -110,7 +110,7 @@ async def export_attempts(
 
 @router.get("/me/history", response_model=StudentHistoryStats)
 async def my_student_history(
-    claims: dict = Depends(get_current_claims),
+    claims: dict = Depends(require_student_with_admin_code),
     svc: StudentHistoryService = Depends(get_student_history_service),
 ) -> StudentHistoryStats:
     """History for the authenticated user only (JWT sub = username)."""

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type {
+  AttemptSessionFilters,
   AttemptSummary,
   PaperNextSection,
   PaperResultSummary,
@@ -25,11 +26,14 @@ interface TestSessionState {
   paperAttemptId: string | null;
   paperMeta: PaperSessionMeta | null;
   sectionStartedAt: string | null;
+  /** Subject/topic/exam lens for this attempt (from server). Used for coach plan lookup. */
+  attemptFilters: AttemptSessionFilters | null;
   pendingStart:
     | {
         studentName: string;
         subject?: string;
         topic?: string;
+        exam_tag?: string;
         totalQuestions: number;
         timeLimitSeconds?: number | null;
       }
@@ -46,6 +50,7 @@ interface TestSessionState {
     markedForReview?: number[];
     questionsAnswered?: number;
     maxReachableIndex?: number;
+    attemptFilters?: AttemptSessionFilters | null;
   }) => void;
   hydratePaperStart: (res: TestStartResponse, studentName: string) => void;
   applyPaperNext: (res: PaperNextSection) => void;
@@ -71,6 +76,7 @@ interface TestSessionState {
     studentName: string;
     subject?: string;
     topic?: string;
+    exam_tag?: string;
     totalQuestions: number;
     timeLimitSeconds?: number | null;
   }) => void;
@@ -102,6 +108,7 @@ export const useTestSession = create<TestSessionState>((set) => ({
   paperMeta: null,
   sectionStartedAt: null,
   pendingStart: null,
+  attemptFilters: null as AttemptSessionFilters | null,
   reset: () =>
     set({
       attemptId: null,
@@ -117,6 +124,7 @@ export const useTestSession = create<TestSessionState>((set) => ({
       markedForReview: [],
       canSubmit: true,
       pendingStart: null,
+      attemptFilters: null,
       ...paperClear,
     }),
   hydrateStart: (p) =>
@@ -132,6 +140,7 @@ export const useTestSession = create<TestSessionState>((set) => ({
       maxReachableIndex: p.maxReachableIndex ?? 1,
       markedForReview: p.markedForReview ?? [],
       canSubmit: true,
+      attemptFilters: p.attemptFilters ?? null,
       ...paperClear,
     }),
   hydratePaperStart: (res, studentName) => {
@@ -155,6 +164,7 @@ export const useTestSession = create<TestSessionState>((set) => ({
       paperMeta: res.paper,
       sectionStartedAt: res.started_at,
       lastPaperSummary: null,
+      attemptFilters: res.attempt_filters ?? null,
     });
   },
   applyPaperNext: (res) =>
@@ -171,6 +181,7 @@ export const useTestSession = create<TestSessionState>((set) => ({
       paperMeta: res.paper,
       paperAttemptId: res.paper.paper_attempt_id,
       sectionStartedAt: new Date().toISOString(),
+      attemptFilters: null,
     }),
   applyNavigate: (p) =>
     set({

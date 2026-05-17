@@ -4,15 +4,27 @@ import toast from "react-hot-toast";
 import {
   endPaperAttempt,
   endTest,
+  getMyCoachPlan,
   getQuestionAt,
   patchMarkReview,
+  postCoachExplanationHint,
   submitAnswer,
   submitQuestionReport,
   timeoutPaperSection,
 } from "../api/client";
-import type { PaperNextSection } from "../api/types";
+import type { PaperNextSection, StudentCoachPlanBundle } from "../api/types";
+import { computeCoachLiveAdvice } from "../lib/coachHints";
 import { QuestionNumpad } from "../components/QuestionNumpad";
 import { useTestSession } from "../store/testSession";
+
+function formatCountdown(totalSeconds: number) {
+  const sec = Math.max(0, Math.floor(totalSeconds));
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
 
 export function TestSessionPage() {
   const nav = useNavigate();
@@ -34,6 +46,13 @@ export function TestSessionPage() {
   const paperMeta = useTestSession((s) => s.paperMeta);
   const paperAttemptId = useTestSession((s) => s.paperAttemptId);
   const sectionStartedAt = useTestSession((s) => s.sectionStartedAt);
+  const attemptFilters = useTestSession((s) => s.attemptFilters);
+  const studentName = useTestSession((s) => s.studentName);
+
+  const isQuestionPaperSession = Boolean(paperMeta || paperAttemptId);
+
+  const [coachPlan, setCoachPlan] = useState<StudentCoachPlanBundle | null>(null);
+  const [secondsOnQuestion, setSecondsOnQuestion] = useState(0);
 
   const [selected, setSelected] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -50,10 +69,33 @@ export function TestSessionPage() {
   const questionShownAtMs = useRef<number>(Date.now());
   const draftByIndex = useRef<Record<number, string>>({});
   const timeoutOnce = useRef(false);
+  const explanationHintFetchedForQid = useRef<string | null>(null);
+
+  const [explanationHint, setExplanationHint] = useState<string | null>(null);
+  const [explanationHintLoading, setExplanationHintLoading] = useState(false);
+  const [explanationHintError, setExplanationHintError] = useState<string | null>(null);
 
   useEffect(() => {
     questionShownAtMs.current = Date.now();
   }, [question?.id]);
+
+  useEffect(() => {
+    setSecondsOnQuestion(0);
+    setExplanationHint(null);
+    setExplanationHintError(null);
+    setExplanationHintLoading(false);
+    explanationHintFetchedForQid.current = null;
+  }, [question?.id]);
+
+  useEffect(() => {
+    if (isQuestionPaperSession || !question?.id) return;
+    const tick = () => {
+      setSecondsOnQuestion(Math.max(0, Math.floor((Date.now() - questionShownAtMs.current) / 1000)));
+    };
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [isQuestionPaperSession, question?.id]);
 
   useEffect(() => {
     timeoutOnce.current = false;
@@ -119,6 +161,94 @@ export function TestSessionPage() {
     })();
   }, [sectionRemaining, paperMeta, paperAttemptId, setLastPaperSummary, nav, pendingSectionNext]);
 
+  useEffect(() => {
+    if (isQuestionPaperSession) {
+      setCoachPlan(null);
+    }
+  }, [isQuestionPaperSession]);
+
+  useEffect(() => {
+    if (!attemptId || isQuestionPaperSession) return;
+    const token = typeof localStorage !== "undefined" ? localStorage.getItem("auth_token") : null;
+    if (!token) {
+      setCoachPlan(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const plan = await getMyCoachPlan({
+          subject: attemptFilters?.subject ?? undefined,
+          topic: attemptFilters?.topic ?? undefined,
+          exam_tag: attemptFilters?.exam_tag ?? undefined,
+        });
+        if (!cancelled) setCoachPlan(plan);
+      } catch {
+        if (!cancelled) setCoachPlan(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [attemptId, isQuestionPaperSession, attemptFilters?.subject, attemptFilters?.topic, attemptFilters?.exam_tag]);
+
+  const coachLive = useMemo(() => {
+    if (isQuestionPaperSession || !question) return null;
+    return computeCoachLiveAdvice({
+      secondsOnQuestion,
+      currentIndex,
+      totalQuestions,
+      testElapsedSeconds: elapsed,
+      difficulty: question.difficulty,
+      questionType: question.question_type,
+      plan: coachPlan,
+      questionSubject: question.subject,
+      questionTopic: question.topic,
+      questionStem: question.question_text,
+    });
+  }, [
+    isQuestionPaperSession,
+    question?.id,
+    question?.subject,
+    question?.topic,
+    question?.question_text,
+    question?.difficulty,
+    question?.question_type,
+    secondsOnQuestion,
+    currentIndex,
+    totalQuestions,
+    elapsed,
+    coachPlan,
+  ]);
+
+  useEffect(() => {
+    if (isQuestionPaperSession || !attemptId || !question?.id || !canSubmit) return;
+    if (secondsOnQuestion < 10) return;
+    if (explanationHintFetchedForQid.current === question.id) return;
+    explanationHintFetchedForQid.current = question.id;
+    let cancelled = false;
+    setExplanationHintLoading(true);
+    setExplanationHintError(null);
+    postCoachExplanationHint(attemptId, { question_id: question.id })
+      .then((res) => {
+        if (cancelled) return;
+        if (res.hint?.trim()) {
+          setExplanationHint(res.hint.trim());
+        } else if (res.error) {
+          setExplanationHintError(res.error);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setExplanationHintError("Could not load explanation hint.");
+      })
+      .finally(() => {
+        if (!cancelled) setExplanationHintLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isQuestionPaperSession, attemptId, question?.id, canSubmit, secondsOnQuestion]);
+
   function onStartNextSection() {
     if (!pendingSectionNext) return;
     applyPaperNext(pendingSectionNext);
@@ -159,7 +289,7 @@ export function TestSessionPage() {
   }
 
   if (!attemptId || !question) {
-    return <Navigate to="/start" replace />;
+    return <Navigate to="/" replace />;
   }
 
   const stableAttemptId = attemptId;
@@ -232,6 +362,31 @@ export function TestSessionPage() {
     } catch {
       toast.error("Could not update mark for review");
     }
+  }
+
+  async function onMarkReviewAndNext() {
+    if (loadingIndex != null || sectionTimingOut) return;
+    if (!markedForReview.includes(currentIndex)) {
+      try {
+        const res = await patchMarkReview(stableAttemptId, {
+          question_index: currentIndex,
+          marked: true,
+        });
+        setMarkedForReview(res.marked_for_review);
+      } catch {
+        toast.error("Could not update mark for review");
+        return;
+      }
+    }
+    if (currentIndex < maxReachableIndex) {
+      await goToQuestion(currentIndex + 1);
+    }
+  }
+
+  function onClearResponse() {
+    if (!canSubmit || loadingIndex != null || sectionTimingOut) return;
+    setSelected(null);
+    delete draftByIndex.current[currentIndex];
   }
 
   async function onEndTest() {
@@ -342,154 +497,345 @@ export function TestSessionPage() {
   const progress = totalQuestions > 0 ? (questionsAnswered / totalQuestions) * 100 : 0;
   const optionsDisabled = !canSubmit || loadingIndex != null || sectionTimingOut;
 
+  const headerTabs = useMemo(() => {
+    if (paperMeta) {
+      return Array.from({ length: paperMeta.total_sections }, (_, i) => ({
+        key: `sec-${i}`,
+        label: `S${i + 1}`,
+        active: i === paperMeta.section_index,
+        title:
+          i === paperMeta.section_index && paperMeta.section_title
+            ? paperMeta.section_title
+            : `Section ${i + 1}`,
+      }));
+    }
+    const raw = [attemptFilters?.subject, attemptFilters?.topic, attemptFilters?.exam_tag].filter(
+      (x): x is string => Boolean(x?.trim())
+    );
+    const labels = raw.length > 0 ? raw : ["Adaptive"];
+    const subj = currentQuestion.subject?.trim();
+    const topic = currentQuestion.topic?.trim();
+    let activePos = labels.findIndex((l) => l === subj);
+    if (activePos < 0) activePos = labels.findIndex((l) => l === topic);
+    if (activePos < 0) activePos = 0;
+    return labels.slice(0, 5).map((label, i) => ({
+      key: `fl-${i}`,
+      label: label.length > 14 ? `${label.slice(0, 12)}…` : label,
+      active: i === activePos,
+      title: label,
+    }));
+  }, [
+    paperMeta,
+    attemptFilters?.subject,
+    attemptFilters?.topic,
+    attemptFilters?.exam_tag,
+    currentQuestion.subject,
+    currentQuestion.topic,
+  ]);
+
+  const timerSeconds = sectionRemaining ?? remaining;
+  const timerWarn = timerSeconds != null && timerSeconds < 120;
+  const sectionStripTitle = paperMeta
+    ? paperMeta.section_title || `Section ${paperMeta.section_index + 1}`
+    : `${currentQuestion.subject} · ${currentQuestion.topic}`;
+  const marksLine = paperMeta
+    ? `Marks for correct answer ${paperMeta.marks_per_correct} | Negative marks ${paperMeta.marks_per_incorrect}`
+    : "Marks follow your course settings";
+  const notVisitedCount = Math.max(0, totalQuestions - maxReachableIndex);
+  const pendingInReach = Math.max(0, maxReachableIndex - questionsAnswered);
+  const displayName = studentName.trim() || "Student";
+  const initials = displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w[0]!.toUpperCase())
+    .join("")
+    .slice(0, 2) || "?";
+
   return (
-    <div className="page">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.75rem" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
-          {paperMeta ? (
-            <span className="badge">
-              {paperMeta.paper_title} · {paperMeta.section_title} ({paperMeta.section_index + 1}/{paperMeta.total_sections})
+    <div className="test-exam-page">
+      <header className="test-exam-top">
+        <div className="test-exam-tabs" role="tablist" aria-label="Sections">
+          {headerTabs.map((t) => (
+            <div
+              key={t.key}
+              role="tab"
+              aria-selected={t.active}
+              className={["test-exam-tab", t.active ? "test-exam-tab--active" : "test-exam-tab--muted"].join(" ")}
+              title={t.title}
+            >
+              <span>{t.label}</span>
+              <span style={{ marginLeft: 4, opacity: 0.65, cursor: "help" }} title={t.title}>
+                ⓘ
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="test-exam-top-right">
+          {timerSeconds != null ? (
+            <span className={["test-exam-timer", timerWarn ? "test-exam-timer--warn" : ""].filter(Boolean).join(" ")}>
+              Time left: {formatCountdown(timerSeconds)}
             </span>
           ) : (
-            <span className="badge">
-              Question {currentIndex} of {totalQuestions}
+            <span className="test-exam-timer" style={{ color: "#64748b" }}>
+              No timer
             </span>
           )}
-          <button
-            type="button"
-            className="btn btn-danger"
-            onClick={onEndTest}
-            disabled={submitting || ending || loadingIndex != null || sectionTimingOut}
-          >
-            {ending ? "Ending…" : paperMeta ? "End question paper" : "End test"}
+          <button type="button" className="test-exam-icon-btn" disabled title="Calculator not available in this build">
+            ⌗
           </button>
         </div>
-        {paperMeta && sectionRemaining != null ? (
-          <span
-            style={{
-              fontFamily: "var(--mono)",
-              fontSize: "0.95rem",
-              color: sectionRemaining < 120 ? "var(--danger)" : "var(--muted)",
-            }}
-          >
-            Section: {Math.floor(sectionRemaining / 60)}:{String(sectionRemaining % 60).padStart(2, "0")}
-          </span>
-        ) : remaining != null ? (
-          <span style={{ fontFamily: "var(--mono)", fontSize: "0.95rem", color: remaining < 120 ? "var(--danger)" : "var(--muted)" }}>
-            {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, "0")}
-          </span>
-        ) : null}
+      </header>
+
+      <p style={{ margin: "0.35rem 0 0", fontSize: "0.72rem", fontWeight: 700, color: "#64748b", letterSpacing: "0.06em" }}>
+        Section
+      </p>
+      <div className="test-exam-section-bar">
+        <button
+          type="button"
+          className="test-exam-section-bar__nav"
+          aria-label="Previous question"
+          disabled={currentIndex <= 1 || loadingIndex != null || sectionTimingOut}
+          onClick={() => goToQuestion(currentIndex - 1)}
+        >
+          ‹
+        </button>
+        <div className="test-exam-section-bar__title">{sectionStripTitle}</div>
+        <button
+          type="button"
+          className="test-exam-section-bar__nav"
+          aria-label="Next question"
+          disabled={currentIndex >= maxReachableIndex || loadingIndex != null || sectionTimingOut}
+          onClick={() => goToQuestion(currentIndex + 1)}
+        >
+          ›
+        </button>
       </div>
-      <div style={{ height: 6, borderRadius: 999, background: "#e2e8f0", overflow: "hidden", marginBottom: "1.5rem" }}>
-        <div style={{ width: `${progress}%`, height: "100%", background: "linear-gradient(90deg, var(--primary), var(--accent))", transition: "width 0.35s ease" }} />
+
+      <div className="test-exam-progress">
+        <div className="test-exam-progress__fill" style={{ width: `${progress}%` }} />
       </div>
-      <div className="test-session-layout" style={{ display: "grid", gap: "1.5rem", alignItems: "start" }}>
-        <div className="card" style={{ margin: 0 }}>
-          <p style={{ color: "var(--muted)", fontSize: "0.85rem", marginBottom: "0.5rem" }}>
-            {currentQuestion.subject} · {currentQuestion.topic}
-          </p>
-          {currentQuestion.image_url ? (
-            <div style={{ marginBottom: "1rem" }}>
-              <img
-                src={currentQuestion.image_url}
-                alt=""
-                style={{ maxWidth: "100%", maxHeight: 280, borderRadius: 10, border: "1px solid var(--border)", display: "block" }}
-              />
-            </div>
-          ) : null}
-          <h2 style={{ fontSize: "1.35rem", marginBottom: "1.25rem" }}>{currentQuestion.question_text}</h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-            {isTita ? (
-              <input
-                type="text"
-                className="input"
-                autoComplete="off"
-                placeholder="Type your answer"
-                value={selected ?? ""}
-                disabled={optionsDisabled}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setSelected(v);
-                  if (canSubmit) draftByIndex.current[currentIndex] = v;
-                }}
-                style={{ fontSize: "1.05rem", padding: "0.75rem 0.85rem" }}
-              />
+
+      <div className="test-exam-body">
+        <div className="test-exam-main">
+          <div className="test-exam-passage">
+            <p className="test-exam-passage__label">Information</p>
+            {currentQuestion.image_url ? (
+              <img src={currentQuestion.image_url} alt="" />
             ) : (
-              currentQuestion.options.map((o) => (
-                <label
-                  key={o.key}
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "0.65rem",
-                    padding: "0.75rem 0.85rem",
-                    borderRadius: 10,
-                    border: selected === o.key ? "2px solid var(--primary)" : "1px solid var(--border)",
-                    cursor: optionsDisabled ? "default" : "pointer",
-                    background: selected === o.key ? "rgba(14,165,233,0.08)" : "#fff",
-                    opacity: optionsDisabled ? 0.92 : 1,
-                  }}
-                >
-                  <input
-                    type="radio"
-                    name="opt"
-                    checked={selected === o.key}
-                    disabled={optionsDisabled}
-                    onChange={() => {
-                      setSelected(o.key);
-                      if (canSubmit) draftByIndex.current[currentIndex] = o.key;
-                    }}
-                    style={{ marginTop: 4 }}
-                  />
-                  <span>{o.label}</span>
-                </label>
-              ))
+              <p className="test-exam-passage__placeholder">
+                Supporting figures or tables appear here when the question includes them. Use the question section below to answer.
+              </p>
             )}
+            {coachLive ? (
+              <div
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                className={[
+                  "test-exam-coach",
+                  coachLive.urgency === "urgent"
+                    ? "test-exam-coach--urgent"
+                    : coachLive.urgency === "warn"
+                      ? "test-exam-coach--warn"
+                      : coachLive.urgency === "notice"
+                        ? "test-exam-coach--notice"
+                        : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "0.5rem" }}>
+                  <span style={{ fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#64748b" }}>
+                    Live coach
+                  </span>
+                  <span style={{ fontFamily: "ui-monospace, monospace", fontSize: "0.75rem", color: "#64748b" }}>{coachLive.secondsOnQuestion}s on this item</span>
+                </div>
+                <p style={{ margin: "0.35rem 0 0", fontWeight: 700, color: "#0f172a" }}>{coachLive.headline}</p>
+                <p style={{ margin: "0.35rem 0 0", color: "#334155" }}>{coachLive.strategyLine}</p>
+                {coachLive.secondaryLine ? <p style={{ margin: "0.4rem 0 0", fontSize: "0.85rem", color: "#64748b" }}>{coachLive.secondaryLine}</p> : null}
+                {coachLive.actionLabel ? (
+                  <p style={{ margin: "0.4rem 0 0", fontSize: "0.75rem", color: "#64748b" }}>Saved plan: {coachLive.actionLabel}</p>
+                ) : null}
+                {explanationHintLoading ? (
+                  <p style={{ margin: "0.5rem 0 0", fontSize: "0.85rem", color: "#64748b", fontStyle: "italic" }}>Generating hint from the question explanation…</p>
+                ) : null}
+                {explanationHintError && !explanationHint ? (
+                  <p style={{ margin: "0.5rem 0 0", fontSize: "0.82rem", color: "#64748b" }}>{explanationHintError}</p>
+                ) : null}
+                {explanationHint ? (
+                  <div style={{ margin: "0.55rem 0 0", paddingTop: "0.5rem", borderTop: "1px solid rgba(15,23,42,0.12)" }}>
+                    <p style={{ margin: 0, fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "#64748b" }}>
+                      Explanation hint
+                    </p>
+                    <p style={{ margin: "0.3rem 0 0", fontSize: "0.88rem", lineHeight: 1.5, color: "#0f172a" }}>{explanationHint}</p>
+                  </div>
+                ) : null}
+              </div>
+            ) : explanationHintLoading || explanationHintError || explanationHint ? (
+              <div className="test-exam-coach" role="status" aria-live="polite">
+                <p style={{ margin: 0, fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#64748b" }}>
+                  Coach hint
+                </p>
+                {explanationHintLoading ? (
+                  <p style={{ margin: "0.45rem 0 0", fontSize: "0.85rem", color: "#64748b", fontStyle: "italic" }}>Generating hint from the question explanation…</p>
+                ) : null}
+                {explanationHintError && !explanationHint ? (
+                  <p style={{ margin: "0.45rem 0 0", fontSize: "0.82rem", color: "#64748b" }}>{explanationHintError}</p>
+                ) : null}
+                {explanationHint ? (
+                  <p style={{ margin: "0.45rem 0 0", fontSize: "0.88rem", lineHeight: 1.5, color: "#0f172a" }}>{explanationHint}</p>
+                ) : null}
+              </div>
+            ) : null}
           </div>
-          {!canSubmit && (
-            <p style={{ marginTop: "1rem", fontSize: "0.85rem", color: "var(--muted)" }}>You are reviewing a submitted answer. Only the active question can be changed.</p>
-          )}
-          <div style={{ marginTop: "1.25rem", display: "flex", flexWrap: "wrap", gap: "0.75rem", alignItems: "center" }}>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={onSubmit}
-              disabled={
-                submitting ||
-                !canSubmit ||
-                loadingIndex != null ||
-                sectionTimingOut ||
-                (isTita ? !selected?.trim() : selected == null)
-              }
-              style={{ minWidth: 160 }}
-            >
-              {submitting ? "Checking…" : "Submit answer"}
-            </button>
-            <button type="button" className="btn btn-ghost" onClick={onToggleMarkReview} disabled={loadingIndex != null || sectionTimingOut}>
-              {markedForReview.includes(currentIndex) ? "Unmark review" : "Mark for review"}
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={() => setShowReportModal(true)}
-              disabled={loadingIndex != null || sectionTimingOut}
-              title="Flag a typo, wrong answer key, or unclear wording"
-            >
-              Report question
-            </button>
+
+          <div className="test-exam-question">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.75rem", flexWrap: "wrap" }}>
+              <p className="test-exam-marks" style={{ margin: 0, textAlign: "left", flex: 1 }}>
+                {marksLine}
+              </p>
+              <button
+                type="button"
+                className="test-exam-footer__btn"
+                style={{ padding: "0.35rem 0.65rem", fontSize: "0.75rem" }}
+                onClick={() => setShowReportModal(true)}
+                disabled={loadingIndex != null || sectionTimingOut}
+                title="Flag a typo, wrong answer key, or unclear wording"
+              >
+                Report
+              </button>
+            </div>
+            <h2 className="test-exam-qno">Question No. {currentIndex}</h2>
+            <p className="test-exam-stem">{currentQuestion.question_text}</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              {isTita ? (
+                <input
+                  type="text"
+                  className="test-exam-tita"
+                  autoComplete="off"
+                  placeholder="Type your answer"
+                  value={selected ?? ""}
+                  disabled={optionsDisabled}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setSelected(v);
+                    if (canSubmit) draftByIndex.current[currentIndex] = v;
+                  }}
+                />
+              ) : (
+                currentQuestion.options.map((o) => (
+                  <label
+                    key={o.key}
+                    className={[
+                      "test-exam-option",
+                      selected === o.key ? "test-exam-option--selected" : "",
+                      optionsDisabled ? "test-exam-option--disabled" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                  >
+                    <input
+                      type="radio"
+                      name="opt"
+                      checked={selected === o.key}
+                      disabled={optionsDisabled}
+                      onChange={() => {
+                        setSelected(o.key);
+                        if (canSubmit) draftByIndex.current[currentIndex] = o.key;
+                      }}
+                    />
+                    <span>{o.label}</span>
+                  </label>
+                ))
+              )}
+            </div>
+            {!canSubmit ? (
+              <p className="test-exam-review-note">You are reviewing a submitted answer. Only the active question can be changed.</p>
+            ) : null}
           </div>
         </div>
 
-        <QuestionNumpad
-          totalQuestions={totalQuestions}
-          currentIndex={currentIndex}
-          maxReachableIndex={maxReachableIndex}
-          questionsAnswered={questionsAnswered}
-          markedForReview={markedForReview}
-          loadingIndex={loadingIndex}
-          onSelect={goToQuestion}
-        />
+        <aside className="test-exam-sidebar">
+          <div className="test-exam-profile">
+            <div className="test-exam-avatar" aria-hidden>
+              {initials}
+            </div>
+            <div className="test-exam-profile__name" title={displayName}>
+              {displayName}
+            </div>
+          </div>
+          <div className="test-exam-legend-counts" aria-label="Question status summary">
+            <span>
+              <span>Answered</span>
+              <strong>{questionsAnswered}</strong>
+            </span>
+            <span>
+              <span>Not answered (in reach)</span>
+              <strong>{pendingInReach}</strong>
+            </span>
+            <span>
+              <span>Not visited</span>
+              <strong>{notVisitedCount}</strong>
+            </span>
+            <span>
+              <span>Marked for review</span>
+              <strong>{markedForReview.length}</strong>
+            </span>
+          </div>
+          <QuestionNumpad
+            totalQuestions={totalQuestions}
+            currentIndex={currentIndex}
+            maxReachableIndex={maxReachableIndex}
+            questionsAnswered={questionsAnswered}
+            markedForReview={markedForReview}
+            loadingIndex={loadingIndex}
+            onSelect={goToQuestion}
+            embedded
+            compact
+          />
+          <button
+            type="button"
+            className="test-exam-footer__btn"
+            style={{ width: "100%", fontSize: "0.78rem", padding: "0.45rem" }}
+            onClick={onToggleMarkReview}
+            disabled={loadingIndex != null || sectionTimingOut}
+          >
+            {markedForReview.includes(currentIndex) ? "Unmark review" : "Mark for review only"}
+          </button>
+          <button
+            type="button"
+            className="test-exam-submit-sidebar"
+            style={{ marginTop: "auto" }}
+            onClick={onEndTest}
+            disabled={submitting || ending || loadingIndex != null || sectionTimingOut}
+          >
+            {ending ? "Ending…" : paperMeta ? "Submit paper" : "Submit test"}
+          </button>
+        </aside>
       </div>
+
+      <footer className="test-exam-footer">
+        <div className="test-exam-footer__left">
+          <button type="button" className="test-exam-footer__btn" onClick={onMarkReviewAndNext} disabled={loadingIndex != null || sectionTimingOut}>
+            Mark for review &amp; next
+          </button>
+          <button type="button" className="test-exam-footer__btn" onClick={onClearResponse} disabled={!canSubmit || loadingIndex != null || sectionTimingOut}>
+            Clear response
+          </button>
+        </div>
+        <div className="test-exam-footer__right">
+          <button
+            type="button"
+            className="test-exam-footer__btn test-exam-footer__btn--primary"
+            onClick={onSubmit}
+            disabled={
+              submitting || !canSubmit || loadingIndex != null || sectionTimingOut || (isTita ? !selected?.trim() : selected == null)
+            }
+          >
+            {submitting ? "Checking…" : "Save & next"}
+          </button>
+        </div>
+      </footer>
 
       {showReportModal ? (
         <div

@@ -3,7 +3,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.deps import get_question_report_service
-from app.api.deps_auth import get_current_claims, require_admin
+from app.api.deps_auth import require_admin, require_student_with_admin_code
 from app.schemas.common import Paginated
 from app.schemas.question_report import QuestionReportCreate, QuestionReportOut
 from app.services.question_report_service import QuestionReportService
@@ -22,7 +22,7 @@ def _me(claims: dict) -> str:
 @student_router.post("", response_model=QuestionReportOut)
 async def submit_question_report(
     body: QuestionReportCreate,
-    claims: dict = Depends(get_current_claims),
+    claims: dict = Depends(require_student_with_admin_code),
     svc: QuestionReportService = Depends(get_question_report_service),
 ) -> QuestionReportOut:
     try:

@@ -1,10 +1,13 @@
 import { create } from "zustand";
-import type { AuthResponse, Role } from "../api/types";
-import { login, signup } from "../api/client";
+import type { AuthResponse, AuthUser, Role } from "../api/types";
+import { claimAdminCode, getAuthMe, login, signup } from "../api/client";
 
 export interface AuthSession {
   username: string;
   role: Role;
+  needsAdminCode: boolean;
+  assignedAdminCode?: string | null;
+  adminCode?: string | null;
 }
 
 interface AuthState {
@@ -12,16 +15,36 @@ interface AuthState {
   token: string | null;
   session: AuthSession | null;
   role: Role | null;
+  needsAdminCode: boolean;
 
   hydrate: () => void;
+  refreshMe: () => Promise<void>;
   loginUser: (args: { username: string; password: string }) => Promise<{ ok: boolean; error?: string }>;
-  signupUser: (args: { username: string; password: string; role_key?: string }) => Promise<{ ok: boolean; error?: string }>;
+  signupUser: (args: { username: string; password: string }) => Promise<{ ok: boolean; error?: string }>;
+  claimAdminCodeUser: (admin_code: string) => Promise<{ ok: boolean; error?: string }>;
   logout: () => void;
 }
 
 const LS_TOKEN = "auth_token";
 
-function decodeToken(token: string): { username: string; role: Role } | null {
+function parseRole(roleRaw: string): Role {
+  const r = roleRaw.toLowerCase();
+  if (r === "super_admin") return "super_admin";
+  if (r === "admin") return "admin";
+  return "student";
+}
+
+function sessionFromUser(user: AuthUser): AuthSession {
+  return {
+    username: user.username,
+    role: user.role,
+    needsAdminCode: Boolean(user.needs_admin_code),
+    assignedAdminCode: user.assigned_admin_code,
+    adminCode: user.admin_code,
+  };
+}
+
+function decodeToken(token: string): AuthSession | null {
   try {
     const parts = token.split(".");
     if (parts.length < 2) return null;
@@ -29,42 +52,68 @@ function decodeToken(token: string): { username: string; role: Role } | null {
     const padded = payload.padEnd(payload.length + (4 - (payload.length % 4)) % 4, "=");
     const json = atob(padded);
     const parsed = JSON.parse(json);
-    const roleRaw = String(parsed?.role || "").toLowerCase();
-    const role: Role = roleRaw === "admin" ? "admin" : "student";
+    const role = parseRole(String(parsed?.role || "student"));
     const username = String(parsed?.sub || "");
     if (!username) return null;
-    return { username, role };
+    return { username, role, needsAdminCode: false };
   } catch {
     return null;
   }
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+function applyAuth(set: (partial: Partial<AuthState>) => void, token: string, user: AuthUser) {
+  const session = sessionFromUser(user);
+  set({
+    token,
+    session,
+    role: session.role,
+    needsAdminCode: session.needsAdminCode,
+    isHydrated: true,
+  });
+}
+
+export const useAuthStore = create<AuthState>((set, get) => ({
   isHydrated: false,
   token: null,
   session: null,
   role: null,
+  needsAdminCode: false,
 
   hydrate: () => {
     const token = localStorage.getItem(LS_TOKEN);
     if (!token) {
-      set({ token: null, session: null, role: null, isHydrated: true });
+      set({ token: null, session: null, role: null, needsAdminCode: false, isHydrated: true });
       return;
     }
     const decoded = decodeToken(token);
     if (!decoded) {
       localStorage.removeItem(LS_TOKEN);
-      set({ token: null, session: null, role: null, isHydrated: true });
+      set({ token: null, session: null, role: null, needsAdminCode: false, isHydrated: true });
       return;
     }
-    set({ token, session: decoded, role: decoded.role, isHydrated: true });
+    set({ token, session: decoded, role: decoded.role, needsAdminCode: false, isHydrated: true });
+    getAuthMe()
+      .then((user) => {
+        if (localStorage.getItem(LS_TOKEN) !== token) return;
+        const session = sessionFromUser(user);
+        set({ session, role: session.role, needsAdminCode: session.needsAdminCode });
+      })
+      .catch(() => {});
+  },
+
+  refreshMe: async () => {
+    const token = get().token;
+    if (!token) return;
+    const user = await getAuthMe();
+    const session = sessionFromUser(user);
+    set({ session, role: session.role, needsAdminCode: session.needsAdminCode });
   },
 
   loginUser: async ({ username, password }) => {
     try {
       const res: AuthResponse = await login({ username, password });
       localStorage.setItem(LS_TOKEN, res.token);
-      set({ token: res.token, session: res.user, role: res.user.role, isHydrated: true });
+      applyAuth(set, res.token, res.user);
       return { ok: true };
     } catch (err: unknown) {
       const msg = err && typeof err === "object" && "response" in err ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail : undefined;
@@ -72,11 +121,11 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  signupUser: async ({ username, password, role_key }) => {
+  signupUser: async ({ username, password }) => {
     try {
-      const res: AuthResponse = await signup({ username, password, role_key });
+      const res: AuthResponse = await signup({ username, password });
       localStorage.setItem(LS_TOKEN, res.token);
-      set({ token: res.token, session: res.user, role: res.user.role, isHydrated: true });
+      applyAuth(set, res.token, res.user);
       return { ok: true };
     } catch (err: unknown) {
       const msg = err && typeof err === "object" && "response" in err ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail : undefined;
@@ -84,9 +133,20 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
+  claimAdminCodeUser: async (admin_code) => {
+    try {
+      const user = await claimAdminCode(admin_code);
+      const session = sessionFromUser(user);
+      set({ session, role: session.role, needsAdminCode: session.needsAdminCode });
+      return { ok: true };
+    } catch (err: unknown) {
+      const msg = err && typeof err === "object" && "response" in err ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail : undefined;
+      return { ok: false, error: typeof msg === "string" ? msg : "Could not verify admin code" };
+    }
+  },
+
   logout: () => {
     localStorage.removeItem(LS_TOKEN);
-    set({ token: null, session: null, role: null, isHydrated: true });
+    set({ token: null, session: null, role: null, needsAdminCode: false, isHydrated: true });
   },
 }));
-

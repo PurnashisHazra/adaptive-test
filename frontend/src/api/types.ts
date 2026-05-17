@@ -1,11 +1,45 @@
 export type Difficulty = "EASY" | "MEDIUM" | "HARD" | "EXPERT";
 export type QuestionType = "mcq_single" | "true_false" | "tita";
-export type Role = "student" | "admin";
+export type Role = "student" | "admin" | "super_admin";
 export type ExamTag = "CAT" | "SSC" | "BANK" | "RAILWAY" | "DEFENCE" | "STATE" | "OTHER";
 
 export interface AuthUser {
   username: string;
   role: Role;
+  needs_admin_code?: boolean;
+  assigned_admin_code?: string | null;
+  admin_code?: string | null;
+}
+
+export interface QuestionBankFilter {
+  exam_tags: string[];
+  subjects: string[];
+  topics: string[];
+  difficulties: Difficulty[];
+}
+
+export interface AdminLimits {
+  max_papers?: number | null;
+  max_students?: number | null;
+  max_monthly_student_attempts?: number | null;
+  question_bank_filter: QuestionBankFilter;
+}
+
+export interface AdminLimitsUsage {
+  papers_count: number;
+  students_count: number;
+  monthly_attempts_count: number;
+}
+
+export interface SuperAdminUserRow {
+  username: string;
+  role: Role;
+  admin_code?: string | null;
+  assigned_admin_code?: string | null;
+  admin_limits?: AdminLimits | null;
+  admin_limits_usage?: AdminLimitsUsage | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface AuthResponse {
@@ -62,6 +96,8 @@ export interface QuestionStudent {
   subject: string;
   topic: string;
   image_url?: string | null;
+  /** EASY | MEDIUM | HARD | EXPERT when known */
+  difficulty?: string | null;
 }
 
 export interface PaperSessionMeta {
@@ -73,6 +109,12 @@ export interface PaperSessionMeta {
   total_sections: number;
   marks_per_correct: number;
   marks_per_incorrect: number;
+}
+
+export interface AttemptSessionFilters {
+  subject?: string | null;
+  topic?: string | null;
+  exam_tag?: string | null;
 }
 
 export interface TestStartResponse {
@@ -87,6 +129,7 @@ export interface TestStartResponse {
   max_reachable_index?: number;
   can_submit?: boolean;
   paper?: PaperSessionMeta | null;
+  attempt_filters?: AttemptSessionFilters;
 }
 
 export interface PaperNextSection {
@@ -181,6 +224,13 @@ export interface SubmitAnswerResponse {
   max_reachable_index?: number;
   paper_next?: PaperNextSection | null;
   paper_summary?: PaperResultSummary | null;
+}
+
+export interface CoachExplanationHintResponse {
+  openai_configured: boolean;
+  used_openai: boolean;
+  hint: string;
+  error?: string | null;
 }
 
 export interface TestQuestionAtResponse {
@@ -359,6 +409,85 @@ export interface StudentOverallAnalytics {
   strategy_to_desired_state: string[];
 }
 
+export interface StudentTrendFilterOptions {
+  subjects: string[];
+  topics: string[];
+  exams: string[];
+}
+
+export interface StudentTrendPoint {
+  attempt_id: string;
+  started_at: string;
+  session_kind: "standalone" | "paper_section";
+  subject?: string | null;
+  topic?: string | null;
+  exam_tag?: string | null;
+  accuracy_percent: number;
+  total_time_seconds: number;
+  questions_answered: number;
+  score: number;
+}
+
+export interface StudentLearningTrendsResponse {
+  points: StudentTrendPoint[];
+  filter_options: StudentTrendFilterOptions;
+}
+
+export type StudentTimeStrategyAction = "full_attempt" | "time_cap" | "defer_revisit" | "skip_if_behind";
+
+export interface StudentTimeStrategyPerQuestion {
+  index: number;
+  time_action: StudentTimeStrategyAction;
+  risk_level: "low" | "medium" | "high";
+  hint: string;
+}
+
+export interface StudentAttemptTimeStrategyResponse {
+  openai_configured: boolean;
+  used_openai: boolean;
+  error?: string | null;
+  summary: string;
+  risks_overview: string;
+  per_question: StudentTimeStrategyPerQuestion[];
+  cumulative_optimal_seconds: number[];
+}
+
+export type AccuracyBuildCategory = "concept" | "trick" | "formula" | "deep_knowledge" | "mixed";
+
+export interface StudentAccuracyBuildItem {
+  title: string;
+  category: AccuracyBuildCategory;
+  what_to_build: string;
+  question_indices: number[];
+}
+
+export interface StudentAttemptAccuracyImprovementResponse {
+  openai_configured: boolean;
+  used_openai: boolean;
+  error?: string | null;
+  summary: string;
+  subject_context: string;
+  exam_context: string;
+  build_items: StudentAccuracyBuildItem[];
+  practice_drills: string[];
+}
+
+/** Persisted coach payloads for in-test hints (same lens as analytics). */
+export interface StudentCoachPlanBundle {
+  has_accuracy: boolean;
+  has_time: boolean;
+  accuracy_plan?: Record<string, unknown> | null;
+  time_plan?: Record<string, unknown> | null;
+  updated_at?: string | null;
+}
+
+/** Subject / topic / exam filters aligned with attempt session fields (used for charts + overall analytics). */
+export type StudentSessionFilters = {
+  subject: string;
+  topic: string;
+  exam: string;
+};
+
 export type StudentInsightCapsuleKey = "missed_opportunity" | "wasted_time" | "skip_revisit";
 
 export interface StudentInsightCapsule {
@@ -519,4 +648,45 @@ export interface BulkImportResult {
   inserted: number;
   skipped: number;
   errors: { row: number; field?: string | null; error: string }[];
+}
+
+export interface StudentProfileListItem {
+  student_username: string;
+  display_name?: string | null;
+  blocked: boolean;
+  practice_attempts_allowance?: number | null;
+  practice_attempts_used: number;
+  allowed_exam_tags: string[];
+  assigned_paper_count: number;
+}
+
+export interface StudentProfileAdminView {
+  student_username: string;
+  display_name?: string | null;
+  practice_attempts_allowance?: number | null;
+  allowed_exam_tags: string[];
+  blocked: boolean;
+  assigned_paper_ids: string[];
+  practice_attempts_used: number;
+  updated_at?: string | null;
+}
+
+export interface StudentProfileUpdatePayload {
+  display_name?: string | null;
+  practice_attempts_allowance?: number | null;
+  allowed_exam_tags: string[];
+  blocked: boolean;
+  assigned_paper_ids: string[];
+}
+
+export interface StudentSessionControls {
+  student_username: string;
+  display_name: string;
+  blocked: boolean;
+  block_reason?: string | null;
+  practice_attempts_allowance?: number | null;
+  practice_attempts_used: number;
+  practice_attempts_remaining?: number | null;
+  allowed_exam_tags: string[];
+  can_start_practice_test: boolean;
 }

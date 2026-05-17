@@ -1,13 +1,18 @@
+import asyncio
 from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any, Dict, List, Optional
 
 from app.models.domain import AttemptStatus, Difficulty
 from app.repositories.attempt_repository import AttemptRepository
+from app.services.admin_limits_service import AdminLimitsService
+from app.services.student_profile_service import StudentProfileService
 from app.repositories.config_repository import ConfigRepository
 from app.repositories.question_repository import QuestionRepository
 from app.schemas.attempt import (
+    AttemptSessionFilters,
     AttemptSummary,
+    CoachExplanationHintResponse,
     QuestionAtIndexResponse,
     QuestionPayload,
     SubmitAnswerResponse,
@@ -15,6 +20,7 @@ from app.schemas.attempt import (
 )
 from app.services.ai_question_generator import AIQuestionGenerator
 from app.services.adaptive_engine import get_next_difficulty, get_next_question_id
+from app.services.explanation_hint_openai import request_openai_explanation_hint
 from app.utils.ids import oid_str
 
 
@@ -25,6 +31,8 @@ def _utc_now() -> datetime:
 def _to_student_payload(doc: Dict[str, Any]) -> QuestionPayload:
     raw_img = doc.get("image_url")
     img = str(raw_img).strip() if raw_img else None
+    raw_diff = doc.get("difficulty")
+    diff = str(raw_diff).strip().upper() if raw_diff is not None else None
     return QuestionPayload(
         id=oid_str(doc["_id"]),
         question_text=doc["question_text"],
@@ -33,6 +41,17 @@ def _to_student_payload(doc: Dict[str, Any]) -> QuestionPayload:
         subject=doc.get("subject", "General"),
         topic=doc.get("topic", "General"),
         image_url=img or None,
+        difficulty=diff or None,
+    )
+
+
+def _attempt_filters_from_doc(doc: Dict[str, Any]) -> AttemptSessionFilters:
+    et = doc.get("exam_tag_filter")
+    exam = str(et).strip().upper() if et else None
+    return AttemptSessionFilters(
+        subject=str(doc["subject_filter"]).strip() if doc.get("subject_filter") else None,
+        topic=str(doc["topic_filter"]).strip() if doc.get("topic_filter") else None,
+        exam_tag=exam or None,
     )
 
 
@@ -121,7 +140,17 @@ class TestService:
         time_limit_seconds: Optional[int],
         paper_context: Optional[Dict[str, Any]] = None,
         question_pool_ids: Optional[List[str]] = None,
+        student_username: Optional[str] = None,
     ) -> TestStartResponse:
+        profile_svc = StudentProfileService()
+        if student_username:
+            await AdminLimitsService().assert_student_can_start_attempt(student_username)
+            if paper_context:
+                await profile_svc.assert_not_blocked(student_username)
+                controls = await profile_svc.get_session_controls(student_username)
+                student_name = controls.display_name
+            else:
+                student_name = await profile_svc.assert_can_start_practice_test(student_username, exam_tag)
         cfg = await self._config.get_or_create()
         pool = [str(x).strip() for x in question_pool_ids] if question_pool_ids else []
         pool = [x for x in pool if x] or None
@@ -166,6 +195,8 @@ class TestService:
             "exam_tag_filter": exam_tag,
             "time_limit_seconds": time_limit_seconds,
         }
+        if student_username:
+            doc["student_username"] = student_username.strip()
         if pool:
             doc["question_pool_ids"] = pool
         if paper_context:
@@ -185,6 +216,7 @@ class TestService:
             questions_answered=0,
             max_reachable_index=1,
             can_submit=True,
+            attempt_filters=_attempt_filters_from_doc(doc),
         )
 
     async def submit_answer(
@@ -439,6 +471,29 @@ class TestService:
             questions_answered=answered,
             marked_for_review=mf,
         )
+
+    async def coach_explanation_hint(self, attempt_id: str, question_id: str) -> CoachExplanationHintResponse:
+        """Active standalone question only: uses stored explanation + OpenAI → short hint."""
+        att = await self._attempts.get(attempt_id)
+        if not att:
+            raise ValueError("Attempt not found")
+        if att.get("status") != AttemptStatus.IN_PROGRESS.value:
+            raise ValueError("Attempt already completed")
+        if att.get("paper_attempt_id"):
+            raise ValueError("Explanation hints are not available for question-paper sections.")
+        answered = int(att.get("questions_answered", 0))
+        served_ids = list(att.get("question_ids", []))
+        if answered >= len(served_ids):
+            raise ValueError("No active question")
+        expected_qid = served_ids[answered]
+        if question_id != expected_qid:
+            raise ValueError("Question does not match current step")
+        qdoc = await self._questions.get_by_id(question_id)
+        if not qdoc:
+            raise ValueError("Question not found")
+        stem = str(qdoc.get("question_text") or "")
+        explanation = str(qdoc.get("explanation") or "")
+        return await asyncio.to_thread(request_openai_explanation_hint, stem, explanation)
 
     async def set_mark_review(self, attempt_id: str, question_index: int, marked: bool) -> List[int]:
         att = await self._attempts.get(attempt_id)

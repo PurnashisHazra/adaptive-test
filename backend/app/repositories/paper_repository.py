@@ -44,6 +44,27 @@ class PaperRepository:
         cur = self._papers.find({}).sort("created_at", -1).skip(skip).limit(limit)
         return [d async for d in cur]
 
+    async def count_papers_by_creator(self, created_by: str) -> int:
+        return await self._papers.count_documents({"created_by": created_by.strip()})
+
+    async def count_paper_attempts_in_month_for_students(
+        self,
+        student_usernames: List[str],
+        month_start,
+        month_end,
+    ) -> int:
+        if not student_usernames:
+            return 0
+        names = [u.strip() for u in student_usernames if u and str(u).strip()]
+        if not names:
+            return 0
+        return await self._attempts.count_documents(
+            {
+                "student_username": {"$in": names},
+                "started_at": {"$gte": month_start, "$lt": month_end},
+            }
+        )
+
     async def list_papers_by_title_case_insensitive(self, title: str) -> List[Dict[str, Any]]:
         """All papers whose title equals ``title`` after trim, compared case-insensitively."""
         t = title.strip()
@@ -85,6 +106,17 @@ class PaperRepository:
     async def list_assignments_for_student(self, student_username: str) -> List[Dict[str, Any]]:
         cur = self._assign.find({"student_username": student_username.strip()}).sort("assigned_at", -1)
         return [d async for d in cur]
+
+    async def sync_assignments_for_student(self, student_username: str, paper_ids: List[str]) -> None:
+        """Replace this student's paper assignments with exactly ``paper_ids``."""
+        uname = student_username.strip()
+        normalized = sorted({str(pid).strip() for pid in paper_ids if str(pid).strip()})
+        if normalized:
+            await self._assign.delete_many({"student_username": uname, "paper_id": {"$nin": normalized}})
+        else:
+            await self._assign.delete_many({"student_username": uname})
+        for pid in normalized:
+            await self.upsert_assignment(pid, uname)
 
     async def has_assignment(self, paper_id: str, student_username: str) -> bool:
         n = await self._assign.count_documents(

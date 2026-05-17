@@ -8,7 +8,7 @@ export function TestResultPage() {
   const reset = useTestSession((s) => s.reset);
 
   if (!summary && !paperSummary) {
-    return <Navigate to="/start" replace />;
+    return <Navigate to="/" replace />;
   }
 
   if (paperSummary) {
@@ -63,7 +63,7 @@ export function TestResultPage() {
           >
             Back to papers
           </button>
-          <Link to="/start" className="btn btn-ghost">
+          <Link to="/take-test" className="btn btn-ghost">
             Standalone test
           </Link>
         </div>
@@ -131,7 +131,7 @@ export function TestResultPage() {
           className="btn btn-primary"
           onClick={() => {
             reset();
-            nav("/start");
+            nav("/take-test");
           }}
         >
           New test

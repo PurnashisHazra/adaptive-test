@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routers import (
     admin_question_papers,
+    admin_students,
     admin_users,
     analytics,
     attempts,
@@ -18,7 +19,9 @@ from app.api.routers import (
     question_reports,
     questions,
     student_analytics,
+    student_me,
     super_admin,
+    super_admin_dashboard,
     tests,
 )
 from app.core.config import get_settings
@@ -28,6 +31,8 @@ from app.repositories.config_repository import ConfigRepository
 from app.repositories.question_repository import QuestionRepository
 from app.repositories.paper_repository import PaperRepository
 from app.repositories.question_report_repository import QuestionReportRepository
+from app.repositories.student_coach_plan_repository import StudentCoachPlanRepository
+from app.repositories.student_profile_repository import StudentProfileRepository
 from app.repositories.user_repository import UserRepository
 
 logger = logging.getLogger(__name__)
@@ -42,6 +47,8 @@ async def lifespan(app: FastAPI):
         await UserRepository().ensure_indexes()
         await PaperRepository().ensure_indexes()
         await QuestionReportRepository().ensure_indexes()
+        await StudentCoachPlanRepository().ensure_indexes()
+        await StudentProfileRepository().ensure_indexes()
     except Exception as exc:
         # Keep API available even if MongoDB is temporarily unreachable.
         logger.exception("MongoDB initialization failed; continuing startup without DB indexes: %s", exc)
@@ -76,6 +83,8 @@ def create_app() -> FastAPI:
     app.include_router(student_analytics.router, prefix="/api")
     app.include_router(analytics.router, prefix="/api")
     app.include_router(admin_users.router, prefix="/api")
+    app.include_router(admin_students.router, prefix="/api")
+    app.include_router(student_me.router, prefix="/api")
     app.include_router(admin_question_papers.router, prefix="/api")
     app.include_router(public_question_papers.router, prefix="/api")
     app.include_router(public_provisioning.router, prefix="/api")
@@ -83,6 +92,7 @@ def create_app() -> FastAPI:
     app.include_router(question_reports.student_router, prefix="/api")
     app.include_router(question_reports.admin_router, prefix="/api")
     app.include_router(super_admin.router, prefix="/api")
+    app.include_router(super_admin_dashboard.router, prefix="/api")
     return app
 
 

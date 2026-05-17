@@ -180,6 +180,13 @@ class QuestionService:
     async def list_page(self, **kwargs: Any) -> Tuple[List[Dict[str, Any]], int]:
         return await self._repo.list_paginated(**kwargs)
 
+    async def list_page_for_admin(self, admin_username: str, **kwargs: Any) -> Tuple[List[Dict[str, Any]], int]:
+        from app.services.admin_limits_service import AdminLimitsService
+
+        extra = await AdminLimitsService().build_mongo_filter_for_admin(admin_username)
+        has_extra = bool(extra)
+        return await self._repo.list_paginated(extra_filter=extra if has_extra else None, **kwargs)
+
     async def count(self) -> int:
         return await self._repo.count()
 

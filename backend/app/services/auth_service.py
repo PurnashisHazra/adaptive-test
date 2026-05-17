@@ -4,8 +4,10 @@ from typing import Any, Dict, Optional
 
 from app.core.config import get_settings
 from app.repositories.user_repository import UserRepository
-from app.schemas.auth import AuthResponse, AuthUser, LoginRequest, Role, SignupRequest
+from app.schemas.auth import AuthResponse, AuthUser, ClaimAdminCodeRequest, LoginRequest, Role, SignupRequest
 from app.utils.passwords import hash_password, verify_password
+from app.services.admin_limits_service import AdminLimitsService
+from app.utils.roles import parse_role
 
 
 def _make_token(*, username: str, role: Role) -> str:
@@ -21,24 +23,41 @@ def _make_token(*, username: str, role: Role) -> str:
     return jwt.encode(payload, settings.auth_jwt_secret, algorithm="HS256")
 
 
+def _user_to_auth_user(user: Dict[str, Any]) -> AuthUser:
+    role = parse_role(user.get("role", "student"))
+    assigned = user.get("assigned_admin_code")
+    needs = role == Role.student and not assigned
+    return AuthUser(
+        username=user["username"],
+        role=role,
+        needs_admin_code=needs,
+        assigned_admin_code=str(assigned) if assigned else None,
+        admin_code=str(user.get("admin_code")) if user.get("admin_code") else None,
+    )
+
+
 class AuthService:
     def __init__(self) -> None:
         self._users = UserRepository()
 
     async def signup(self, req: SignupRequest) -> AuthResponse:
-        role = Role.admin if (req.role_key or "").strip().lower() == "admin" else Role.student
+        role_key = (req.role_key or "").strip().lower()
+        if role_key in ("admin", "super_admin"):
+            raise ValueError("Cannot self-register as admin. Ask a super admin to assign your role.")
+
         existing = await self._users.get_by_username(req.username.strip())
         if existing:
             raise ValueError("Username already exists")
 
         user_doc = {
             "username": req.username.strip(),
-            "role": role.value,
+            "role": Role.student.value,
             "password_hash": hash_password(req.password),
         }
         await self._users.insert_user(user_doc)
+        role = Role.student
         token = _make_token(username=user_doc["username"], role=role)
-        return AuthResponse(token=token, user=AuthUser(username=user_doc["username"], role=role))
+        return AuthResponse(token=token, user=_user_to_auth_user(user_doc))
 
     async def login(self, req: LoginRequest) -> AuthResponse:
         user = await self._users.get_by_username(req.username.strip())
@@ -47,10 +66,38 @@ class AuthService:
         if not verify_password(req.password, user.get("password_hash", "")):
             raise ValueError("Invalid username or password")
 
-        role_raw = str(user.get("role", "student")).strip().lower()
-        role = Role.admin if role_raw == "admin" else Role.student
+        role = parse_role(user.get("role", "student"))
         token = _make_token(username=user["username"], role=role)
-        return AuthResponse(token=token, user=AuthUser(username=user["username"], role=role))
+        return AuthResponse(token=token, user=_user_to_auth_user(user))
+
+    async def get_me(self, username: str) -> AuthUser:
+        user = await self._users.get_by_username(username)
+        if not user:
+            raise ValueError("User not found")
+        return _user_to_auth_user(user)
+
+    async def claim_admin_code(self, username: str, req: ClaimAdminCodeRequest) -> AuthUser:
+        user = await self._users.get_by_username(username)
+        if not user:
+            raise ValueError("User not found")
+        if parse_role(user.get("role", "student")) != Role.student:
+            raise ValueError("Only students need an admin code")
+
+        if user.get("assigned_admin_code"):
+            raise ValueError("Admin code already set for this account")
+
+        admin = await self._users.get_admin_by_code(req.admin_code)
+        if not admin:
+            raise ValueError("Invalid admin code. Check with your instructor.")
+
+        await AdminLimitsService().assert_can_add_student(req.admin_code)
+
+        updated = await self._users.update_user(
+            username,
+            {"assigned_admin_code": admin["admin_code"]},
+        )
+        assert updated is not None
+        return _user_to_auth_user(updated)
 
     async def ensure_indexes(self) -> None:
         await self._users.ensure_indexes()
@@ -59,4 +106,3 @@ class AuthService:
     def decode_token(token: str) -> Dict[str, Any]:
         settings = get_settings()
         return jwt.decode(token, settings.auth_jwt_secret, algorithms=["HS256"])
-

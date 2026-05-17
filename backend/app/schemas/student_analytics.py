@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -209,3 +209,112 @@ class StudentOverallAnalytics(BaseModel):
     attempt_points: List[StudentOverallAttemptPoint] = Field(default_factory=list)
     desired_state: StudentOverallDesiredState
     strategy_to_desired_state: List[str] = Field(default_factory=list)
+
+
+class StudentTrendFilterOptions(BaseModel):
+    subjects: List[str] = Field(default_factory=list)
+    topics: List[str] = Field(default_factory=list)
+    exams: List[str] = Field(default_factory=list)
+
+
+class StudentTrendPoint(BaseModel):
+    attempt_id: str
+    started_at: datetime
+    session_kind: Literal["standalone", "paper_section"]
+    subject: Optional[str] = None
+    topic: Optional[str] = None
+    exam_tag: Optional[str] = None
+    accuracy_percent: float = Field(..., ge=0, le=100)
+    total_time_seconds: int = Field(default=0, ge=0)
+    questions_answered: int = Field(..., ge=0)
+    score: int = Field(..., ge=0)
+
+
+class StudentLearningTrendsResponse(BaseModel):
+    points: List[StudentTrendPoint] = Field(default_factory=list)
+    filter_options: StudentTrendFilterOptions
+
+
+TimeStrategyAction = Literal["full_attempt", "time_cap", "defer_revisit", "skip_if_behind"]
+
+
+class StudentTimeStrategyPerQuestion(BaseModel):
+    index: int = Field(..., ge=1, description="1-based question order in this attempt")
+    time_action: TimeStrategyAction
+    risk_level: Literal["low", "medium", "high"]
+    hint: str = Field(default="", max_length=500)
+
+
+class StudentAttemptTimeStrategyResponse(BaseModel):
+    openai_configured: bool = Field(
+        ...,
+        description="Whether OPENAI_API_KEY is set on the server (client may show a coach UI).",
+    )
+    used_openai: bool = Field(default=False, description="True if a model response was applied.")
+    error: Optional[str] = Field(default=None, description="Set when the coach could not run or parse failed.")
+    summary: str = Field(default="", description="Short overview of the recommended time plan.")
+    risks_overview: str = Field(
+        default="",
+        description="Explicit risks (e.g. skipping hard items) the student accepts under this plan.",
+    )
+    per_question: List[StudentTimeStrategyPerQuestion] = Field(
+        default_factory=list,
+        description="Per-question pacing recommendation aligned to question indices.",
+    )
+    cumulative_optimal_seconds: List[float] = Field(
+        default_factory=list,
+        description="After each question (1..n), cumulative seconds the plan would have spent — for plotting.",
+    )
+
+
+AccuracyBuildCategory = Literal["concept", "trick", "formula", "deep_knowledge", "mixed"]
+
+
+class StudentAccuracyBuildItem(BaseModel):
+    title: str = Field(..., max_length=220, description="Short label for what to build or fix")
+    category: AccuracyBuildCategory = Field(
+        ...,
+        description="Whether this is mainly concept work, exam trick, formula memory, deep theory, or mixed.",
+    )
+    what_to_build: str = Field(
+        ...,
+        max_length=2000,
+        description="Concrete study artefacts: named concepts, tricks, formulae to memorise, proofs or deep links.",
+    )
+    question_indices: List[int] = Field(
+        default_factory=list,
+        description="1-based question indices in this attempt that motivate this item (may be empty).",
+    )
+
+
+class StudentAttemptAccuracyImprovementResponse(BaseModel):
+    openai_configured: bool = Field(..., description="Whether OPENAI_API_KEY is set on the server.")
+    used_openai: bool = Field(default=False, description="True if a model response was applied.")
+    error: Optional[str] = Field(default=None, description="Set when the coach could not run or parse failed.")
+    summary: str = Field(default="", description="Overview of how to lift accuracy for this attempt profile.")
+    subject_context: str = Field(
+        default="",
+        description="Subject lens applied (from attempt and/or dashboard filters).",
+    )
+    exam_context: str = Field(
+        default="",
+        description="Exam / cohort lens applied (from filters when present).",
+    )
+    build_items: List[StudentAccuracyBuildItem] = Field(
+        default_factory=list,
+        description="Prioritised concrete things to build: concepts, tricks, formulae, deep knowledge.",
+    )
+    practice_drills: List[str] = Field(
+        default_factory=list,
+        description="Short repeatable drills or checkpoints tied to the exam and subject.",
+    )
+
+
+class StudentCoachPlanBundle(BaseModel):
+    """Persisted time + accuracy coach payloads for reuse during live tests (same lens as analytics)."""
+
+    has_accuracy: bool = False
+    has_time: bool = False
+    accuracy_plan: Optional[Dict[str, Any]] = None
+    time_plan: Optional[Dict[str, Any]] = None
+    updated_at: Optional[datetime] = None

@@ -30,6 +30,7 @@ from app.services.question_service import QuestionService, QuestionValidationErr
 from app.services.pdf_question_import_service import PdfQuestionImportService, preview_item_to_question_create
 from app.services.r2_storage_service import R2StorageService
 from app.api.deps_auth import require_admin
+from app.services.admin_limits_service import AdminLimitsService
 
 router = APIRouter(prefix="/questions", tags=["questions"], dependencies=[Depends(require_admin)])
 
@@ -57,11 +58,14 @@ async def list_questions(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     svc: QuestionService = Depends(get_question_service),
+    claims: dict = Depends(require_admin),
 ) -> Paginated[QuestionAdmin]:
     exam_f = _parse_exam_tag_filter(exam_tag)
     sub = subject.strip() if subject and str(subject).strip() else None
     top = topic.strip() if topic and str(topic).strip() else None
-    items, total = await svc.list_page(
+    admin = str(claims.get("sub", ""))
+    items, total = await svc.list_page_for_admin(
+        admin,
         subject=sub,
         topic=top,
         difficulty=difficulty,
@@ -78,12 +82,15 @@ async def list_questions(
 async def list_questions_post(
     body: QuestionListRequest,
     svc: QuestionService = Depends(get_question_service),
+    claims: dict = Depends(require_admin),
 ) -> Paginated[QuestionAdmin]:
     """List questions with filters in JSON body (use for long search text; avoids URL length limits)."""
     exam_f = _parse_exam_tag_filter(body.exam_tag)
     sub = body.subject.strip() if body.subject and body.subject.strip() else None
     top = body.topic.strip() if body.topic and body.topic.strip() else None
-    items, total = await svc.list_page(
+    admin = str(claims.get("sub", ""))
+    items, total = await svc.list_page_for_admin(
+        admin,
         subject=sub,
         topic=top,
         difficulty=body.difficulty,
@@ -193,7 +200,7 @@ async def ai_generate_draft(body: AIGenerateQuestionRequest) -> QuestionCreate:
     if not draft:
         raise HTTPException(
             status_code=502,
-            detail="Could not generate a question draft. Check OpenAI settings and try another prompt.",
+            detail="Could not generate a question draft. Check Adaptest AI settings and try another prompt.",
         )
     return draft
 
@@ -203,7 +210,7 @@ async def auto_assign_difficulty(
     body: AutoAssignDifficultyRequest,
     svc: QuestionService = Depends(get_question_service),
 ) -> AutoAssignDifficultyResponse:
-    """Use OpenAI to set difficulty from question text and exam category tags."""
+    """Use Adaptest AI to set difficulty from question text and exam category tags."""
     return await svc.auto_assign_difficulty_with_ai(body.question_ids)
 
 
@@ -211,7 +218,11 @@ async def auto_assign_difficulty(
 async def get_question(
     question_id: str,
     svc: QuestionService = Depends(get_question_service),
+    claims: dict = Depends(require_admin),
 ) -> QuestionAdmin:
+    admin = str(claims.get("sub", ""))
+    if not await AdminLimitsService().question_allowed_for_admin(admin, question_id):
+        raise HTTPException(status_code=404, detail="Question not found")
     doc = await svc.get_admin(question_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Question not found")

@@ -116,8 +116,11 @@ class QuestionRepository:
         exam_tag: Optional[str] = None,
         page: int = 1,
         page_size: int = 20,
+        extra_filter: Optional[Dict[str, Any]] = None,
     ) -> tuple[List[Dict[str, Any]], int]:
         filt = self._build_filter(subject, topic, difficulty, search, question_type, exam_tag)
+        if extra_filter:
+            filt = {"$and": [filt, extra_filter]} if filt else extra_filter
         total = await self._col.count_documents(filt)
         cursor = (
             self._col.find(filt)
@@ -196,3 +199,8 @@ class QuestionRepository:
         vals = await self._col.distinct("subject", {})
         cleaned = [str(v).strip() for v in vals if str(v).strip()]
         return sorted(set(cleaned), key=lambda x: x.lower())
+
+    async def list_exam_tags(self) -> List[str]:
+        vals = await self._col.distinct("tags", {})
+        cleaned = [str(v).strip().upper() for v in vals if str(v).strip()]
+        return sorted(set(cleaned))

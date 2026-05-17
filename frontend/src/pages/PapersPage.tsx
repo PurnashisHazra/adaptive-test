@@ -147,7 +147,7 @@ export function PapersPage() {
         Papers assigned to you by an instructor. Once you start a paper, you cannot restart it — use Continue to pick up where you left off, or end the paper from the test screen.
       </p>
       <p style={{ marginTop: "0.75rem" }}>
-        <Link to="/start">Take a standalone adaptive test</Link> instead.
+        <Link to="/take-test">Take a standalone adaptive test</Link> instead.
       </p>
       {loading ? (
         <p style={{ marginTop: "1.5rem", color: "var(--muted)" }}>Loading…</p>

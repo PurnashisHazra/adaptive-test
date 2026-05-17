@@ -15,7 +15,7 @@ export function TestInstructionsPage() {
   const [loading, setLoading] = useState(false);
 
   if (!pending) {
-    return <Navigate to="/start" replace />;
+    return <Navigate to="/take-test" replace />;
   }
   const pendingStart = pending;
 
@@ -32,6 +32,7 @@ export function TestInstructionsPage() {
         student_name: pendingStart.studentName,
         subject: pendingStart.subject,
         topic: pendingStart.topic,
+        exam_tag: pendingStart.exam_tag?.trim() || undefined,
         total_questions: pendingStart.totalQuestions,
         time_limit_seconds: pendingStart.timeLimitSeconds,
       });
@@ -46,6 +47,7 @@ export function TestInstructionsPage() {
         markedForReview: res.marked_for_review ?? [],
         questionsAnswered: res.questions_answered ?? 0,
         maxReachableIndex: res.max_reachable_index ?? 1,
+        attemptFilters: res.attempt_filters ?? undefined,
       });
       clearPendingStart();
       nav("/test");
@@ -79,6 +81,12 @@ export function TestInstructionsPage() {
               · Topic: <strong>{pendingStart.topic}</strong>
             </>
           ) : null}
+          {pendingStart.exam_tag ? (
+            <>
+              {" "}
+              · Exam: <strong>{pendingStart.exam_tag}</strong>
+            </>
+          ) : null}
         </p>
         <form onSubmit={onBegin} style={{ marginTop: "1rem" }}>
           <label style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "1rem" }}>
@@ -89,7 +97,7 @@ export function TestInstructionsPage() {
             <button type="submit" className="btn btn-primary" disabled={!agree || loading}>
               {loading ? "Starting…" : "Begin Test"}
             </button>
-            <button type="button" className="btn btn-ghost" onClick={() => nav("/start")}>
+            <button type="button" className="btn btn-ghost" onClick={() => nav("/take-test")}>
               Back
             </button>
           </div>

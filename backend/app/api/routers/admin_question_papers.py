@@ -69,11 +69,11 @@ async def get_paper(
 async def update_paper(
     paper_id: str,
     body: QuestionPaperUpdate,
-    _claims: dict = Depends(require_admin),
+    claims: dict = Depends(require_admin),
     svc: PaperService = Depends(get_paper_service),
 ) -> QuestionPaperOut:
     try:
-        return await svc.update_paper(paper_id, body)
+        return await svc.update_paper(paper_id, body, admin_username=str(claims.get("sub", "")))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 

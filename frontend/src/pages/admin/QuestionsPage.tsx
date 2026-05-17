@@ -163,7 +163,7 @@ export function QuestionsPage() {
     }
     if (
       !window.confirm(
-        `Use OpenAI to set difficulty for ${items.length} question(s) on this page, using each question’s text and exam tags? This uses your API key and may take a little while.`,
+        `Use AdapTest AI to set difficulty for ${items.length} question(s) on this page, using each question’s text and exam tags? This uses your API key and may take a little while.`,
       )
     ) {
       return;
@@ -178,7 +178,7 @@ export function QuestionsPage() {
         const msg = res.errors.slice(0, 4).join(" · ");
         toast.error(res.errors.length > 4 ? `${msg}…` : msg);
       } else if (res.updated === 0) {
-        toast.error("No questions were updated. Check the OpenAI key and try again.");
+        toast.error("No questions were updated. Check the Adaptest AI key and try again.");
       }
       await load();
     } catch (err: unknown) {
@@ -229,7 +229,7 @@ export function QuestionsPage() {
             className="btn btn-ghost"
             onClick={onAutoAssignDifficulty}
             disabled={assigningDifficulty || loading || items.length === 0}
-            title="Assigns EASY/MEDIUM/HARD/EXPERT using OpenAI from question text and exam category tags (current page only, max 30)."
+            title="Assigns EASY/MEDIUM/HARD/EXPERT using Adaptest AI from question text and exam category tags (current page only, max 30)."
           >
             {assigningDifficulty ? "Assigning…" : "Auto assign difficulty"}
           </button>

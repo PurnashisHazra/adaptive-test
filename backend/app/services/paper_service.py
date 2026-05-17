@@ -17,7 +17,8 @@ from app.schemas.paper import (
     QuestionPaperOut,
     QuestionPaperUpdate,
 )
-from app.services.test_service import TestService
+from app.services.admin_limits_service import AdminLimitsService
+from app.services.test_service import TestService, _attempt_filters_from_doc
 from app.utils.ids import oid_str
 
 
@@ -81,7 +82,19 @@ class PaperService:
             updated_at=doc.get("updated_at") or doc["created_at"],
         )
 
+    def _collect_pool_ids(self, body: QuestionPaperCreate) -> List[str]:
+        ids: List[str] = []
+        for sec in body.sections:
+            pool = sec.question_pool_ids
+            if pool:
+                ids.extend(str(x).strip() for x in pool if str(x).strip())
+        return ids
+
     async def create_paper(self, body: QuestionPaperCreate, created_by: str) -> QuestionPaperOut:
+        await AdminLimitsService().assert_can_create_paper(created_by)
+        pool_ids = self._collect_pool_ids(body)
+        if pool_ids:
+            await AdminLimitsService().assert_questions_allowed_for_admin(created_by, pool_ids)
         doc = {
             "title": body.title,
             "sections": [s.model_dump() for s in body.sections],
@@ -94,12 +107,20 @@ class PaperService:
         assert got is not None
         return self._out_paper(got)
 
-    async def update_paper(self, paper_id: str, patch: QuestionPaperUpdate) -> QuestionPaperOut:
+    async def update_paper(self, paper_id: str, patch: QuestionPaperUpdate, *, admin_username: Optional[str] = None) -> QuestionPaperOut:
         p: Dict[str, Any] = {}
         if patch.title is not None:
             p["title"] = patch.title
         if patch.sections is not None:
             p["sections"] = [s.model_dump() for s in patch.sections]
+            if admin_username:
+                pool_ids: List[str] = []
+                for sec in patch.sections:
+                    pool = sec.question_pool_ids
+                    if pool:
+                        pool_ids.extend(str(x).strip() for x in pool if str(x).strip())
+                if pool_ids:
+                    await AdminLimitsService().assert_questions_allowed_for_admin(admin_username, pool_ids)
         if patch.marks_per_correct is not None:
             p["marks_per_correct"] = float(patch.marks_per_correct)
         if patch.marks_per_incorrect is not None:
@@ -241,9 +262,14 @@ class PaperService:
             max_reachable_index=res.max_reachable_index,
             can_submit=True,
             paper=meta,
+            attempt_filters=res.attempt_filters,
         )
 
     async def start_paper(self, paper_id: str, student_username: str) -> TestStartResponse:
+        from app.services.student_profile_service import StudentProfileService
+
+        await AdminLimitsService().assert_student_can_start_attempt(student_username)
+        await StudentProfileService().assert_not_blocked(student_username)
         paper = await self._papers.get_paper(paper_id)
         if not paper:
             raise ValueError("Paper not found")
@@ -280,6 +306,9 @@ class PaperService:
         return start
 
     async def resume_paper(self, paper_id: str, student_username: str) -> TestStartResponse:
+        from app.services.student_profile_service import StudentProfileService
+
+        await StudentProfileService().assert_not_blocked(student_username)
         paper = await self._papers.get_paper(paper_id)
         if not paper:
             raise ValueError("Paper not found")
@@ -320,6 +349,7 @@ class PaperService:
             max_reachable_index=qi.max_reachable_index,
             can_submit=qi.can_submit,
             paper=meta,
+            attempt_filters=_attempt_filters_from_doc(att),
         )
 
     async def after_section_attempt_completed(

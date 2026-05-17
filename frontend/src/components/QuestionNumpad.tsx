@@ -32,6 +32,10 @@ export function QuestionNumpad(props: {
   markedForReview: number[];
   loadingIndex: number | null;
   onSelect: (index: number) => void;
+  /** Omit outer card; for sidebar exam layout */
+  embedded?: boolean;
+  /** Smaller cells for dense sidebar */
+  compact?: boolean;
 }) {
   const {
     totalQuestions,
@@ -41,13 +45,20 @@ export function QuestionNumpad(props: {
     markedForReview,
     loadingIndex,
     onSelect,
+    embedded = false,
+    compact = false,
   } = props;
   const marked = new Set(markedForReview);
 
   const cells = Array.from({ length: totalQuestions }, (_, i) => i + 1);
 
   return (
-    <div className="qnp-wrap card" style={{ margin: 0 }}>
+    <div
+      className={["qnp-wrap", embedded ? "qnp-wrap--embedded" : "card", compact ? "qnp-wrap--compact" : ""]
+        .filter(Boolean)
+        .join(" ")}
+      style={{ margin: 0 }}
+    >
       <p className="qnp-title">Question palette</p>
       <div className="qnp-grid">
         {cells.map((n) => {

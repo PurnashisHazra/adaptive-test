@@ -3,20 +3,16 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import get_paper_service
-from app.api.deps_auth import require_role
+from app.api.deps_auth import require_student_with_admin_code
 from app.schemas.attempt import TestStartResponse
-from app.schemas.auth import Role
 from app.schemas.paper import AssignedPaperItem
 from app.services.paper_service import PaperService
 
 router = APIRouter(prefix="/papers", tags=["question-papers"])
 
-require_student = require_role([Role.student])
-
-
 @router.get("/assigned", response_model=List[AssignedPaperItem])
 async def list_assigned_papers(
-    claims: dict = Depends(require_student),
+    claims: dict = Depends(require_student_with_admin_code),
     svc: PaperService = Depends(get_paper_service),
 ) -> List[AssignedPaperItem]:
     rows = await svc.list_assigned_for_student(str(claims.get("sub", "")))
@@ -26,7 +22,7 @@ async def list_assigned_papers(
 @router.post("/{paper_id}/start", response_model=TestStartResponse)
 async def start_question_paper(
     paper_id: str,
-    claims: dict = Depends(require_student),
+    claims: dict = Depends(require_student_with_admin_code),
     svc: PaperService = Depends(get_paper_service),
 ) -> TestStartResponse:
     try:
@@ -38,7 +34,7 @@ async def start_question_paper(
 @router.post("/{paper_id}/resume", response_model=TestStartResponse)
 async def resume_question_paper(
     paper_id: str,
-    claims: dict = Depends(require_student),
+    claims: dict = Depends(require_student_with_admin_code),
     svc: PaperService = Depends(get_paper_service),
 ) -> TestStartResponse:
     try:
@@ -50,7 +46,7 @@ async def resume_question_paper(
 @router.post("/attempts/{paper_attempt_id}/end")
 async def end_question_paper(
     paper_attempt_id: str,
-    claims: dict = Depends(require_student),
+    claims: dict = Depends(require_student_with_admin_code),
     svc: PaperService = Depends(get_paper_service),
 ) -> dict:
     try:
@@ -65,7 +61,7 @@ async def end_question_paper(
 @router.post("/attempts/{paper_attempt_id}/timeout-section")
 async def timeout_section(
     paper_attempt_id: str,
-    claims: dict = Depends(require_student),
+    claims: dict = Depends(require_student_with_admin_code),
     svc: PaperService = Depends(get_paper_service),
 ):
     try:

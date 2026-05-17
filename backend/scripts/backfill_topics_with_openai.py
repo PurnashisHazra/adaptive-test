@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Backfill CAT topic for existing questions using OpenAI."""
+"""Backfill CAT topic for existing questions using Adaptest AI."""
 
 import asyncio
 import json

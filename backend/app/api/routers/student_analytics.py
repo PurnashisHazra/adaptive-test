@@ -1,10 +1,14 @@
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.deps import get_student_analytics_service
-from app.api.deps_auth import get_current_claims
+from app.api.deps_auth import require_student_with_admin_code
 from app.schemas.student_analytics import (
+    StudentAttemptAccuracyImprovementResponse,
+    StudentAttemptTimeStrategyResponse,
+    StudentCoachPlanBundle,
+    StudentLearningTrendsResponse,
     StudentOverallAnalytics,
     StudentPaperDetail,
     StudentSessionSummary,
@@ -22,9 +26,25 @@ def _me(claims: dict) -> str:
     return u
 
 
+@router.get("/coach/plan", response_model=StudentCoachPlanBundle)
+async def my_coach_plan(
+    subject: Optional[str] = Query(default=None, description="Match stored plan lens (attempt subject_filter)"),
+    topic: Optional[str] = Query(default=None, description="Match stored plan lens (attempt topic_filter)"),
+    exam_tag: Optional[str] = Query(default=None, description="Match stored plan lens (attempt exam_tag_filter)"),
+    claims: dict = Depends(require_student_with_admin_code),
+    svc: StudentAnalyticsService = Depends(get_student_analytics_service),
+) -> StudentCoachPlanBundle:
+    return await svc.get_coach_plan(
+        _me(claims),
+        subject=str(subject).strip() if subject else None,
+        topic=str(topic).strip() if topic else None,
+        exam_tag=str(exam_tag).strip().upper() if exam_tag else None,
+    )
+
+
 @router.get("/sessions", response_model=List[StudentSessionSummary])
 async def list_my_sessions(
-    claims: dict = Depends(get_current_claims),
+    claims: dict = Depends(require_student_with_admin_code),
     svc: StudentAnalyticsService = Depends(get_student_analytics_service),
 ) -> List[StudentSessionSummary]:
     return await svc.list_sessions(_me(claims))
@@ -32,16 +52,32 @@ async def list_my_sessions(
 
 @router.get("/overall", response_model=StudentOverallAnalytics)
 async def my_overall_analytics(
-    claims: dict = Depends(get_current_claims),
+    subject: Optional[str] = Query(default=None, description="Match attempt subject_filter"),
+    topic: Optional[str] = Query(default=None, description="Match attempt topic_filter"),
+    exam_tag: Optional[str] = Query(default=None, description="Match attempt exam_tag_filter"),
+    claims: dict = Depends(require_student_with_admin_code),
     svc: StudentAnalyticsService = Depends(get_student_analytics_service),
 ) -> StudentOverallAnalytics:
-    return await svc.overall_analytics(_me(claims))
+    return await svc.overall_analytics(
+        _me(claims),
+        subject=str(subject).strip() if subject else None,
+        topic=str(topic).strip() if topic else None,
+        exam_tag=str(exam_tag).strip().upper() if exam_tag else None,
+    )
+
+
+@router.get("/learning-trends", response_model=StudentLearningTrendsResponse)
+async def my_learning_trends(
+    claims: dict = Depends(require_student_with_admin_code),
+    svc: StudentAnalyticsService = Depends(get_student_analytics_service),
+) -> StudentLearningTrendsResponse:
+    return await svc.learning_trends(_me(claims))
 
 
 @router.get("/standalone/{attempt_id}", response_model=StudentStandaloneDetail)
 async def my_standalone_detail(
     attempt_id: str,
-    claims: dict = Depends(get_current_claims),
+    claims: dict = Depends(require_student_with_admin_code),
     svc: StudentAnalyticsService = Depends(get_student_analytics_service),
 ) -> StudentStandaloneDetail:
     try:
@@ -50,10 +86,52 @@ async def my_standalone_detail(
         raise HTTPException(status_code=404, detail="Not found") from None
 
 
+@router.get("/standalone/{attempt_id}/time-strategy", response_model=StudentAttemptTimeStrategyResponse)
+async def my_attempt_time_strategy(
+    attempt_id: str,
+    subject: Optional[str] = Query(default=None, description="Match attempt filters for dashboard strategy context"),
+    topic: Optional[str] = Query(default=None),
+    exam_tag: Optional[str] = Query(default=None),
+    claims: dict = Depends(require_student_with_admin_code),
+    svc: StudentAnalyticsService = Depends(get_student_analytics_service),
+) -> StudentAttemptTimeStrategyResponse:
+    try:
+        return await svc.openai_time_strategy(
+            _me(claims),
+            attempt_id,
+            subject=str(subject).strip() if subject else None,
+            topic=str(topic).strip() if topic else None,
+            exam_tag=str(exam_tag).strip().upper() if exam_tag else None,
+        )
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Not found") from None
+
+
+@router.get("/standalone/{attempt_id}/accuracy-improvement", response_model=StudentAttemptAccuracyImprovementResponse)
+async def my_attempt_accuracy_improvement(
+    attempt_id: str,
+    subject: Optional[str] = Query(default=None, description="Subject lens (dashboard filter; augments attempt metadata)"),
+    topic: Optional[str] = Query(default=None),
+    exam_tag: Optional[str] = Query(default=None, description="Exam tag lens (e.g. CAT, JEE) — shapes tricks and depth"),
+    claims: dict = Depends(require_student_with_admin_code),
+    svc: StudentAnalyticsService = Depends(get_student_analytics_service),
+) -> StudentAttemptAccuracyImprovementResponse:
+    try:
+        return await svc.openai_accuracy_improvement(
+            _me(claims),
+            attempt_id,
+            subject=str(subject).strip() if subject else None,
+            topic=str(topic).strip() if topic else None,
+            exam_tag=str(exam_tag).strip().upper() if exam_tag else None,
+        )
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Not found") from None
+
+
 @router.get("/paper/{paper_attempt_id}", response_model=StudentPaperDetail)
 async def my_paper_detail(
     paper_attempt_id: str,
-    claims: dict = Depends(get_current_claims),
+    claims: dict = Depends(require_student_with_admin_code),
     svc: StudentAnalyticsService = Depends(get_student_analytics_service),
 ) -> StudentPaperDetail:
     try:

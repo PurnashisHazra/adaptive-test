@@ -1,6 +1,9 @@
+import asyncio
 from collections import defaultdict
+from functools import partial
+from datetime import datetime
 from math import sqrt
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from bson import ObjectId
 
@@ -8,7 +11,12 @@ from app.models.domain import AttemptStatus
 from app.repositories.attempt_repository import AttemptRepository
 from app.repositories.paper_repository import PaperRepository
 from app.repositories.question_repository import QuestionRepository
+from app.repositories.student_coach_plan_repository import StudentCoachPlanRepository
 from app.schemas.student_analytics import (
+    StudentAttemptAccuracyImprovementResponse,
+    StudentAttemptTimeStrategyResponse,
+    StudentCoachPlanBundle,
+    StudentLearningTrendsResponse,
     StudentOverallAnalytics,
     StudentOverallAttemptPoint,
     StudentOverallAxisView,
@@ -25,7 +33,11 @@ from app.schemas.student_analytics import (
     StudentInsightArea,
     StudentSessionSummary,
     StudentStandaloneDetail,
+    StudentTrendFilterOptions,
+    StudentTrendPoint,
 )
+from app.services.attempt_accuracy_improvement_openai import request_openai_accuracy_improvement
+from app.services.attempt_time_strategy_openai import request_openai_time_strategy
 from app.utils.ids import oid_str
 
 
@@ -64,6 +76,7 @@ class StudentAnalyticsService:
         self._attempts = AttemptRepository()
         self._papers = PaperRepository()
         self._questions = QuestionRepository()
+        self._coach_plans = StudentCoachPlanRepository()
 
     def _owns_test_attempt(self, att: Dict[str, Any], username: str) -> bool:
         return str(att.get("student_name", "")).strip().lower() == username.strip().lower()
@@ -420,8 +433,6 @@ class StudentAnalyticsService:
         att = await self._attempts.get(attempt_id)
         if not att or not self._owns_test_attempt(att, username):
             raise ValueError("Not found")
-        if str(att.get("paper_attempt_id") or "").strip():
-            raise ValueError("Not found")
         answers = list(att.get("answers") or [])
         reviews = await self._reviews_from_answers(answers, oid_str(att["_id"]))
         qids = [r.question_id for r in reviews if r.question_id != "unknown"]
@@ -434,8 +445,17 @@ class StudentAnalyticsService:
         ended_early = str(att.get("completion_reason", "")) == "ended_early"
         subj = att.get("subject_filter")
         top = att.get("topic_filter")
-        hint_parts = [x for x in (subj, top) if x]
-        title = "Adaptive test" + (f" ({' · '.join(str(x) for x in hint_parts)})" if hint_parts else "")
+        pa_id = str(att.get("paper_attempt_id") or "").strip()
+        if pa_id:
+            pa = await self._papers.get_paper_attempt(pa_id)
+            paper = await self._papers.get_paper(pa["paper_id"]) if pa else None
+            ptitle = str(paper.get("title") or "Question paper") if paper else "Question paper"
+            sec_idx = int(att.get("paper_section_index", 0))
+            sec_ttl = _section_title(paper, sec_idx)
+            title = f"{ptitle} · {sec_ttl}"
+        else:
+            hint_parts = [x for x in (subj, top) if x]
+            title = "Adaptive test" + (f" ({' · '.join(str(x) for x in hint_parts)})" if hint_parts else "")
 
         return StudentStandaloneDetail(
             attempt_id=oid_str(att["_id"]),
@@ -530,9 +550,121 @@ class StudentAnalyticsService:
     def _clamp_pct(v: float) -> float:
         return round(max(0.0, min(100.0, float(v))), 1)
 
-    async def overall_analytics(self, username: str) -> StudentOverallAnalytics:
+    async def learning_trends(self, username: str) -> StudentLearningTrendsResponse:
+        uname = username.strip()
+        raw = await self._attempts.list_trend_attempts_for_student(uname)
+        rows = [d for d in raw if self._owns_test_attempt(d, uname)]
+
+        pre: List[Dict[str, Any]] = []
+
+        for doc in rows:
+            answers = list(doc.get("answers") or [])
+            if not answers:
+                continue
+            n = len(answers)
+            cor = sum(1 for a in answers if a.get("is_correct"))
+            acc = (cor / n) * 100.0 if n else 0.0
+            tsec = sum(int(a.get("time_spent_seconds") or 0) for a in answers)
+            subj_raw = doc.get("subject_filter")
+            top_raw = doc.get("topic_filter")
+            ex_raw = doc.get("exam_tag_filter")
+            subj = str(subj_raw).strip() if subj_raw is not None else ""
+            top = str(top_raw).strip() if top_raw is not None else ""
+            ex = str(ex_raw).strip().upper() if ex_raw is not None else ""
+
+            sat = doc.get("started_at")
+            if not isinstance(sat, datetime):
+                continue
+
+            pa_id = str(doc.get("paper_attempt_id") or "").strip()
+            sk: Literal["standalone", "paper_section"] = "paper_section" if pa_id else "standalone"
+            aid = oid_str(doc["_id"])
+
+            pre.append(
+                {
+                    "attempt_id": aid,
+                    "started_at": sat,
+                    "session_kind": sk,
+                    "subject": subj or None,
+                    "topic": top or None,
+                    "exam_tag": ex or None,
+                    "accuracy_percent": self._clamp_pct(acc),
+                    "total_time_seconds": max(0, int(tsec)),
+                    "questions_answered": n,
+                    "score": int(cor),
+                }
+            )
+
+        pre.sort(key=lambda r: (r["started_at"], r["attempt_id"]))
+
+        points = [
+            StudentTrendPoint(
+                attempt_id=str(r["attempt_id"]),
+                started_at=r["started_at"],
+                session_kind=r["session_kind"],
+                subject=r["subject"],
+                topic=r["topic"],
+                exam_tag=r["exam_tag"],
+                accuracy_percent=float(r["accuracy_percent"]),
+                total_time_seconds=int(r["total_time_seconds"]),
+                questions_answered=int(r["questions_answered"]),
+                score=int(r["score"]),
+            )
+            for r in pre
+        ]
+
+        subjects_set: set[str] = set()
+        topics_set: set[str] = set()
+        exams_set: set[str] = set()
+        for r in pre:
+            if r.get("subject"):
+                subjects_set.add(str(r["subject"]))
+            if r.get("topic"):
+                topics_set.add(str(r["topic"]))
+            if r.get("exam_tag"):
+                exams_set.add(str(r["exam_tag"]))
+
+        fo = StudentTrendFilterOptions(
+            subjects=sorted(subjects_set, key=str.lower),
+            topics=sorted(topics_set, key=str.lower),
+            exams=sorted(exams_set),
+        )
+        return StudentLearningTrendsResponse(points=points, filter_options=fo)
+
+    def _attempt_matches_session_filters(
+        self,
+        att: Dict[str, Any],
+        subject: Optional[str],
+        topic: Optional[str],
+        exam_tag: Optional[str],
+    ) -> bool:
+        if subject and str(subject).strip():
+            if str(att.get("subject_filter") or "").strip() != str(subject).strip():
+                return False
+        if topic and str(topic).strip():
+            if str(att.get("topic_filter") or "").strip() != str(topic).strip():
+                return False
+        if exam_tag and str(exam_tag).strip():
+            if str(att.get("exam_tag_filter") or "").strip().upper() != str(exam_tag).strip().upper():
+                return False
+        return True
+
+    async def overall_analytics(
+        self,
+        username: str,
+        *,
+        subject: Optional[str] = None,
+        topic: Optional[str] = None,
+        exam_tag: Optional[str] = None,
+    ) -> StudentOverallAnalytics:
         rows = await self._attempts.list_recent(limit=1000, student_name=username.strip())
         attempts = [a for a in rows if self._owns_test_attempt(a, username) and list(a.get("answers") or [])]
+        if subject or topic or exam_tag:
+            attempts = [
+                a
+                for a in attempts
+                if self._attempt_matches_session_filters(a, subject, topic, exam_tag)
+            ]
         attempts_considered = len(attempts)
 
         q_cache: Dict[str, Optional[Dict[str, Any]]] = {}
@@ -750,7 +882,7 @@ class StudentAnalyticsService:
                 strategy.append("Increase medium-to-hard conversion with daily mixed-difficulty sets and post-test error review on hard questions.")
             else:
                 strategy.append("Raise knowledge depth using topic-focused revision blocks and active recall of frequently missed concepts.")
-        strategy.append("Track weekly trend on this 3D map and target +5 points per axis every revision cycle.")
+        strategy.append("Track weekly trend on your time–difficulty–knowledge profile and target +5 strength points per axis each revision cycle.")
 
         axis_views = [
             StudentOverallAxisView(
@@ -788,3 +920,91 @@ class StudentAnalyticsService:
             desired_state=desired,
             strategy_to_desired_state=strategy[:4],
         )
+
+    async def get_coach_plan(
+        self,
+        username: str,
+        *,
+        subject: Optional[str] = None,
+        topic: Optional[str] = None,
+        exam_tag: Optional[str] = None,
+    ) -> StudentCoachPlanBundle:
+        doc = await self._coach_plans.find_one(username, subject, topic, exam_tag)
+        if not doc:
+            return StudentCoachPlanBundle()
+        acc = doc.get("accuracy_plan")
+        tm = doc.get("time_plan")
+        cand = [x for x in (doc.get("updated_at"), doc.get("accuracy_updated_at"), doc.get("time_updated_at")) if x]
+        latest = max(cand) if cand else None
+        return StudentCoachPlanBundle(
+            has_accuracy=bool(acc),
+            has_time=bool(tm),
+            accuracy_plan=acc,
+            time_plan=tm,
+            updated_at=latest,
+        )
+
+    async def openai_time_strategy(
+        self,
+        username: str,
+        attempt_id: str,
+        *,
+        subject: Optional[str] = None,
+        topic: Optional[str] = None,
+        exam_tag: Optional[str] = None,
+    ) -> StudentAttemptTimeStrategyResponse:
+        """LLM time coach: attempt facts + dashboard strategy → per-question pacing + optimal cumulative time curve."""
+        detail = await self.standalone_detail(username, attempt_id)
+        overall = await self.overall_analytics(
+            username,
+            subject=str(subject).strip() if subject else None,
+            topic=str(topic).strip() if topic else None,
+            exam_tag=str(exam_tag).strip().upper() if exam_tag else None,
+        )
+        result = await asyncio.to_thread(request_openai_time_strategy, detail, overall)
+        if result.used_openai and not result.error:
+            await self._coach_plans.upsert_merge(
+                username,
+                subject,
+                topic,
+                exam_tag,
+                time_plan=result.model_dump(),
+            )
+        return result
+
+    async def openai_accuracy_improvement(
+        self,
+        username: str,
+        attempt_id: str,
+        *,
+        subject: Optional[str] = None,
+        topic: Optional[str] = None,
+        exam_tag: Optional[str] = None,
+    ) -> StudentAttemptAccuracyImprovementResponse:
+        """LLM study coach: what to build (concepts, tricks, formulae, deep knowledge) for this attempt + lenses."""
+        detail = await self.standalone_detail(username, attempt_id)
+        overall = await self.overall_analytics(
+            username,
+            subject=str(subject).strip() if subject else None,
+            topic=str(topic).strip() if topic else None,
+            exam_tag=str(exam_tag).strip().upper() if exam_tag else None,
+        )
+        result = await asyncio.to_thread(
+            partial(
+                request_openai_accuracy_improvement,
+                detail,
+                overall,
+                subject_filter=str(subject).strip() if subject else None,
+                topic_filter=str(topic).strip() if topic else None,
+                exam_tag_filter=str(exam_tag).strip().upper() if exam_tag else None,
+            )
+        )
+        if result.used_openai and not result.error:
+            await self._coach_plans.upsert_merge(
+                username,
+                subject,
+                topic,
+                exam_tag,
+                accuracy_plan=result.model_dump(),
+            )
+        return result

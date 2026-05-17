@@ -3,9 +3,12 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.deps import get_test_service
+from app.api.deps_auth import require_student_with_admin_code
 from app.repositories.question_repository import QuestionRepository
 from app.schemas.attempt import (
     AttemptSummary,
+    CoachExplanationHintRequest,
+    CoachExplanationHintResponse,
     MarkReviewRequest,
     MarkReviewResponse,
     QuestionAtIndexResponse,
@@ -18,10 +21,10 @@ from app.services.test_service import TestService
 
 router = APIRouter(prefix="/tests", tags=["tests"])
 
-
 @router.post("/start", response_model=TestStartResponse)
 async def start_test(
     body: TestStartRequest,
+    claims: dict = Depends(require_student_with_admin_code),
     svc: TestService = Depends(get_test_service),
 ) -> TestStartResponse:
     try:
@@ -32,6 +35,7 @@ async def start_test(
             exam_tag=body.exam_tag,
             total_questions=body.total_questions,
             time_limit_seconds=body.time_limit_seconds,
+            student_username=str(claims.get("sub", "")),
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -49,6 +53,18 @@ async def list_subjects() -> dict:
     repo = QuestionRepository()
     subjects = await repo.list_subjects()
     return {"subjects": subjects}
+
+
+@router.post("/{attempt_id}/coach-explanation-hint", response_model=CoachExplanationHintResponse)
+async def coach_explanation_hint(
+    attempt_id: str,
+    body: CoachExplanationHintRequest,
+    svc: TestService = Depends(get_test_service),
+) -> CoachExplanationHintResponse:
+    try:
+        return await svc.coach_explanation_hint(attempt_id, body.question_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/{attempt_id}/answer", response_model=SubmitAnswerResponse)

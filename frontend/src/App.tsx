@@ -1,7 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
-import { LandingPage } from "./pages/LandingPage";
-import { StudentStartPage } from "./pages/StudentStartPage";
+import { HomePage } from "./pages/HomePage";
+import { StudentTakeTestPage } from "./pages/StudentTakeTestPage";
 import { TestInstructionsPage } from "./pages/TestInstructionsPage";
 import { TestSessionPage } from "./pages/TestSessionPage";
 import { TestResultPage } from "./pages/TestResultPage";
@@ -17,86 +17,91 @@ import { SettingsPage } from "./pages/admin/SettingsPage";
 import { QuestionPapersPage } from "./pages/admin/QuestionPapersPage";
 import { QuestionPaperFormPage } from "./pages/admin/QuestionPaperFormPage";
 import { QuestionReportsPage } from "./pages/admin/QuestionReportsPage";
+import { AdminStudentControlsPage } from "./pages/admin/AdminStudentControlsPage";
 import { AuthPage } from "./pages/AuthPage";
 import { PapersPage } from "./pages/PapersPage";
 import { StudentReviewListPage } from "./pages/StudentReviewListPage";
 import { StudentReviewSessionPage } from "./pages/StudentReviewSessionPage";
 import { RequireRole } from "./components/RequireRole";
+import { StudentProtectedRoute } from "./components/StudentProtectedRoute";
+import { SuperAdminLayout } from "./components/SuperAdminLayout";
+import { SuperAdminDashboardPage } from "./pages/admin/SuperAdminDashboardPage";
 
 export default function App() {
   return (
     <Routes>
       <Route element={<AppShell />}>
-        <Route path="/" element={<LandingPage />} />
+        <Route path="/" element={<HomePage />} />
         <Route path="/auth" element={<AuthPage />} />
+        <Route path="/start" element={<Navigate to="/" replace />} />
         <Route
-          path="/start"
+          path="/take-test"
           element={
-            <RequireRole allowedRoles={["student"]} studentRedirectTo="/start" adminRedirectTo="/admin">
-              <StudentStartPage />
-            </RequireRole>
+            <StudentProtectedRoute studentRedirectTo="/take-test">
+              <StudentTakeTestPage />
+            </StudentProtectedRoute>
           }
         />
         <Route
           path="/instructions"
           element={
-            <RequireRole allowedRoles={["student"]} studentRedirectTo="/start" adminRedirectTo="/admin">
+            <StudentProtectedRoute>
               <TestInstructionsPage />
-            </RequireRole>
+            </StudentProtectedRoute>
           }
         />
         <Route
           path="/test"
           element={
-            <RequireRole allowedRoles={["student"]} studentRedirectTo="/start" adminRedirectTo="/admin">
+            <StudentProtectedRoute>
               <TestSessionPage />
-            </RequireRole>
+            </StudentProtectedRoute>
           }
         />
         <Route
           path="/result"
           element={
-            <RequireRole allowedRoles={["student"]} studentRedirectTo="/start" adminRedirectTo="/admin">
+            <StudentProtectedRoute>
               <TestResultPage />
-            </RequireRole>
+            </StudentProtectedRoute>
           }
         />
         <Route
           path="/history"
           element={
-            <RequireRole allowedRoles={["student"]} studentRedirectTo="/history" adminRedirectTo="/admin">
+            <StudentProtectedRoute studentRedirectTo="/history">
               <StudentHistoryPage />
-            </RequireRole>
+            </StudentProtectedRoute>
           }
         />
         <Route
           path="/review"
           element={
-            <RequireRole allowedRoles={["student"]} studentRedirectTo="/review" adminRedirectTo="/admin">
+            <StudentProtectedRoute studentRedirectTo="/review">
               <StudentReviewListPage />
-            </RequireRole>
+            </StudentProtectedRoute>
           }
         />
         <Route
           path="/review/:sessionType/:id"
           element={
-            <RequireRole allowedRoles={["student"]} studentRedirectTo="/review" adminRedirectTo="/admin">
+            <StudentProtectedRoute studentRedirectTo="/review">
               <StudentReviewSessionPage />
-            </RequireRole>
+            </StudentProtectedRoute>
           }
         />
         <Route
           path="/papers"
           element={
-            <RequireRole allowedRoles={["student"]} studentRedirectTo="/papers" adminRedirectTo="/admin">
+            <StudentProtectedRoute studentRedirectTo="/papers">
               <PapersPage />
-            </RequireRole>
+            </StudentProtectedRoute>
           }
         />
         <Route
           path="/admin"
           element={
-            <RequireRole allowedRoles={["admin"]} studentRedirectTo="/start" adminRedirectTo="/admin">
+            <RequireRole allowedRoles={["admin"]} studentRedirectTo="/" adminRedirectTo="/admin" superAdminRedirectTo="/super-admin">
               <AdminLayout />
             </RequireRole>
           }
@@ -110,9 +115,20 @@ export default function App() {
           <Route path="reports" element={<QuestionReportsPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="attempts" element={<AttemptsPage />} />
+          <Route path="students" element={<AdminStudentControlsPage />} />
           <Route path="question-papers" element={<QuestionPapersPage />} />
           <Route path="question-papers/new" element={<QuestionPaperFormPage />} />
           <Route path="question-papers/:id" element={<QuestionPaperFormPage />} />
+        </Route>
+        <Route
+          path="/super-admin"
+          element={
+            <RequireRole allowedRoles={["super_admin"]} studentRedirectTo="/" adminRedirectTo="/admin" superAdminRedirectTo="/super-admin">
+              <SuperAdminLayout />
+            </RequireRole>
+          }
+        >
+          <Route index element={<SuperAdminDashboardPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

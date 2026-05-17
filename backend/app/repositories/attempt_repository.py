@@ -69,8 +69,40 @@ class AttemptRepository:
             cursor = cursor.limit(limit)
         return [d async for d in cursor]
 
+    async def count_standalone_for_student(self, student_name: str) -> int:
+        """Standalone practice attempts (started), excluding question-paper sessions."""
+        sn = student_name.strip()
+        filt: Dict[str, Any] = {
+            "student_name": {"$regex": f"^{re.escape(sn)}$", "$options": "i"},
+            "status": {"$in": [AttemptStatus.COMPLETED.value, AttemptStatus.IN_PROGRESS.value, "ended_early"]},
+            "$or": [
+                {"paper_attempt_id": {"$exists": False}},
+                {"paper_attempt_id": None},
+                {"paper_attempt_id": ""},
+            ],
+        }
+        return await self._col.count_documents(filt)
+
     async def count(self, filt: Optional[Dict[str, Any]] = None) -> int:
         return await self._col.count_documents(filt or {})
+
+    async def count_attempts_in_month_for_students(
+        self,
+        student_usernames: List[str],
+        month_start: datetime,
+        month_end: datetime,
+    ) -> int:
+        if not student_usernames:
+            return 0
+        names = [u.strip() for u in student_usernames if u and str(u).strip()]
+        if not names:
+            return 0
+        return await self._col.count_documents(
+            {
+                "student_username": {"$in": names},
+                "started_at": {"$gte": month_start, "$lt": month_end},
+            }
+        )
 
     async def find_all(self, limit: int = 50000) -> List[Dict[str, Any]]:
         cursor = self._col.find({}).sort("started_at", -1).limit(limit)
@@ -86,6 +118,17 @@ class AttemptRepository:
             )
             .sort("started_at", -1)
         )
+        return [d async for d in cursor]
+
+    async def list_trend_attempts_for_student(self, student_name: str, limit: int = 2000) -> List[Dict[str, Any]]:
+        """Completed or ended-early attempts with at least one answer, newest first (for analytics filtering)."""
+        sn = student_name.strip()
+        filt: Dict[str, Any] = {
+            "student_name": {"$regex": f"^{re.escape(sn)}$", "$options": "i"},
+            "status": {"$in": [AttemptStatus.COMPLETED.value, "ended_early"]},
+            "answers": {"$exists": True, "$ne": []},
+        }
+        cursor = self._col.find(filt).sort("started_at", -1).limit(limit)
         return [d async for d in cursor]
 
     async def list_answer_slices_for_questions(self, question_ids: List[str]) -> List[Dict[str, Any]]:

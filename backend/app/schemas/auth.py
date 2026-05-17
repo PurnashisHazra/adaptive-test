@@ -7,13 +7,16 @@ from pydantic import BaseModel, Field
 class Role(str, Enum):
     student = "student"
     admin = "admin"
+    super_admin = "super_admin"
 
 
 class SignupRequest(BaseModel):
     username: str = Field(..., min_length=1, max_length=200)
     password: str = Field(..., min_length=8)
-    # Role key determines which role is created. Defaults to `student`.
-    role_key: Optional[str] = Field(default=None, description="Use 'admin' to create admin users; anything else => student.")
+    role_key: Optional[str] = Field(
+        default=None,
+        description="Public signup only creates students. Admin/super_admin are assigned in the super-admin dashboard.",
+    )
 
 
 class LoginRequest(BaseModel):
@@ -21,12 +24,18 @@ class LoginRequest(BaseModel):
     password: str = Field(..., min_length=8)
 
 
+class ClaimAdminCodeRequest(BaseModel):
+    admin_code: str = Field(..., min_length=2, max_length=32)
+
+
 class AuthUser(BaseModel):
     username: str
     role: Role
+    needs_admin_code: bool = False
+    assigned_admin_code: Optional[str] = None
+    admin_code: Optional[str] = None
 
 
 class AuthResponse(BaseModel):
     token: str
     user: AuthUser
-

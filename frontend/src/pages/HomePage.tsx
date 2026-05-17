@@ -1,6 +1,9 @@
-import { Link } from "react-router-dom";
+import { useEffect } from "react";
+import { Link, Navigate } from "react-router-dom";
+import { useAuthStore } from "../store/authStore";
+import { StudentDashboardPage } from "./StudentDashboardPage";
 
-export function LandingPage() {
+function MarketingLanding() {
   return (
     <div className="page">
       <div style={{ maxWidth: 640, margin: "0 auto", textAlign: "center", paddingTop: "2rem" }}>
@@ -14,8 +17,11 @@ export function LandingPage() {
           Each test begins at an accessible level and adjusts difficulty based on performance — without showing labels during the exam.
         </p>
         <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center", flexWrap: "wrap" }}>
-          <Link to="/start" className="btn btn-primary">
+          <Link to="/take-test" className="btn btn-primary">
             Start a test
+          </Link>
+          <Link to="/auth" className="btn btn-ghost">
+            Sign in
           </Link>
         </div>
       </div>
@@ -23,10 +29,42 @@ export function LandingPage() {
         <div className="card" style={{ maxWidth: 520, textAlign: "center" }}>
           <h3>For students</h3>
           <p style={{ color: "var(--muted)", margin: 0 }}>
-            Enter your name, optionally narrow by subject, and complete a focused session with immediate feedback between steps.
+            Sign in to see your learning curves, performance radar, and personalised strategy. Guests can start a practice session from the button above.
           </p>
         </div>
       </div>
     </div>
   );
+}
+
+export function HomePage() {
+  const role = useAuthStore((s) => s.role);
+  const isHydrated = useAuthStore((s) => s.isHydrated);
+  const hydrate = useAuthStore((s) => s.hydrate);
+
+  useEffect(() => {
+    if (!isHydrated) hydrate();
+  }, [isHydrated, hydrate]);
+
+  if (!isHydrated) {
+    return (
+      <div className="page">
+        <p style={{ color: "var(--muted)" }}>Loading…</p>
+      </div>
+    );
+  }
+
+  if (role === "super_admin") {
+    return <Navigate to="/super-admin" replace />;
+  }
+
+  if (role === "admin") {
+    return <Navigate to="/admin" replace />;
+  }
+
+  if (role === "student") {
+    return <StudentDashboardPage />;
+  }
+
+  return <MarketingLanding />;
 }

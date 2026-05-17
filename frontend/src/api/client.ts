@@ -9,6 +9,7 @@ import type {
   AttemptSummary,
   AuthResponse,
   BulkImportResult,
+  CoachExplanationHintResponse,
   PdfImportPreviewItem,
   PdfImportPreviewResponse,
   Paginated,
@@ -17,11 +18,19 @@ import type {
   QuestionCreatePayload,
   QuestionPaper,
   StudentHistoryStats,
-  StudentPaperDetail,
+  StudentAttemptAccuracyImprovementResponse,
+  StudentAttemptTimeStrategyResponse,
+  StudentCoachPlanBundle,
+  StudentLearningTrendsResponse,
   StudentOverallAnalytics,
+  StudentPaperDetail,
   StudentSessionSummary,
   QuestionReport,
   QuestionReportCreatePayload,
+  StudentProfileAdminView,
+  StudentProfileListItem,
+  StudentProfileUpdatePayload,
+  StudentSessionControls,
   StudentStandaloneDetail,
   SubmitAnswerResponse,
   TestQuestionAtResponse,
@@ -49,6 +58,52 @@ export async function health() {
 
 export async function signup(body: { username: string; password: string; role_key?: string }) {
   const { data } = await api.post<AuthResponse>("/auth/signup", body);
+  return data;
+}
+
+export async function getAuthMe() {
+  const { data } = await api.get<import("./types").AuthUser>("/auth/me");
+  return data;
+}
+
+export async function claimAdminCode(admin_code: string) {
+  const { data } = await api.post<import("./types").AuthUser>("/auth/claim-admin-code", { admin_code });
+  return data;
+}
+
+export async function listSuperAdminUsers() {
+  const { data } = await api.get<{ users: import("./types").SuperAdminUserRow[] }>("/super-admin/dashboard/users");
+  return data.users;
+}
+
+export async function updateSuperAdminUserRole(username: string, role: import("./types").Role) {
+  const { data } = await api.patch<import("./types").SuperAdminUserRow>(
+    `/super-admin/dashboard/users/${encodeURIComponent(username)}/role`,
+    { role }
+  );
+  return data;
+}
+
+export async function setSuperAdminUserAdminCode(username: string, admin_code: string) {
+  const { data } = await api.put<import("./types").SuperAdminUserRow>(
+    `/super-admin/dashboard/users/${encodeURIComponent(username)}/admin-code`,
+    { admin_code }
+  );
+  return data;
+}
+
+export async function generateSuperAdminUserAdminCode(username: string) {
+  const { data } = await api.post<import("./types").SuperAdminUserRow>(
+    `/super-admin/dashboard/users/${encodeURIComponent(username)}/admin-code/generate`
+  );
+  return data;
+}
+
+export async function setSuperAdminUserAdminLimits(username: string, limits: import("./types").AdminLimits) {
+  const { data } = await api.put<import("./types").SuperAdminUserRow>(
+    `/super-admin/dashboard/users/${encodeURIComponent(username)}/admin-limits`,
+    limits
+  );
   return data;
 }
 
@@ -296,6 +351,14 @@ export async function submitAnswer(attemptId: string, body: { question_id: strin
   return data;
 }
 
+export async function postCoachExplanationHint(attemptId: string, body: { question_id: string }) {
+  const { data } = await api.post<CoachExplanationHintResponse>(
+    `/tests/${encodeURIComponent(attemptId)}/coach-explanation-hint`,
+    body,
+  );
+  return data;
+}
+
 export async function getQuestionAt(attemptId: string, questionIndex: number) {
   const { data } = await api.get<TestQuestionAtResponse>(`/tests/${attemptId}/question/${questionIndex}`);
   return data;
@@ -385,6 +448,36 @@ export async function listStudentUsernames() {
   return data.map((u) => u.username);
 }
 
+export async function listAdminStudents() {
+  const { data } = await api.get<StudentProfileListItem[]>("/admin/students");
+  return data;
+}
+
+export async function listAdminStudentExamTags() {
+  const { data } = await api.get<{ exam_tags: string[] }>("/admin/students/exam-tags");
+  return data.exam_tags;
+}
+
+export async function listAdminPapersCatalog() {
+  const { data } = await api.get<{ papers: { id: string; title: string }[] }>("/admin/students/papers-catalog");
+  return data.papers;
+}
+
+export async function getAdminStudentProfile(username: string) {
+  const { data } = await api.get<StudentProfileAdminView>(`/admin/students/${encodeURIComponent(username)}`);
+  return data;
+}
+
+export async function updateAdminStudentProfile(username: string, body: StudentProfileUpdatePayload) {
+  const { data } = await api.put<StudentProfileAdminView>(`/admin/students/${encodeURIComponent(username)}`, body);
+  return data;
+}
+
+export async function getMySessionControls() {
+  const { data } = await api.get<StudentSessionControls>("/me/session-controls");
+  return data;
+}
+
 export async function listAttempts(params?: { student_name?: string; limit?: number }) {
   const { data } = await api.get("/attempts", { params });
   return data;
@@ -407,13 +500,69 @@ export async function listMyAnalyticsSessions() {
   return data;
 }
 
-export async function getMyOverallAnalytics() {
-  const { data } = await api.get<StudentOverallAnalytics>("/me/analytics/overall");
+export async function getMyLearningTrends() {
+  const { data } = await api.get<StudentLearningTrendsResponse>("/me/analytics/learning-trends");
+  return data;
+}
+
+export async function getMyOverallAnalytics(params?: { subject?: string; topic?: string; exam_tag?: string }) {
+  const { data } = await api.get<StudentOverallAnalytics>("/me/analytics/overall", {
+    params: {
+      subject: params?.subject || undefined,
+      topic: params?.topic || undefined,
+      exam_tag: params?.exam_tag || undefined,
+    },
+  });
   return data;
 }
 
 export async function getMyStandaloneReview(attemptId: string) {
   const { data } = await api.get<StudentStandaloneDetail>(`/me/analytics/standalone/${encodeURIComponent(attemptId)}`);
+  return data;
+}
+
+export async function getMyCoachPlan(params?: { subject?: string; topic?: string; exam_tag?: string }) {
+  const { data } = await api.get<StudentCoachPlanBundle>("/me/analytics/coach/plan", {
+    params: {
+      subject: params?.subject || undefined,
+      topic: params?.topic || undefined,
+      exam_tag: params?.exam_tag || undefined,
+    },
+  });
+  return data;
+}
+
+export async function getMyAttemptTimeStrategy(
+  attemptId: string,
+  params?: { subject?: string; topic?: string; exam_tag?: string },
+) {
+  const { data } = await api.get<StudentAttemptTimeStrategyResponse>(
+    `/me/analytics/standalone/${encodeURIComponent(attemptId)}/time-strategy`,
+    {
+      params: {
+        subject: params?.subject || undefined,
+        topic: params?.topic || undefined,
+        exam_tag: params?.exam_tag || undefined,
+      },
+    },
+  );
+  return data;
+}
+
+export async function getMyAttemptAccuracyImprovement(
+  attemptId: string,
+  params?: { subject?: string; topic?: string; exam_tag?: string },
+) {
+  const { data } = await api.get<StudentAttemptAccuracyImprovementResponse>(
+    `/me/analytics/standalone/${encodeURIComponent(attemptId)}/accuracy-improvement`,
+    {
+      params: {
+        subject: params?.subject || undefined,
+        topic: params?.topic || undefined,
+        exam_tag: params?.exam_tag || undefined,
+      },
+    },
+  );
   return data;
 }
 
