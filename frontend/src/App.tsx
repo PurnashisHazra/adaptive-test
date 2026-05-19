@@ -18,6 +18,7 @@ import { QuestionPapersPage } from "./pages/admin/QuestionPapersPage";
 import { QuestionPaperFormPage } from "./pages/admin/QuestionPaperFormPage";
 import { QuestionReportsPage } from "./pages/admin/QuestionReportsPage";
 import { AdminStudentControlsPage } from "./pages/admin/AdminStudentControlsPage";
+import { AdminStudentReportsPage } from "./pages/admin/AdminStudentReportsPage";
 import { AuthPage } from "./pages/AuthPage";
 import { PapersPage } from "./pages/PapersPage";
 import { StudentReviewListPage } from "./pages/StudentReviewListPage";
@@ -116,6 +117,7 @@ export default function App() {
           <Route path="settings" element={<SettingsPage />} />
           <Route path="attempts" element={<AttemptsPage />} />
           <Route path="students" element={<AdminStudentControlsPage />} />
+          <Route path="student-reports" element={<AdminStudentReportsPage />} />
           <Route path="question-papers" element={<QuestionPapersPage />} />
           <Route path="question-papers/new" element={<QuestionPaperFormPage />} />
           <Route path="question-papers/:id" element={<QuestionPaperFormPage />} />

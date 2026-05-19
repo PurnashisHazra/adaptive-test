@@ -690,3 +690,54 @@ export interface StudentSessionControls {
   allowed_exam_tags: string[];
   can_start_practice_test: boolean;
 }
+
+export type StrategyFollowStatus = "on_track" | "partial" | "needs_focus" | "insufficient_data";
+export type LiveCoachStatus = "active" | "plan_ready" | "inactive";
+
+export interface AdminStudentReportLatestAttempt {
+  attempt_id: string;
+  title: string;
+  started_at: string;
+  score: number;
+  total_questions: number;
+  accuracy_percent: number;
+  actual_running_accuracy_percent?: number | null;
+  strategy_running_accuracy_percent?: number | null;
+  accuracy_lift_points?: number | null;
+  wasted_time_flags: number;
+  missed_opportunity_flags: number;
+}
+
+export interface AdminStudentReportCardSummary {
+  student_username: string;
+  display_name?: string | null;
+  blocked: boolean;
+  attempts_considered: number;
+  tests_taken: number;
+  average_accuracy_percent?: number | null;
+  strategy_follow_status: StrategyFollowStatus;
+  strategy_follow_percent?: number | null;
+  live_coach_status: LiveCoachStatus;
+  has_coach_plan: boolean;
+  coach_explanation_hints_total: number;
+  latest_attempt?: AdminStudentReportLatestAttempt | null;
+  strategy_preview: string[];
+}
+
+export interface AdminStudentReportCardDetail extends AdminStudentReportCardSummary {
+  overall?: StudentOverallAnalytics | null;
+  latest_attempt_detail?: StudentStandaloneDetail | null;
+  strategy_follow_note: string;
+  live_coach_note: string;
+}
+
+export interface AdminStudentReportCardsResponse {
+  students: AdminStudentReportCardSummary[];
+}
+
+export interface AdminStudentReportPdfBundle {
+  report: AdminStudentReportCardDetail;
+  trends: StudentLearningTrendsResponse;
+  time_strategy?: StudentAttemptTimeStrategyResponse | null;
+  accuracy_improvement?: StudentAttemptAccuracyImprovementResponse | null;
+}

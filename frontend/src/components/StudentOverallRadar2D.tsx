@@ -150,10 +150,13 @@ export function StudentOverallRadar2D({
   data,
   loading,
   onAttemptPointClick,
+  printMode = false,
 }: {
   data: StudentOverallAnalytics | null;
   loading?: boolean;
   onAttemptPointClick?: (attemptId: string) => void;
+  /** Hide expand modal controls (PDF / print export). */
+  printMode?: boolean;
 }) {
   const uid = useId().replace(/:/g, "");
   const clipCompact = `radar-clip-${uid}-c`;
@@ -248,9 +251,11 @@ export function StudentOverallRadar2D({
               for scores; click a dot to see each question, time spent, and correct/wrong. Expand to zoom and pan.
             </p>
           </div>
-          <button type="button" className="btn btn-ghost" style={{ flexShrink: 0 }} onClick={() => setExpanded(true)}>
-            Expand radar
-          </button>
+          {printMode ? null : (
+            <button type="button" className="btn btn-ghost" style={{ flexShrink: 0 }} onClick={() => setExpanded(true)}>
+              Expand radar
+            </button>
+          )}
         </div>
         <div style={{ maxWidth: 440, margin: "0.75rem auto 0" }}>
           <RadarChartSvg

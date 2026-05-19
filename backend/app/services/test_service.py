@@ -493,7 +493,18 @@ class TestService:
             raise ValueError("Question not found")
         stem = str(qdoc.get("question_text") or "")
         explanation = str(qdoc.get("explanation") or "")
-        return await asyncio.to_thread(request_openai_explanation_hint, stem, explanation)
+        result = await asyncio.to_thread(request_openai_explanation_hint, stem, explanation)
+        qids = [str(x) for x in (att.get("coach_explanation_question_ids") or []) if str(x).strip()]
+        if question_id not in qids:
+            qids.append(question_id)
+        await self._attempts.update(
+            attempt_id,
+            {
+                "coach_explanation_question_ids": qids,
+                "coach_explanation_hints_count": len(qids),
+            },
+        )
+        return result
 
     async def set_mark_review(self, attempt_id: str, question_index: int, marked: bool) -> List[int]:
         att = await self._attempts.get(attempt_id)

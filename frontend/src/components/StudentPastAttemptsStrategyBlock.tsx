@@ -284,14 +284,25 @@ function RunningMetricTwinLinesChart({
   );
 }
 
+export type StrategyBlockPrefetched = {
+  attemptId: string;
+  detail: StudentStandaloneDetail;
+  timeCoach: StudentAttemptTimeStrategyResponse | null;
+  accuracyCoach: StudentAttemptAccuracyImprovementResponse | null;
+};
+
 export function StudentPastAttemptsStrategyBlock({
   trends,
   filters,
   overall,
+  prefetched,
+  printMode = false,
 }: {
   trends: StudentLearningTrendsResponse;
   filters: StudentSessionFilters;
   overall: StudentOverallAnalytics | null;
+  prefetched?: StrategyBlockPrefetched | null;
+  printMode?: boolean;
 }) {
   const filtered = useMemo(() => {
     const rows = filterTrendPoints(trends.points, filters);
@@ -310,6 +321,16 @@ export function StudentPastAttemptsStrategyBlock({
   const [loadingAccuracyCoach, setLoadingAccuracyCoach] = useState(false);
 
   useEffect(() => {
+    if (prefetched) {
+      setSelectedId(prefetched.attemptId);
+      setDetail(prefetched.detail);
+      setTimeCoach(prefetched.timeCoach);
+      setAccuracyCoach(prefetched.accuracyCoach);
+      setLoading(false);
+      setLoadingTimeCoach(false);
+      setLoadingAccuracyCoach(false);
+      return;
+    }
     if (!filtered.length) {
       setSelectedId(null);
       setDetail(null);
@@ -317,9 +338,10 @@ export function StudentPastAttemptsStrategyBlock({
     }
     const latest = filtered[filtered.length - 1];
     setSelectedId((prev) => (prev && filtered.some((p) => p.attempt_id === prev) ? prev : latest.attempt_id));
-  }, [filtered]);
+  }, [filtered, prefetched]);
 
   useEffect(() => {
+    if (prefetched) return;
     if (!selectedId) {
       setDetail(null);
       return;
@@ -339,9 +361,10 @@ export function StudentPastAttemptsStrategyBlock({
     return () => {
       cancelled = true;
     };
-  }, [selectedId]);
+  }, [selectedId, prefetched]);
 
   useEffect(() => {
+    if (prefetched) return;
     if (!selectedId) {
       setTimeCoach(null);
       return;
@@ -369,9 +392,10 @@ export function StudentPastAttemptsStrategyBlock({
     return () => {
       cancelled = true;
     };
-  }, [selectedId, filters.subject, filters.topic, filters.exam]);
+  }, [selectedId, filters.subject, filters.topic, filters.exam, prefetched]);
 
   useEffect(() => {
+    if (prefetched) return;
     if (!selectedId) {
       setAccuracyCoach(null);
       return;
@@ -399,7 +423,7 @@ export function StudentPastAttemptsStrategyBlock({
     return () => {
       cancelled = true;
     };
-  }, [selectedId, filters.subject, filters.topic, filters.exam]);
+  }, [selectedId, filters.subject, filters.topic, filters.exam, prefetched]);
 
   const series = useMemo(() => {
     if (!detail?.questions.length) return null;
@@ -468,6 +492,7 @@ export function StudentPastAttemptsStrategyBlock({
         </p>
       </header>
 
+      {printMode ? null : (
       <div className="strategy-session__toolbar">
         <div className="strategy-session__toolbar-field">
           <label className="label" htmlFor="student-attempt-strategy-select">
@@ -487,6 +512,7 @@ export function StudentPastAttemptsStrategyBlock({
           </select>
         </div>
       </div>
+      )}
 
       {selectedPoint ? (
         <p className="strategy-session__meta">

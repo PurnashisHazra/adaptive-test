@@ -1,5 +1,8 @@
 import axios from "axios";
 import type {
+  AdminStudentReportCardDetail,
+  AdminStudentReportCardSummary,
+  AdminStudentReportPdfBundle,
   AnalyticsOverview,
   AppConfig,
   AutoAssignDifficultyResponse,
@@ -472,6 +475,27 @@ export async function updateAdminStudentProfile(username: string, body: StudentP
   const { data } = await api.put<StudentProfileAdminView>(`/admin/students/${encodeURIComponent(username)}`, body);
   return data;
 }
+
+export async function listAdminStudentReportCards() {
+  const { data } = await api.get<{ students: AdminStudentReportCardSummary[] }>("/admin/students/report-cards");
+  return data.students;
+}
+
+export async function getAdminStudentReportCard(username: string) {
+  const { data } = await api.get<AdminStudentReportCardDetail>(
+    `/admin/students/${encodeURIComponent(username)}/report-card`,
+  );
+  return data;
+}
+
+export async function getAdminStudentReportPdfBundle(username: string, refreshCoach = false) {
+  const { data } = await api.get<AdminStudentReportPdfBundle>(
+    `/admin/students/${encodeURIComponent(username)}/report-pdf-bundle`,
+    { params: refreshCoach ? { refresh_coach: true } : undefined },
+  );
+  return data;
+}
+
 
 export async function getMySessionControls() {
   const { data } = await api.get<StudentSessionControls>("/me/session-controls");

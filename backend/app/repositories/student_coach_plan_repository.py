@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from motor.motor_asyncio import AsyncIOMotorCollection
 
@@ -55,6 +55,21 @@ class StudentCoachPlanRepository:
         exam_tag: Optional[str],
     ) -> Optional[Dict[str, Any]]:
         return await self._col.find_one(self._filter(student_username, subject, topic, exam_tag))
+
+    async def list_for_student(self, student_username: str, limit: int = 50) -> List[Dict[str, Any]]:
+        u = student_username.strip().lower()
+        cursor = self._col.find({"student_username": u}).sort("updated_at", -1).limit(limit)
+        return await cursor.to_list(length=limit)
+
+    async def student_has_any_plan(self, student_username: str) -> bool:
+        u = student_username.strip().lower()
+        doc = await self._col.find_one(
+            {
+                "student_username": u,
+                "$or": [{"time_plan": {"$exists": True, "$ne": None}}, {"accuracy_plan": {"$exists": True, "$ne": None}}],
+            }
+        )
+        return doc is not None
 
     async def upsert_merge(
         self,
