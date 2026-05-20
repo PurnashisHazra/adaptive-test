@@ -1,7 +1,8 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.models.domain import Difficulty
+from app.utils.ist_time import month_bounds_ist, utc_now
 from app.repositories.attempt_repository import AttemptRepository
 from app.repositories.paper_repository import PaperRepository
 from app.repositories.question_repository import QuestionRepository
@@ -11,18 +12,8 @@ from app.schemas.auth import Role
 from app.utils.roles import parse_role
 
 
-def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
-
-
 def _month_bounds_utc(now: Optional[datetime] = None) -> Tuple[datetime, datetime]:
-    now = now or _utc_now()
-    start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
-    if now.month == 12:
-        end = datetime(now.year + 1, 1, 1, tzinfo=timezone.utc)
-    else:
-        end = datetime(now.year, now.month + 1, 1, tzinfo=timezone.utc)
-    return start, end
+    return month_bounds_ist(now)
 
 
 def _norm_tags(tags: List[str]) -> List[str]:

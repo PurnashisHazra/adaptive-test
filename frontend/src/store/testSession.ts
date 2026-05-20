@@ -25,6 +25,8 @@ interface TestSessionState {
   canSubmit: boolean;
   paperAttemptId: string | null;
   paperMeta: PaperSessionMeta | null;
+  /** Multi-section session source: question paper vs scheduled challenge. */
+  structuredKind: "paper" | "challenge" | null;
   sectionStartedAt: string | null;
   /** Subject/topic/exam lens for this attempt (from server). Used for coach plan lookup. */
   attemptFilters: AttemptSessionFilters | null;
@@ -52,7 +54,7 @@ interface TestSessionState {
     maxReachableIndex?: number;
     attemptFilters?: AttemptSessionFilters | null;
   }) => void;
-  hydratePaperStart: (res: TestStartResponse, studentName: string) => void;
+  hydratePaperStart: (res: TestStartResponse, studentName: string, kind?: "paper" | "challenge") => void;
   applyPaperNext: (res: PaperNextSection) => void;
   applyNavigate: (p: {
     question: QuestionStudent;
@@ -86,6 +88,7 @@ interface TestSessionState {
 const paperClear = {
   paperAttemptId: null as string | null,
   paperMeta: null as PaperSessionMeta | null,
+  structuredKind: null as "paper" | "challenge" | null,
   sectionStartedAt: null as string | null,
   lastPaperSummary: null as PaperResultSummary | null,
 };
@@ -106,6 +109,7 @@ export const useTestSession = create<TestSessionState>((set) => ({
   canSubmit: true,
   paperAttemptId: null,
   paperMeta: null,
+  structuredKind: null,
   sectionStartedAt: null,
   pendingStart: null,
   attemptFilters: null as AttemptSessionFilters | null,
@@ -143,7 +147,7 @@ export const useTestSession = create<TestSessionState>((set) => ({
       attemptFilters: p.attemptFilters ?? null,
       ...paperClear,
     }),
-  hydratePaperStart: (res, studentName) => {
+  hydratePaperStart: (res, studentName, kind = "paper") => {
     if (!res.paper) {
       throw new Error("Missing paper metadata");
     }
@@ -162,6 +166,7 @@ export const useTestSession = create<TestSessionState>((set) => ({
       lastSummary: null,
       paperAttemptId: res.paper.paper_attempt_id,
       paperMeta: res.paper,
+      structuredKind: kind,
       sectionStartedAt: res.started_at,
       lastPaperSummary: null,
       attemptFilters: res.attempt_filters ?? null,

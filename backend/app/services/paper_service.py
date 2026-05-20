@@ -537,7 +537,7 @@ class PaperService:
         if active:
             att = await self._tests._attempts.get(active)
             if att and att.get("status") == "in_progress":
-                await self._tests.end_test_early(active, allow_paper=True)
+                await self._tests.end_test_early(active, allow_structured=True)
                 att_done = await self._tests._attempts.get(active)
                 if att_done:
                     secs = _sorted_sections(paper)

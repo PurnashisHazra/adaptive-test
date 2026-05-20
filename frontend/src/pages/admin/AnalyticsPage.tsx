@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { AdminPanel } from "../../components/AdminPanel";
+import { formatDateTimeIST } from "../../lib/istTime";
 import { AttemptBubbleChart } from "../../components/AttemptBubbleChart";
 import { getAnalytics } from "../../api/client";
 import type { AnalyticsOverview } from "../../api/types";
@@ -130,8 +131,8 @@ export function AnalyticsPage() {
               <strong>{att.student_name}</strong>
               <span className="badge">{att.status}</span>
               <span style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
-                {att.score}/{att.total_questions} · {att.percentage}% · {new Date(att.started_at).toLocaleString()}
-                {att.completed_at ? ` → ${new Date(att.completed_at).toLocaleString()}` : ""}
+                {att.score}/{att.total_questions} · {att.percentage}% · {formatDateTimeIST(att.started_at)}
+                {att.completed_at ? ` → ${formatDateTimeIST(att.completed_at)}` : ""}
               </span>
             </div>
             <AttemptBubbleChart chartKey={att.attempt_id} steps={att.steps ?? []} />
@@ -253,7 +254,7 @@ export function AnalyticsPage() {
                   {r.score}/{r.total_questions}
                 </td>
                 <td>{r.percentage}%</td>
-                <td>{new Date(r.started_at).toLocaleString()}</td>
+                <td>{formatDateTimeIST(r.started_at)}</td>
               </tr>
             ))}
           </tbody>

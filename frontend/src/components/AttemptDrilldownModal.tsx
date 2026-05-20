@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import { formatDateTimeIST } from "../lib/istTime";
 import { getMyStandaloneReview } from "../api/client";
 import type { StudentStandaloneDetail } from "../api/types";
 
@@ -62,8 +63,8 @@ export function AttemptDrilldownModal({
             <h3 style={{ margin: 0, fontSize: "1.05rem" }}>{detail?.title ?? "Attempt"}</h3>
             {detail ? (
               <p style={{ margin: "0.35rem 0 0", fontSize: "0.82rem", color: "var(--muted)" }}>
-                {new Date(detail.started_at).toLocaleString()}
-                {detail.completed_at ? ` → ${new Date(detail.completed_at).toLocaleString()}` : ""}
+                {formatDateTimeIST(detail.started_at)}
+                {detail.completed_at ? ` → ${formatDateTimeIST(detail.completed_at)}` : ""}
                 {" · "}
                 Score {detail.score}/{detail.total_questions}
               </p>

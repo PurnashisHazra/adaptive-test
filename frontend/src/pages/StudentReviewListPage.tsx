@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
+import { formatDateTimeIST } from "../lib/istTime";
 import { getMyLearningTrends, listMyAnalyticsSessions } from "../api/client";
 import { AttemptDrilldownModal } from "../components/AttemptDrilldownModal";
 import { StudentLearningTrendCharts } from "../components/StudentLearningTrendCharts";
@@ -84,8 +85,8 @@ export function StudentReviewListPage() {
                         <p style={{ margin: 0, fontSize: "0.84rem", color: "var(--muted)" }}>{s.subtitle}</p>
                       ) : null}
                       <p style={{ margin: "0.35rem 0 0", fontSize: "0.78rem", color: "var(--muted)" }}>
-                        {new Date(s.started_at).toLocaleString()}
-                        {s.completed_at ? ` → ${new Date(s.completed_at).toLocaleString()}` : ""}
+                        {formatDateTimeIST(s.started_at)}
+                        {s.completed_at ? ` → ${formatDateTimeIST(s.completed_at)}` : ""}
                       </p>
                     </div>
                     <span style={{ fontSize: "0.82rem", color: "var(--primary-dark)", fontWeight: 600 }}>View →</span>

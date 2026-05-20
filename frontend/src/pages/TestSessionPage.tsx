@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
+  endChallengeAttempt,
   endPaperAttempt,
   endTest,
   getMyCoachPlan,
@@ -10,6 +11,7 @@ import {
   postCoachExplanationHint,
   submitAnswer,
   submitQuestionReport,
+  timeoutChallengeSection,
   timeoutPaperSection,
 } from "../api/client";
 import type { PaperNextSection, StudentCoachPlanBundle } from "../api/types";
@@ -45,6 +47,7 @@ export function TestSessionPage() {
   const canSubmit = useTestSession((s) => s.canSubmit);
   const paperMeta = useTestSession((s) => s.paperMeta);
   const paperAttemptId = useTestSession((s) => s.paperAttemptId);
+  const structuredKind = useTestSession((s) => s.structuredKind);
   const sectionStartedAt = useTestSession((s) => s.sectionStartedAt);
   const attemptFilters = useTestSession((s) => s.attemptFilters);
   const studentName = useTestSession((s) => s.studentName);
@@ -137,7 +140,10 @@ export function TestSessionPage() {
     setSectionTimingOut(true);
     (async () => {
       try {
-        const res = await timeoutPaperSection(paperAttemptId);
+        const res =
+          structuredKind === "challenge"
+            ? await timeoutChallengeSection(paperAttemptId)
+            : await timeoutPaperSection(paperAttemptId);
         if (res.paper_summary) {
           setLastPaperSummary(res.paper_summary);
           nav("/result");
@@ -391,14 +397,19 @@ export function TestSessionPage() {
 
   async function onEndTest() {
     const msg = paperMeta
-      ? "End this question paper now? Your scored attempts so far will be kept. You cannot continue this paper later."
+      ? structuredKind === "challenge"
+        ? "End this challenge now? Your scored attempts so far will be kept. You cannot continue this challenge later."
+        : "End this question paper now? Your scored attempts so far will be kept. You cannot continue this paper later."
       : "Are you sure you want to end the test now? Your answers so far will be saved, and you will not be able to continue this attempt.";
     const ok = window.confirm(msg);
     if (!ok) return;
     setEnding(true);
     try {
       if (paperMeta && paperAttemptId) {
-        const summary = await endPaperAttempt(paperAttemptId);
+        const summary =
+          structuredKind === "challenge"
+            ? (await endChallengeAttempt(paperAttemptId)).paper_summary
+            : await endPaperAttempt(paperAttemptId);
         setLastPaperSummary(summary);
         nav("/result");
         return;

@@ -1,4 +1,5 @@
 import axios from "axios";
+import { formatDateFilenameIST } from "../lib/istTime";
 import type {
   AdminStudentReportCardDetail,
   AdminStudentReportCardSummary,
@@ -19,6 +20,8 @@ import type {
   PaperResultSummary,
   QuestionAdmin,
   QuestionCreatePayload,
+  Challenge,
+  ChallengeCatalogItem,
   QuestionPaper,
   StudentHistoryStats,
   StudentAttemptAccuracyImprovementResponse,
@@ -59,8 +62,35 @@ export async function health() {
   return data;
 }
 
-export async function signup(body: { username: string; password: string; role_key?: string }) {
+export async function signup(body: { username: string; password: string; mobile?: string; role_key?: string }) {
   const { data } = await api.post<AuthResponse>("/auth/signup", body);
+  return data;
+}
+
+export async function getMyAccount() {
+  const { data } = await api.get<import("./types").StudentAccount>("/me/account");
+  return data;
+}
+
+export async function updateMyAccount(body: { mobile?: string | null }) {
+  const { data } = await api.patch<import("./types").StudentAccount>("/me/account", body);
+  return data;
+}
+
+export async function getMyPublicProfile() {
+  const { data } = await api.get<import("./types").PublicProfile>("/me/public-profile");
+  return data;
+}
+
+export async function updateMyPublicProfile(body: import("./types").PublicProfileUpdate) {
+  const { data } = await api.patch<import("./types").PublicProfile>("/me/public-profile", body);
+  return data;
+}
+
+export async function getPublicStudentProfile(profileSlug: string) {
+  const { data } = await api.get<import("./types").PublicProfile>(
+    `/public/students/${encodeURIComponent(profileSlug)}`
+  );
   return data;
 }
 
@@ -201,7 +231,7 @@ export async function downloadQuestionsCsv(): Promise<void> {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `questions-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `questions-${formatDateFilenameIST()}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -442,6 +472,64 @@ export async function unassignPaper(paperId: string, username: string) {
 export async function listPaperAssignments(paperId: string) {
   const { data } = await api.get<{ paper_id: string; student_username: string; assigned_at: string }[]>(
     `/admin/question-papers/${paperId}/assignments`
+  );
+  return data;
+}
+
+export async function listChallengeCatalog() {
+  const { data } = await api.get<ChallengeCatalogItem[]>("/challenges/catalog");
+  return data;
+}
+
+export async function startChallenge(challengeId: string) {
+  const { data } = await api.post<TestStartResponse>(`/challenges/${challengeId}/start`);
+  return data;
+}
+
+export async function resumeChallenge(challengeId: string) {
+  const { data } = await api.post<TestStartResponse>(`/challenges/${challengeId}/resume`);
+  return data;
+}
+
+export async function endChallengeAttempt(challengeAttemptId: string) {
+  const { data } = await api.post<{ paper_summary: PaperResultSummary }>(
+    `/challenges/attempts/${challengeAttemptId}/end`
+  );
+  return data;
+}
+
+export async function timeoutChallengeSection(challengeAttemptId: string) {
+  const { data } = await api.post<SubmitAnswerResponse>(`/challenges/attempts/${challengeAttemptId}/timeout-section`);
+  return data;
+}
+
+export async function listChallenges() {
+  const { data } = await api.get<Challenge[]>("/admin/challenges");
+  return data;
+}
+
+export async function getChallenge(id: string) {
+  const { data } = await api.get<Challenge>(`/admin/challenges/${id}`);
+  return data;
+}
+
+export async function createChallenge(body: object) {
+  const { data } = await api.post<Challenge>("/admin/challenges", body);
+  return data;
+}
+
+export async function updateChallenge(id: string, body: object) {
+  const { data } = await api.patch<Challenge>(`/admin/challenges/${id}`, body);
+  return data;
+}
+
+export async function syncChallengeAssignments(challengeId: string, student_usernames: string[]) {
+  await api.put(`/admin/challenges/${challengeId}/assignments`, { student_usernames });
+}
+
+export async function listChallengeAssignments(challengeId: string) {
+  const { data } = await api.get<{ challenge_id: string; student_username: string; assigned_at: string }[]>(
+    `/admin/challenges/${challengeId}/assignments`
   );
   return data;
 }

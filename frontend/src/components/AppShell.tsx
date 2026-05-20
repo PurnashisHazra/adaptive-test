@@ -1,5 +1,4 @@
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
-import { AdminCodeModal } from "./AdminCodeModal";
 import { useAuthStore } from "../store/authStore";
 
 const linkStyle = ({ isActive }: { isActive: boolean }) => ({
@@ -14,8 +13,8 @@ const linkStyle = ({ isActive }: { isActive: boolean }) => ({
 export function AppShell() {
   const { pathname } = useLocation();
   const role = useAuthStore((s) => s.role);
-  const needsAdminCode = useAuthStore((s) => s.needsAdminCode);
   const logout = useAuthStore((s) => s.logout);
+  const isStudent = role === "student";
   const isAdmin = role === "admin";
   const isSuperAdmin = role === "super_admin";
   const isStaff = isAdmin || isSuperAdmin;
@@ -54,27 +53,9 @@ export function AppShell() {
               fontSize: "1.05rem",
               color: "#0f172a",
               textDecoration: "none",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "0.5rem",
             }}
           >
-            <img
-              src="/catking-logo.png"
-              alt="CATKing"
-              style={{ height: 32, maxWidth: 220, width: "auto", objectFit: "contain" }}
-            />
-            <span
-              aria-hidden="true"
-              style={{
-                width: 1,
-                height: 22,
-                background: "#e2e8f0",
-                flexShrink: 0,
-                borderRadius: 1,
-              }}
-            />
-            <span>AdapTest</span>
+            AdapTest
           </Link>
           <nav style={{ display: "flex", gap: "0.35rem", alignItems: "center", flexWrap: "wrap" }}>
             {!isStaff ? (
@@ -88,12 +69,20 @@ export function AppShell() {
                 <NavLink to="/history" style={linkStyle}>
                   My results
                 </NavLink>
+                <NavLink to="/performance" style={linkStyle}>
+                  Performance
+                </NavLink>
                 <NavLink to="/review" style={linkStyle}>
                   Analytics
                 </NavLink>
                 <NavLink to="/papers" style={linkStyle}>
                   Papers
                 </NavLink>
+                {isStudent ? (
+                  <NavLink to="/profile" style={linkStyle}>
+                    Profile
+                  </NavLink>
+                ) : null}
               </>
             ) : isSuperAdmin ? (
               <NavLink to="/super-admin" style={linkStyle}>
@@ -129,7 +118,6 @@ export function AppShell() {
       >
         <Outlet />
       </main>
-      {role === "student" && needsAdminCode ? <AdminCodeModal /> : null}
       <footer style={{ padding: "1.5rem", textAlign: "center", color: "#94a3b8", fontSize: "0.85rem" }}>
         <a
           href="https://github.com/lobrockyl"

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
+import { formatDateTimeIST } from "../lib/istTime";
 import { getMyStudentHistory } from "../api/client";
 import type { StudentHistoryStats } from "../api/types";
 import { useAuthStore } from "../store/authStore";
@@ -81,7 +82,7 @@ export function StudentHistoryPage() {
               <tbody>
                 {data.recent_attempts.map((a) => (
                   <tr key={a.id}>
-                    <td>{new Date(a.started_at).toLocaleString()}</td>
+                    <td>{formatDateTimeIST(a.started_at)}</td>
                     <td>
                       {a.score}/{a.total_questions}
                     </td>

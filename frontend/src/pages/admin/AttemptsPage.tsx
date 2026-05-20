@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { AdminPanel } from "../../components/AdminPanel";
+import { formatDateTimeIST } from "../../lib/istTime";
 import { exportAttemptsUrl, listAttempts } from "../../api/client";
 
 interface Row {
@@ -120,7 +121,7 @@ export function AttemptsPage() {
                     {r.score}/{r.total_questions}
                   </td>
                   <td>{r.percentage}%</td>
-                  <td>{new Date(r.started_at).toLocaleString()}</td>
+                  <td>{formatDateTimeIST(r.started_at)}</td>
                 </tr>
               ))}
             </tbody>

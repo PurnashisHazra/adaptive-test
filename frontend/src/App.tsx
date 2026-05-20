@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
 import { HomePage } from "./pages/HomePage";
+import { StudentDashboardPage } from "./pages/StudentDashboardPage";
 import { StudentTakeTestPage } from "./pages/StudentTakeTestPage";
 import { TestInstructionsPage } from "./pages/TestInstructionsPage";
 import { TestSessionPage } from "./pages/TestSessionPage";
@@ -16,10 +17,14 @@ import { AttemptsPage } from "./pages/admin/AttemptsPage";
 import { SettingsPage } from "./pages/admin/SettingsPage";
 import { QuestionPapersPage } from "./pages/admin/QuestionPapersPage";
 import { QuestionPaperFormPage } from "./pages/admin/QuestionPaperFormPage";
+import { ChallengesPage } from "./pages/admin/ChallengesPage";
+import { ChallengeFormPage } from "./pages/admin/ChallengeFormPage";
 import { QuestionReportsPage } from "./pages/admin/QuestionReportsPage";
 import { AdminStudentControlsPage } from "./pages/admin/AdminStudentControlsPage";
 import { AdminStudentReportsPage } from "./pages/admin/AdminStudentReportsPage";
 import { AuthPage } from "./pages/AuthPage";
+import { StudentProfilePage } from "./pages/StudentProfilePage";
+import { PublicStudentProfilePage } from "./pages/PublicStudentProfilePage";
 import { PapersPage } from "./pages/PapersPage";
 import { StudentReviewListPage } from "./pages/StudentReviewListPage";
 import { StudentReviewSessionPage } from "./pages/StudentReviewSessionPage";
@@ -34,6 +39,14 @@ export default function App() {
       <Route element={<AppShell />}>
         <Route path="/" element={<HomePage />} />
         <Route path="/auth" element={<AuthPage />} />
+        <Route
+          path="/profile"
+          element={
+            <RequireRole allowedRoles={["student"]} studentRedirectTo="/profile" adminRedirectTo="/admin" superAdminRedirectTo="/super-admin">
+              <StudentProfilePage />
+            </RequireRole>
+          }
+        />
         <Route path="/start" element={<Navigate to="/" replace />} />
         <Route
           path="/take-test"
@@ -46,7 +59,7 @@ export default function App() {
         <Route
           path="/instructions"
           element={
-            <StudentProtectedRoute>
+            <StudentProtectedRoute requireInstructor={false}>
               <TestInstructionsPage />
             </StudentProtectedRoute>
           }
@@ -54,7 +67,7 @@ export default function App() {
         <Route
           path="/test"
           element={
-            <StudentProtectedRoute>
+            <StudentProtectedRoute requireInstructor={false}>
               <TestSessionPage />
             </StudentProtectedRoute>
           }
@@ -62,7 +75,7 @@ export default function App() {
         <Route
           path="/result"
           element={
-            <StudentProtectedRoute>
+            <StudentProtectedRoute requireInstructor={false}>
               <TestResultPage />
             </StudentProtectedRoute>
           }
@@ -78,7 +91,7 @@ export default function App() {
         <Route
           path="/review"
           element={
-            <StudentProtectedRoute studentRedirectTo="/review">
+            <StudentProtectedRoute studentRedirectTo="/review" requireInstructor={false}>
               <StudentReviewListPage />
             </StudentProtectedRoute>
           }
@@ -86,11 +99,20 @@ export default function App() {
         <Route
           path="/review/:sessionType/:id"
           element={
-            <StudentProtectedRoute studentRedirectTo="/review">
+            <StudentProtectedRoute studentRedirectTo="/review" requireInstructor={false}>
               <StudentReviewSessionPage />
             </StudentProtectedRoute>
           }
         />
+        <Route
+          path="/performance"
+          element={
+            <StudentProtectedRoute studentRedirectTo="/performance" requireInstructor={false}>
+              <StudentDashboardPage />
+            </StudentProtectedRoute>
+          }
+        />
+        <Route path="/u/:slug" element={<PublicStudentProfilePage />} />
         <Route
           path="/papers"
           element={
@@ -121,6 +143,9 @@ export default function App() {
           <Route path="question-papers" element={<QuestionPapersPage />} />
           <Route path="question-papers/new" element={<QuestionPaperFormPage />} />
           <Route path="question-papers/:id" element={<QuestionPaperFormPage />} />
+          <Route path="challenges" element={<ChallengesPage />} />
+          <Route path="challenges/new" element={<ChallengeFormPage />} />
+          <Route path="challenges/:id" element={<ChallengeFormPage />} />
         </Route>
         <Route
           path="/super-admin"

@@ -1,4 +1,5 @@
 import type { AdminStudentReportPdfBundle } from "../api/types";
+import { formatNowIST } from "../lib/istTime";
 import { StudentLearningTrendCharts } from "./StudentLearningTrendCharts";
 import { StudentOverallRadar2D, StudentOverallStrategyPanel } from "./StudentOverallRadar2D";
 import { StudentPastAttemptsStrategyBlock, type StrategyBlockPrefetched } from "./StudentPastAttemptsStrategyBlock";
@@ -49,7 +50,7 @@ export function AdminStudentAnalyticsPrintView({ bundle }: { bundle: AdminStuden
       <header className="admin-analytics-print__header">
         <p className="admin-analytics-print__eyebrow">Student report card</p>
         <h1 className="admin-analytics-print__title">{name}</h1>
-        <p className="admin-analytics-print__sub">@{report.student_username} · Generated {new Date().toLocaleString()}</p>
+        <p className="admin-analytics-print__sub">@{report.student_username} · Generated {formatNowIST()}</p>
         <div className="admin-analytics-print__badges">
           <span className="report-card-badge report-card-badge--good">{statusLabel(report.strategy_follow_status)}</span>
           <span className="report-card-badge report-card-badge--coach">

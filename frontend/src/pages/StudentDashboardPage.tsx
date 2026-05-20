@@ -68,11 +68,14 @@ export function StudentDashboardPage() {
   return (
     <div className="page">
       <AttemptDrilldownModal attemptId={drillAttemptId} open={drillAttemptId != null} onClose={() => setDrillAttemptId(null)} />
-      <h1>Your progress</h1>
+      <h1>Performance</h1>
       <p style={{ color: "var(--muted)", maxWidth: 640 }}>
         Learning curves and the radar use the same subject, topic, and exam filters — only attempts that match are included.
       </p>
       <p style={{ marginTop: "0.5rem" }}>
+        <Link to="/" style={{ marginRight: "1rem", fontSize: "0.92rem" }}>
+          ← Challenges
+        </Link>
         <Link to="/take-test" className="btn btn-primary" style={{ display: "inline-block", textDecoration: "none" }}>
           Start adaptive test
         </Link>

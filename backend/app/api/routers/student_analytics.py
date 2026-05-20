@@ -3,7 +3,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.deps import get_student_analytics_service
-from app.api.deps_auth import require_student_with_admin_code
+from app.api.deps_auth import require_student
 from app.schemas.student_analytics import (
     StudentAttemptAccuracyImprovementResponse,
     StudentAttemptTimeStrategyResponse,
@@ -31,7 +31,7 @@ async def my_coach_plan(
     subject: Optional[str] = Query(default=None, description="Match stored plan lens (attempt subject_filter)"),
     topic: Optional[str] = Query(default=None, description="Match stored plan lens (attempt topic_filter)"),
     exam_tag: Optional[str] = Query(default=None, description="Match stored plan lens (attempt exam_tag_filter)"),
-    claims: dict = Depends(require_student_with_admin_code),
+    claims: dict = Depends(require_student),
     svc: StudentAnalyticsService = Depends(get_student_analytics_service),
 ) -> StudentCoachPlanBundle:
     return await svc.get_coach_plan(
@@ -44,7 +44,7 @@ async def my_coach_plan(
 
 @router.get("/sessions", response_model=List[StudentSessionSummary])
 async def list_my_sessions(
-    claims: dict = Depends(require_student_with_admin_code),
+    claims: dict = Depends(require_student),
     svc: StudentAnalyticsService = Depends(get_student_analytics_service),
 ) -> List[StudentSessionSummary]:
     return await svc.list_sessions(_me(claims))
@@ -55,7 +55,7 @@ async def my_overall_analytics(
     subject: Optional[str] = Query(default=None, description="Match attempt subject_filter"),
     topic: Optional[str] = Query(default=None, description="Match attempt topic_filter"),
     exam_tag: Optional[str] = Query(default=None, description="Match attempt exam_tag_filter"),
-    claims: dict = Depends(require_student_with_admin_code),
+    claims: dict = Depends(require_student),
     svc: StudentAnalyticsService = Depends(get_student_analytics_service),
 ) -> StudentOverallAnalytics:
     return await svc.overall_analytics(
@@ -68,7 +68,7 @@ async def my_overall_analytics(
 
 @router.get("/learning-trends", response_model=StudentLearningTrendsResponse)
 async def my_learning_trends(
-    claims: dict = Depends(require_student_with_admin_code),
+    claims: dict = Depends(require_student),
     svc: StudentAnalyticsService = Depends(get_student_analytics_service),
 ) -> StudentLearningTrendsResponse:
     return await svc.learning_trends(_me(claims))
@@ -77,7 +77,7 @@ async def my_learning_trends(
 @router.get("/standalone/{attempt_id}", response_model=StudentStandaloneDetail)
 async def my_standalone_detail(
     attempt_id: str,
-    claims: dict = Depends(require_student_with_admin_code),
+    claims: dict = Depends(require_student),
     svc: StudentAnalyticsService = Depends(get_student_analytics_service),
 ) -> StudentStandaloneDetail:
     try:
@@ -92,7 +92,7 @@ async def my_attempt_time_strategy(
     subject: Optional[str] = Query(default=None, description="Match attempt filters for dashboard strategy context"),
     topic: Optional[str] = Query(default=None),
     exam_tag: Optional[str] = Query(default=None),
-    claims: dict = Depends(require_student_with_admin_code),
+    claims: dict = Depends(require_student),
     svc: StudentAnalyticsService = Depends(get_student_analytics_service),
 ) -> StudentAttemptTimeStrategyResponse:
     try:
@@ -113,7 +113,7 @@ async def my_attempt_accuracy_improvement(
     subject: Optional[str] = Query(default=None, description="Subject lens (dashboard filter; augments attempt metadata)"),
     topic: Optional[str] = Query(default=None),
     exam_tag: Optional[str] = Query(default=None, description="Exam tag lens (e.g. CAT, JEE) — shapes tricks and depth"),
-    claims: dict = Depends(require_student_with_admin_code),
+    claims: dict = Depends(require_student),
     svc: StudentAnalyticsService = Depends(get_student_analytics_service),
 ) -> StudentAttemptAccuracyImprovementResponse:
     try:
@@ -131,7 +131,7 @@ async def my_attempt_accuracy_improvement(
 @router.get("/paper/{paper_attempt_id}", response_model=StudentPaperDetail)
 async def my_paper_detail(
     paper_attempt_id: str,
-    claims: dict = Depends(require_student_with_admin_code),
+    claims: dict = Depends(require_student),
     svc: StudentAnalyticsService = Depends(get_student_analytics_service),
 ) -> StudentPaperDetail:
     try:

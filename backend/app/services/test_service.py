@@ -139,13 +139,15 @@ class TestService:
         total_questions: int,
         time_limit_seconds: Optional[int],
         paper_context: Optional[Dict[str, Any]] = None,
+        challenge_context: Optional[Dict[str, Any]] = None,
         question_pool_ids: Optional[List[str]] = None,
         student_username: Optional[str] = None,
+        adaptive_disabled: bool = False,
     ) -> TestStartResponse:
         profile_svc = StudentProfileService()
         if student_username:
             await AdminLimitsService().assert_student_can_start_attempt(student_username)
-            if paper_context:
+            if paper_context or challenge_context:
                 await profile_svc.assert_not_blocked(student_username)
                 controls = await profile_svc.get_session_controls(student_username)
                 student_name = controls.display_name
@@ -163,19 +165,28 @@ class TestService:
         if time_limit_seconds is None:
             time_limit_seconds = int(cfg.get("default_time_limit_seconds", 1800))
 
-        seq = _parse_difficulty_sequence(cfg)
-        wave_enabled = bool(cfg.get("difficulty_wave_enabled", False))
-        first_diff = seq[0] if (wave_enabled and seq) else Difficulty.EASY
+        pool_sequence: Optional[List[str]] = None
+        if adaptive_disabled and pool:
+            import random
 
-        first_id = await get_next_question_id(
-            self._questions,
-            first_diff,
-            [],
-            subject,
-            topic,
-            exam_tag,
-            pool,
-        )
+            shuffled = list(pool)
+            random.shuffle(shuffled)
+            take = min(int(total_questions), len(shuffled))
+            pool_sequence = shuffled[:take]
+            first_id = pool_sequence[0] if pool_sequence else None
+        else:
+            seq = _parse_difficulty_sequence(cfg)
+            wave_enabled = bool(cfg.get("difficulty_wave_enabled", False))
+            first_diff = seq[0] if (wave_enabled and seq) else Difficulty.EASY
+            first_id = await get_next_question_id(
+                self._questions,
+                first_diff,
+                [],
+                subject,
+                topic,
+                exam_tag,
+                pool,
+            )
         if not first_id:
             raise ValueError(
                 "No questions available for this section (check filters or question set and difficulty mix)."
@@ -202,6 +213,13 @@ class TestService:
         if paper_context:
             doc["paper_attempt_id"] = paper_context["paper_attempt_id"]
             doc["paper_section_index"] = int(paper_context["paper_section_index"])
+        if challenge_context:
+            doc["challenge_attempt_id"] = challenge_context["challenge_attempt_id"]
+            doc["challenge_section_index"] = int(challenge_context["challenge_section_index"])
+        if adaptive_disabled:
+            doc["adaptive_disabled"] = True
+            if pool_sequence:
+                doc["pool_sequence"] = pool_sequence
         aid = await self._attempts.insert(doc)
         qdoc = await self._questions.get_by_id(first_id)
         assert qdoc is not None
@@ -252,18 +270,21 @@ class TestService:
         is_correct = _answers_equal(qdoc["correct_answer"], chosen_answer, qdoc["question_type"])
         new_score = int(att.get("score", 0)) + (1 if is_correct else 0)
 
-        transition_enabled = bool(cfg.get("difficulty_transition_enabled", True))
-        transition_map = _parse_transition_map(cfg)
-        if transition_enabled:
-            next_diff = transition_map[last_diff]["if_correct" if is_correct else "if_wrong"]
+        non_adaptive = bool(att.get("adaptive_disabled"))
+        if non_adaptive:
+            next_diff = last_diff
         else:
-            next_diff = get_next_difficulty(last_diff, is_correct)
-        seq = _parse_difficulty_sequence(cfg)
-        wave_enabled = bool(cfg.get("difficulty_wave_enabled", False))
-        # If wave is enabled, set next target by question position (index of next question).
-        if wave_enabled and seq:
-            seq_idx = min(new_answered, len(seq) - 1)
-            next_diff = seq[seq_idx]
+            transition_enabled = bool(cfg.get("difficulty_transition_enabled", True))
+            transition_map = _parse_transition_map(cfg)
+            if transition_enabled:
+                next_diff = transition_map[last_diff]["if_correct" if is_correct else "if_wrong"]
+            else:
+                next_diff = get_next_difficulty(last_diff, is_correct)
+            seq = _parse_difficulty_sequence(cfg)
+            wave_enabled = bool(cfg.get("difficulty_wave_enabled", False))
+            if wave_enabled and seq:
+                seq_idx = min(new_answered, len(seq) - 1)
+                next_diff = seq[seq_idx]
 
         answer_entry: Dict[str, Any] = {
             "question_id": question_id,
@@ -306,10 +327,14 @@ class TestService:
         next_qid: Optional[str] = None
         generation_started = perf_counter()
         generated = False
+        pool_seq_raw = att.get("pool_sequence")
+        if non_adaptive and isinstance(pool_seq_raw, list) and pool_seq_raw:
+            used_set = set(used_after)
+            next_qid = next((str(x) for x in pool_seq_raw if str(x).strip() and str(x) not in used_set), None)
         hard_pair_topic = _is_hard_correct_same_topic_pair(answers)
         pool_raw = att.get("question_pool_ids")
         pool_active = isinstance(pool_raw, list) and len([x for x in pool_raw if str(x).strip()]) > 0
-        should_generate_expert = not pool_active and (
+        should_generate_expert = not non_adaptive and not pool_active and (
             (last_diff == Difficulty.EXPERT and is_correct) or (hard_pair_topic is not None)
         )
         if should_generate_expert:
@@ -414,6 +439,18 @@ class TestService:
         summary = await self._build_summary(
             att_done, attempt_id, new_score, len(answers), answers, ended_early=False
         )
+        if att_done.get("challenge_attempt_id"):
+            from app.services.challenge_service import ChallengeService
+
+            return await ChallengeService().after_section_attempt_completed(
+                attempt_id=attempt_id,
+                att_done=att_done,
+                section_summary=summary,
+                is_correct=is_correct,
+                explanation=explanation,
+                mf=mf,
+                new_answered=new_answered,
+            )
         if att_done.get("paper_attempt_id"):
             from app.services.paper_service import PaperService
 
@@ -479,8 +516,8 @@ class TestService:
             raise ValueError("Attempt not found")
         if att.get("status") != AttemptStatus.IN_PROGRESS.value:
             raise ValueError("Attempt already completed")
-        if att.get("paper_attempt_id"):
-            raise ValueError("Explanation hints are not available for question-paper sections.")
+        if att.get("paper_attempt_id") or att.get("challenge_attempt_id"):
+            raise ValueError("Explanation hints are not available for timed contest sections.")
         answered = int(att.get("questions_answered", 0))
         served_ids = list(att.get("question_ids", []))
         if answered >= len(served_ids):
@@ -524,14 +561,15 @@ class TestService:
         await self._attempts.update(attempt_id, {"marked_for_review": out})
         return out
 
-    async def end_test_early(self, attempt_id: str, *, allow_paper: bool = False) -> AttemptSummary:
+    async def end_test_early(self, attempt_id: str, *, allow_paper: bool = False, allow_structured: bool = False) -> AttemptSummary:
         att = await self._attempts.get(attempt_id)
         if not att:
             raise ValueError("Attempt not found")
         if att.get("status") != AttemptStatus.IN_PROGRESS.value:
             raise ValueError("Attempt already completed")
-        if att.get("paper_attempt_id") and not allow_paper:
-            raise ValueError("This attempt is part of a question paper. End the paper from the paper screen.")
+        structured = att.get("paper_attempt_id") or att.get("challenge_attempt_id")
+        if structured and not (allow_paper or allow_structured):
+            raise ValueError("This attempt is part of a multi-section test. End it from the contest screen.")
 
         answered = int(att.get("questions_answered", 0))
         answers = list(att.get("answers", []))

@@ -20,7 +20,7 @@ interface AuthState {
   hydrate: () => void;
   refreshMe: () => Promise<void>;
   loginUser: (args: { username: string; password: string }) => Promise<{ ok: boolean; error?: string }>;
-  signupUser: (args: { username: string; password: string }) => Promise<{ ok: boolean; error?: string }>;
+  signupUser: (args: { username: string; password: string; mobile: string }) => Promise<{ ok: boolean; error?: string }>;
   claimAdminCodeUser: (admin_code: string) => Promise<{ ok: boolean; error?: string }>;
   logout: () => void;
 }
@@ -121,9 +121,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  signupUser: async ({ username, password }) => {
+  signupUser: async ({ username, password, mobile }) => {
     try {
-      const res: AuthResponse = await signup({ username, password });
+      const digits = mobile.replace(/\D/g, "");
+      const res: AuthResponse = await signup({ username, password, mobile: digits || undefined });
       localStorage.setItem(LS_TOKEN, res.token);
       applyAuth(set, res.token, res.user);
       return { ok: true };

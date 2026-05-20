@@ -11,6 +11,7 @@ from app.schemas.auth import Role
 from app.utils.roles import parse_role
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
 public_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 super_admin_api_key_header = APIKeyHeader(name="X-Super-Admin-Key", auto_error=False)
 
@@ -21,6 +22,15 @@ def get_current_claims(token: str = Depends(oauth2_scheme)) -> Dict[str, Any]:
         return claims
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token") from exc
+
+
+async def get_optional_claims(token: Optional[str] = Depends(oauth2_scheme_optional)) -> Optional[Dict[str, Any]]:
+    if not token:
+        return None
+    try:
+        return AuthService.decode_token(token)
+    except Exception:
+        return None
 
 
 def require_role(allowed_roles: List[Role]):

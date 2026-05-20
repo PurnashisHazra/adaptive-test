@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
+import { formatDateTimeIST } from "../lib/istTime";
 import { PaperReviewDifficultyChart } from "../components/PaperReviewDifficultyChart";
 import { StudentPerformanceSpiderChart } from "../components/StudentPerformanceSpiderChart";
 import { getMyPaperReview, getMyStandaloneReview } from "../api/client";
@@ -384,8 +385,8 @@ export function StudentReviewSessionPage() {
             )}
           </p>
           <p style={{ fontSize: "0.9rem", color: "var(--muted)" }}>
-            Started {new Date(standalone.started_at).toLocaleString()}
-            {standalone.completed_at ? ` · Finished ${new Date(standalone.completed_at).toLocaleString()}` : ""}
+            Started {formatDateTimeIST(standalone.started_at)}
+            {standalone.completed_at ? ` · Finished ${formatDateTimeIST(standalone.completed_at)}` : ""}
           </p>
           <StudentInsightsPanel insights={standalone.insights} questions={standalone.questions} />
           <h2 style={{ fontSize: "1.05rem", marginTop: "2rem", marginBottom: "0.75rem" }}>Questions</h2>
@@ -414,8 +415,8 @@ export function StudentReviewSessionPage() {
             )}
           </p>
           <p style={{ fontSize: "0.9rem", color: "var(--muted)" }}>
-            Started {new Date(paper.started_at).toLocaleString()}
-            {paper.completed_at ? ` · Finished ${new Date(paper.completed_at).toLocaleString()}` : ""}
+            Started {formatDateTimeIST(paper.started_at)}
+            {paper.completed_at ? ` · Finished ${formatDateTimeIST(paper.completed_at)}` : ""}
           </p>
           <StudentInsightsPanel insights={paper.insights} questions={paper.sections.flatMap((s) => s.questions)} />
           <PaperCohortBanner paper={paper} />

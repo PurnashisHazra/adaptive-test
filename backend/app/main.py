@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routers import (
+    admin_challenges,
     admin_question_papers,
     admin_students,
     admin_users,
@@ -13,8 +14,10 @@ from app.api.routers import (
     auth,
     config,
     health,
+    public_profiles,
     public_provisioning,
     public_question_papers,
+    challenges,
     question_papers,
     question_reports,
     questions,
@@ -29,10 +32,12 @@ from app.db.mongodb import close_client
 from app.repositories.attempt_repository import AttemptRepository
 from app.repositories.config_repository import ConfigRepository
 from app.repositories.question_repository import QuestionRepository
+from app.repositories.challenge_repository import ChallengeRepository
 from app.repositories.paper_repository import PaperRepository
 from app.repositories.question_report_repository import QuestionReportRepository
 from app.repositories.student_coach_plan_repository import StudentCoachPlanRepository
 from app.repositories.student_profile_repository import StudentProfileRepository
+from app.repositories.student_public_profile_repository import StudentPublicProfileRepository
 from app.repositories.user_repository import UserRepository
 
 logger = logging.getLogger(__name__)
@@ -46,9 +51,11 @@ async def lifespan(app: FastAPI):
         await ConfigRepository().ensure_indexes()
         await UserRepository().ensure_indexes()
         await PaperRepository().ensure_indexes()
+        await ChallengeRepository().ensure_indexes()
         await QuestionReportRepository().ensure_indexes()
         await StudentCoachPlanRepository().ensure_indexes()
         await StudentProfileRepository().ensure_indexes()
+        await StudentPublicProfileRepository().ensure_indexes()
     except Exception as exc:
         # Keep API available even if MongoDB is temporarily unreachable.
         logger.exception("MongoDB initialization failed; continuing startup without DB indexes: %s", exc)
@@ -86,6 +93,9 @@ def create_app() -> FastAPI:
     app.include_router(admin_students.router, prefix="/api")
     app.include_router(student_me.router, prefix="/api")
     app.include_router(admin_question_papers.router, prefix="/api")
+    app.include_router(admin_challenges.router, prefix="/api")
+    app.include_router(challenges.router, prefix="/api")
+    app.include_router(public_profiles.router, prefix="/api")
     app.include_router(public_question_papers.router, prefix="/api")
     app.include_router(public_provisioning.router, prefix="/api")
     app.include_router(question_papers.router, prefix="/api")

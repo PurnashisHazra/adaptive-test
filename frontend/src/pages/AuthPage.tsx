@@ -10,6 +10,10 @@ function redirectForRole(role: Role, studentPath: string): string {
   return studentPath;
 }
 
+function normalizeMobileInput(raw: string): string {
+  return raw.replace(/\D/g, "");
+}
+
 export function AuthPage() {
   const nav = useNavigate();
   const location = useLocation();
@@ -20,6 +24,7 @@ export function AuthPage() {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [mobile, setMobile] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const postAuthStudentPath = useMemo(() => {
@@ -50,9 +55,14 @@ export function AuthPage() {
 
   async function onSignup(e: FormEvent) {
     e.preventDefault();
+    const digits = normalizeMobileInput(mobile);
+    if (digits.length < 10) {
+      toast.error("Enter a valid 10-digit mobile number");
+      return;
+    }
     setSubmitting(true);
     try {
-      const res = await useAuthStore.getState().signupUser({ username, password });
+      const res = await useAuthStore.getState().signupUser({ username, password, mobile: digits });
       if (!res.ok) {
         toast.error(res.error ?? "Signup failed");
         return;
@@ -95,7 +105,7 @@ export function AuthPage() {
             {submitting ? "Signing in…" : "Sign in"}
           </button>
           <p style={{ color: "var(--muted)", fontSize: "0.85rem", marginTop: "0.75rem" }}>
-            Students without an instructor link will be prompted for an admin code after login.
+            Add or update your instructor admin code anytime under <strong>Profile</strong>.
           </p>
         </form>
       ) : (
@@ -105,14 +115,28 @@ export function AuthPage() {
             <input className="input" value={username} onChange={(e) => setUsername(e.target.value)} required />
           </div>
           <div style={{ marginBottom: "1rem" }}>
+            <label className="label">Mobile number</label>
+            <input
+              className="input"
+              type="tel"
+              inputMode="numeric"
+              autoComplete="tel"
+              value={mobile}
+              onChange={(e) => setMobile(normalizeMobileInput(e.target.value))}
+              placeholder="10-digit mobile number"
+              maxLength={15}
+              required
+            />
+          </div>
+          <div style={{ marginBottom: "1rem" }}>
             <label className="label">Password</label>
-            <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
           </div>
           <button type="submit" className="btn btn-primary" disabled={submitting} style={{ width: "100%" }}>
             {submitting ? "Creating…" : "Create student account"}
           </button>
           <p style={{ color: "var(--muted)", fontSize: "0.85rem", marginTop: "0.75rem" }}>
-            After signup you will enter your instructor&apos;s admin code to start using AdapTest.
+            Admin code is optional at signup. Link your instructor later from Profile when you have their code.
           </p>
         </form>
       )}

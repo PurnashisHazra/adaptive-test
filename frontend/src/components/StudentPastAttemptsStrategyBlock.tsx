@@ -12,6 +12,7 @@ import type {
   StudentQuestionReview,
   AccuracyBuildCategory,
 } from "../api/types";
+import { formatDateTimeIST } from "../lib/istTime";
 import { AttemptBubbleChart, type BubbleChartStep } from "./AttemptBubbleChart";
 import { buildStrategyCounterfactualInsights, computeRunningAccuracySeries, orderedQuestions } from "../lib/strategyCounterfactual";
 import { StrategyFootnoteVisual } from "./StrategyFootnoteVisual";
@@ -27,7 +28,7 @@ function filterTrendPoints(points: StudentTrendPoint[], filters: StudentSessionF
 }
 
 function pointLabel(p: StudentTrendPoint): string {
-  const d = new Date(p.started_at).toLocaleString();
+  const d = formatDateTimeIST(p.started_at);
   const kind = p.session_kind === "paper_section" ? "Paper section" : "Adaptive test";
   return `${d} · ${kind} · ${p.score}/${p.questions_answered} (${Math.round(p.accuracy_percent)}%)`;
 }

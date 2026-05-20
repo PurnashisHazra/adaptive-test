@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 
-from app.api.deps_auth import get_current_claims
+from app.api.deps_auth import get_current_claims, require_student
 from app.schemas.auth import AuthResponse, AuthUser, ClaimAdminCodeRequest, LoginRequest, SignupRequest
 from app.services.auth_service import AuthService
 
@@ -42,7 +42,7 @@ async def get_me(claims: dict = Depends(get_current_claims), svc: AuthService = 
 @router.post("/claim-admin-code", response_model=AuthUser)
 async def claim_admin_code(
     body: ClaimAdminCodeRequest,
-    claims: dict = Depends(get_current_claims),
+    claims: dict = Depends(require_student),
     svc: AuthService = Depends(get_auth_service),
 ):
     try:

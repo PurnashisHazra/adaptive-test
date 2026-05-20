@@ -7,7 +7,14 @@ from app.repositories.user_repository import UserRepository
 from app.schemas.auth import AuthResponse, AuthUser, ClaimAdminCodeRequest, LoginRequest, Role, SignupRequest
 from app.utils.passwords import hash_password, verify_password
 from app.services.admin_limits_service import AdminLimitsService
-from app.utils.roles import parse_role
+from app.utils.roles import normalize_admin_code, parse_role
+
+
+def normalize_mobile(raw: Optional[str]) -> Optional[str]:
+    if raw is None:
+        return None
+    digits = "".join(ch for ch in str(raw) if ch.isdigit())
+    return digits or None
 
 
 def _make_token(*, username: str, role: Role) -> str:
@@ -27,12 +34,14 @@ def _user_to_auth_user(user: Dict[str, Any]) -> AuthUser:
     role = parse_role(user.get("role", "student"))
     assigned = user.get("assigned_admin_code")
     needs = role == Role.student and not assigned
+    mobile = user.get("mobile")
     return AuthUser(
         username=user["username"],
         role=role,
         needs_admin_code=needs,
         assigned_admin_code=str(assigned) if assigned else None,
         admin_code=str(user.get("admin_code")) if user.get("admin_code") else None,
+        mobile=str(mobile) if mobile else None,
     )
 
 
@@ -49,12 +58,18 @@ class AuthService:
         if existing:
             raise ValueError("Username already exists")
 
+        mobile = normalize_mobile(req.mobile)
         user_doc = {
             "username": req.username.strip(),
             "role": Role.student.value,
             "password_hash": hash_password(req.password),
         }
+        if mobile:
+            user_doc["mobile"] = mobile
         await self._users.insert_user(user_doc)
+        from app.services.public_profile_service import PublicProfileService
+
+        await PublicProfileService().ensure_for_student(user_doc["username"])
         role = Role.student
         token = _make_token(username=user_doc["username"], role=role)
         return AuthResponse(token=token, user=_user_to_auth_user(user_doc))
@@ -86,11 +101,12 @@ class AuthService:
         if user.get("assigned_admin_code"):
             raise ValueError("Admin code already set for this account")
 
-        admin = await self._users.get_admin_by_code(req.admin_code)
+        code = normalize_admin_code(req.admin_code)
+        admin = await self._users.get_admin_by_code(code)
         if not admin:
             raise ValueError("Invalid admin code. Check with your instructor.")
 
-        await AdminLimitsService().assert_can_add_student(req.admin_code)
+        await AdminLimitsService().assert_can_add_student(code)
 
         updated = await self._users.update_user(
             username,

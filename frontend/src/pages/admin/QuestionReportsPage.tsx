@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 import { AdminPanel } from "../../components/AdminPanel";
+import { formatDateTimeIST } from "../../lib/istTime";
 import { listAdminQuestionReports } from "../../api/client";
 import type { QuestionReport } from "../../api/types";
 
@@ -50,7 +51,7 @@ export function QuestionReportsPage() {
             <tbody>
               {items.map((r) => (
                 <tr key={r.id}>
-                  <td style={{ whiteSpace: "nowrap", fontSize: "0.85rem" }}>{new Date(r.created_at).toLocaleString()}</td>
+                  <td style={{ whiteSpace: "nowrap", fontSize: "0.85rem" }}>{formatDateTimeIST(r.created_at)}</td>
                   <td>{r.student_username}</td>
                   <td>{r.question_index}</td>
                   <td>
