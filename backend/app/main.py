@@ -36,6 +36,7 @@ from app.repositories.challenge_repository import ChallengeRepository
 from app.repositories.paper_repository import PaperRepository
 from app.repositories.question_report_repository import QuestionReportRepository
 from app.repositories.student_coach_plan_repository import StudentCoachPlanRepository
+from app.repositories.practice_attempt_request_repository import PracticeAttemptRequestRepository
 from app.repositories.student_profile_repository import StudentProfileRepository
 from app.repositories.student_public_profile_repository import StudentPublicProfileRepository
 from app.repositories.user_repository import UserRepository
@@ -55,6 +56,7 @@ async def lifespan(app: FastAPI):
         await QuestionReportRepository().ensure_indexes()
         await StudentCoachPlanRepository().ensure_indexes()
         await StudentProfileRepository().ensure_indexes()
+        await PracticeAttemptRequestRepository().ensure_indexes()
         await StudentPublicProfileRepository().ensure_indexes()
     except Exception as exc:
         # Keep API available even if MongoDB is temporarily unreachable.

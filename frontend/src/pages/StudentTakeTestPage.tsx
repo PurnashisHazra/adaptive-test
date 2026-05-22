@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { getConfig, getMySessionControls, getTestTopics } from "../api/client";
+import { getConfig, getMySessionControls, getTestTopics, requestMorePracticeAttempts } from "../api/client";
 import type { StudentSessionControls } from "../api/types";
 import { useAuthStore } from "../store/authStore";
 import { useTestSession } from "../store/testSession";
@@ -21,7 +21,12 @@ export function StudentTakeTestPage() {
   const [total, setTotal] = useState(10);
   const [cfg, setCfg] = useState<Awaited<ReturnType<typeof getConfig>> | null>(null);
   const [loading, setLoading] = useState(false);
+  const [requesting, setRequesting] = useState(false);
   const [examTag, setExamTag] = useState("");
+
+  const reloadControls = () => {
+    return getMySessionControls().then(setControls).catch(() => toast.error("Could not refresh settings"));
+  };
 
   const allowedExams = controls?.allowed_exam_tags ?? [];
   const examRestricted = allowedExams.length > 0;
@@ -85,10 +90,31 @@ export function StudentTakeTestPage() {
   }, [cfg?.topic_filter_enabled, cfg?.subject_filter_enabled, subject, topic]);
 
   const attemptsHint = useMemo(() => {
-    if (!controls || controls.practice_attempts_allowance == null) return null;
+    if (!controls) return null;
+    if (controls.practice_attempts_unlimited) {
+      return `${controls.practice_attempts_used} practice attempt${controls.practice_attempts_used === 1 ? "" : "s"} used · unlimited allowance`;
+    }
+    if (controls.practice_attempts_allowance == null) return null;
     const rem = controls.practice_attempts_remaining ?? 0;
-    return `${controls.practice_attempts_used} of ${controls.practice_attempts_allowance} practice attempts used · ${rem} remaining`;
+    return `${controls.practice_attempts_used} of ${controls.practice_attempts_allowance} practice attempt${controls.practice_attempts_allowance === 1 ? "" : "s"} used · ${rem} remaining`;
   }, [controls]);
+
+  async function onRequestMoreAttempts() {
+    setRequesting(true);
+    try {
+      await requestMorePracticeAttempts();
+      toast.success("Request sent to your instructor");
+      await reloadControls();
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "response" in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
+      toast.error(typeof msg === "string" ? msg : "Could not submit request");
+    } finally {
+      setRequesting(false);
+    }
+  }
 
   async function onStart(e: React.FormEvent) {
     e.preventDefault();
@@ -161,6 +187,22 @@ export function StudentTakeTestPage() {
             {controls?.block_reason ?? "You cannot start another practice test."}{" "}
             <Link to="/papers">View assigned question papers</Link> if you have any.
           </p>
+          {controls?.can_request_more_attempts ? (
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ marginTop: "1rem" }}
+              disabled={requesting}
+              onClick={() => void onRequestMoreAttempts()}
+            >
+              {requesting ? "Sending request…" : "Request more practice attempts"}
+            </button>
+          ) : null}
+          {controls?.has_pending_practice_request ? (
+            <p style={{ margin: "0.75rem 0 0", fontSize: "0.85rem", color: "#b45309" }}>
+              Your instructor will be notified. You can start another test after they approve your request.
+            </p>
+          ) : null}
         </div>
       ) : null}
 

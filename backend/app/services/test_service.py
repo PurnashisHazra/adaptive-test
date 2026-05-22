@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 from app.models.domain import AttemptStatus, Difficulty
 from app.repositories.attempt_repository import AttemptRepository
 from app.services.admin_limits_service import AdminLimitsService
+from app.services.cohort_percentile_service import CohortPercentileService
 from app.services.student_profile_service import StudentProfileService
 from app.repositories.config_repository import ConfigRepository
 from app.repositories.question_repository import QuestionRepository
@@ -624,6 +625,20 @@ class TestService:
                     time_spent_seconds=a.get("time_spent_seconds"),
                 )
             )
+        cohort: Dict[str, Any] = {
+            "cohort_percentile": None,
+            "cohort_ranked_count": 0,
+            "percentile_is_final": False,
+        }
+        pa_id = str(att.get("paper_attempt_id") or "").strip()
+        ch_id = str(att.get("challenge_attempt_id") or "").strip()
+        if not pa_id and not ch_id and total > 0:
+            cohort = await CohortPercentileService().for_standalone(
+                subject=att.get("subject_filter"),
+                topic=att.get("topic_filter"),
+                exam_tag=att.get("exam_tag_filter"),
+                percentage=round(pct, 2),
+            )
         return AttemptSummary(
             attempt_id=attempt_id,
             student_name=att["student_name"],
@@ -636,4 +651,5 @@ class TestService:
             completed_at=att.get("completed_at") or _utc_now(),
             answers=recs,
             ended_early=ended_early,
+            **cohort,
         )

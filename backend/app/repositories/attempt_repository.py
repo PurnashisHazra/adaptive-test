@@ -69,16 +69,36 @@ class AttemptRepository:
             cursor = cursor.limit(limit)
         return [d async for d in cursor]
 
-    async def count_standalone_for_student(self, student_name: str) -> int:
+    async def count_standalone_for_student(self, student_username: str) -> int:
         """Standalone practice attempts (started), excluding question-paper sessions."""
-        sn = student_name.strip()
+        sn = student_username.strip()
         filt: Dict[str, Any] = {
-            "student_name": {"$regex": f"^{re.escape(sn)}$", "$options": "i"},
             "status": {"$in": [AttemptStatus.COMPLETED.value, AttemptStatus.IN_PROGRESS.value, "ended_early"]},
-            "$or": [
-                {"paper_attempt_id": {"$exists": False}},
-                {"paper_attempt_id": None},
-                {"paper_attempt_id": ""},
+            "$and": [
+                {
+                    "$or": [
+                        {"paper_attempt_id": {"$exists": False}},
+                        {"paper_attempt_id": None},
+                        {"paper_attempt_id": ""},
+                    ],
+                },
+                {
+                    "$or": [
+                        {"student_username": sn},
+                        {
+                            "student_username": {"$exists": False},
+                            "student_name": {"$regex": f"^{re.escape(sn)}$", "$options": "i"},
+                        },
+                        {
+                            "student_username": None,
+                            "student_name": {"$regex": f"^{re.escape(sn)}$", "$options": "i"},
+                        },
+                        {
+                            "student_username": "",
+                            "student_name": {"$regex": f"^{re.escape(sn)}$", "$options": "i"},
+                        },
+                    ],
+                },
             ],
         }
         return await self._col.count_documents(filt)
@@ -107,6 +127,46 @@ class AttemptRepository:
     async def find_all(self, limit: int = 50000) -> List[Dict[str, Any]]:
         cursor = self._col.find({}).sort("started_at", -1).limit(limit)
         return [d async for d in cursor]
+
+    async def list_standalone_cohort_percentages(
+        self,
+        *,
+        subject: Optional[str] = None,
+        topic: Optional[str] = None,
+        exam_tag: Optional[str] = None,
+        limit: int = 5000,
+    ) -> List[float]:
+        """Completed standalone attempts in the same subject/topic/exam lens (for percentiles)."""
+        filt: Dict[str, Any] = {
+            "status": AttemptStatus.COMPLETED.value,
+            "$or": [
+                {"paper_attempt_id": {"$exists": False}},
+                {"paper_attempt_id": None},
+                {"paper_attempt_id": ""},
+            ],
+            "$or": [
+                {"challenge_attempt_id": {"$exists": False}},
+                {"challenge_attempt_id": None},
+                {"challenge_attempt_id": ""},
+            ],
+        }
+        if subject and str(subject).strip():
+            filt["subject_filter"] = str(subject).strip()
+        if topic and str(topic).strip():
+            filt["topic_filter"] = str(topic).strip()
+        if exam_tag and str(exam_tag).strip():
+            filt["exam_tag_filter"] = str(exam_tag).strip().upper()
+
+        cursor = self._col.find(
+            filt,
+            {"score": 1, "total_questions": 1},
+        ).limit(limit)
+        out: List[float] = []
+        async for doc in cursor:
+            score = int(doc.get("score", 0))
+            total = max(1, int(doc.get("total_questions", 1)))
+            out.append(round(score / total * 100.0, 4))
+        return out
 
     async def list_completed_by_student(self, student_name: str) -> List[Dict[str, Any]]:
         cursor = (

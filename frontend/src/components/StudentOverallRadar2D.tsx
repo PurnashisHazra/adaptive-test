@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { StudentOverallAnalytics, StudentOverallAttemptPoint, StudentOverallDimensionKey } from "../api/types";
+import { PerformanceAnalyticsGate } from "./PerformanceAnalyticsGate";
 
 const RADAR_ANGLES = [-Math.PI / 2, -Math.PI / 2 + (2 * Math.PI) / 3, -Math.PI / 2 + (4 * Math.PI) / 3] as const;
 
@@ -321,20 +322,47 @@ export function StudentOverallRadar2D({
   );
 }
 
-export function StudentOverallStrategyPanel({ data }: { data: StudentOverallAnalytics | null }) {
+export function StudentOverallStrategyPanel({
+  data,
+  analyticsUnlocked = true,
+}: {
+  data: StudentOverallAnalytics | null;
+  analyticsUnlocked?: boolean;
+}) {
   if (!data?.strategy_to_desired_state?.length) return null;
+
+  const lines = data.strategy_to_desired_state;
+  const intro = (
+    <p style={{ margin: "0 0 0.85rem", fontSize: "0.85rem", color: "var(--muted)", lineHeight: 1.5 }}>
+      Prioritise the gaps below in order. Each action is tuned to your current time management, difficulty handling, and
+      knowledge signals.
+    </p>
+  );
+  const list = (
+    <ol style={{ margin: 0, paddingLeft: "1.2rem", lineHeight: 1.65, fontSize: "0.92rem" }}>
+      {lines.map((line, i) => (
+        <li key={i}>{line}</li>
+      ))}
+    </ol>
+  );
 
   return (
     <div className="card" style={{ marginTop: "1rem", padding: "1.25rem" }}>
       <h3 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>Strategy to raise your score</h3>
-      <p style={{ margin: "0 0 0.85rem", fontSize: "0.85rem", color: "var(--muted)", lineHeight: 1.5 }}>
-        Prioritise the gaps below in order. Each action is tuned to your current time management, difficulty handling, and knowledge signals.
-      </p>
-      <ol style={{ margin: 0, paddingLeft: "1.2rem", lineHeight: 1.65, fontSize: "0.92rem" }}>
-        {data.strategy_to_desired_state.map((line, i) => (
-          <li key={i}>{line}</li>
-        ))}
-      </ol>
+      {analyticsUnlocked ? (
+        <>
+          {intro}
+          {list}
+        </>
+      ) : (
+        <>
+          <p style={{ margin: "0 0 0.85rem", fontSize: "0.92rem", lineHeight: 1.65 }}>1. {lines[0]}</p>
+          <PerformanceAnalyticsGate unlocked={false} minHeight={140}>
+            {intro}
+            {list}
+          </PerformanceAnalyticsGate>
+        </>
+      )}
     </div>
   );
 }

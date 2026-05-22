@@ -1,36 +1,92 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { formatDateTimeIST } from "../lib/istTime";
 import { getMyLearningTrends, listMyAnalyticsSessions } from "../api/client";
 import { AttemptDrilldownModal } from "../components/AttemptDrilldownModal";
 import { StudentLearningTrendCharts } from "../components/StudentLearningTrendCharts";
-import type { StudentLearningTrendsResponse, StudentSessionSummary } from "../api/types";
+import type { StudentLearningTrendsResponse, StudentSessionSummary, StudentSessionType } from "../api/types";
+
+const SESSIONS_PAGE_SIZE = 15;
+
+function buildPageList(current: number, total: number): Array<number | "gap"> {
+  if (total <= 1) return total === 1 ? [1] : [];
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages = new Set<number>([1, total, current, current - 1, current + 1]);
+  const sorted = [...pages].filter((p) => p >= 1 && p <= total).sort((a, b) => a - b);
+  const out: Array<number | "gap"> = [];
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && sorted[i] - sorted[i - 1] > 1) out.push("gap");
+    out.push(sorted[i]);
+  }
+  return out;
+}
+
+function statusBadge(status: string) {
+  const s = status.replace(/_/g, " ");
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 export function StudentReviewListPage() {
   const [searchParams] = useSearchParams();
   const [items, setItems] = useState<StudentSessionSummary[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
   const [trends, setTrends] = useState<StudentLearningTrendsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [trendsLoading, setTrendsLoading] = useState(true);
   const [drillAttemptId, setDrillAttemptId] = useState<string | null>(null);
-  const filter = searchParams.get("type");
+  const filter = searchParams.get("type") as StudentSessionType | null;
+  const sessionTypeFilter =
+    filter === "paper" || filter === "standalone" ? filter : undefined;
 
-  const filteredItems = useMemo(() => {
-    if (filter === "paper" || filter === "standalone") {
-      return items.filter((s) => s.session_type === filter);
-    }
-    return items;
-  }, [items, filter]);
+  const loadSessions = useCallback(
+    (p: number) => {
+      setSessionsLoading(true);
+      listMyAnalyticsSessions({ page: p, pageSize: SESSIONS_PAGE_SIZE, sessionType: sessionTypeFilter })
+        .then((res) => {
+          setItems(res.items);
+          setPage(res.page);
+          setTotalPages(res.total_pages);
+          setTotal(res.total);
+        })
+        .catch(() => toast.error("Could not load sessions"))
+        .finally(() => setSessionsLoading(false));
+    },
+    [sessionTypeFilter],
+  );
 
   useEffect(() => {
-    Promise.all([listMyAnalyticsSessions(), getMyLearningTrends()])
-      .then(([sessions, trendsData]) => {
-        setItems(sessions);
-        setTrends(trendsData);
+    loadSessions(1);
+  }, [loadSessions]);
+
+  useEffect(() => {
+    let alive = true;
+    setTrendsLoading(true);
+    getMyLearningTrends()
+      .then((data) => {
+        if (alive) setTrends(data);
       })
-      .catch(() => toast.error("Could not load sessions"))
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (alive) toast.error("Could not load learning trends");
+      })
+      .finally(() => {
+        if (alive) setTrendsLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
   }, []);
+
+  const pageList = useMemo(() => buildPageList(page, totalPages), [page, totalPages]);
+
+  const emptyMessage =
+    filter === "paper"
+      ? "No paper attempts yet. Complete a paper to review it here."
+      : filter === "standalone"
+        ? "No standalone attempts yet. Complete a standalone test to review it here."
+        : "No tests or papers yet. Complete a session to review it here.";
 
   return (
     <div className="page">
@@ -42,59 +98,117 @@ export function StudentReviewListPage() {
       <p style={{ marginTop: "0.5rem" }}>
         <Link to="/history">Back to my results summary</Link>
       </p>
-      {trends ? <StudentLearningTrendCharts data={trends} onAttemptPointClick={setDrillAttemptId} /> : null}
+
+      <section className="review-progress-section" aria-label="Learning trends">
+        {trendsLoading ? (
+          <p style={{ margin: 0, color: "var(--muted)" }}>Loading progress charts…</p>
+        ) : trends ? (
+          <StudentLearningTrendCharts data={trends} onAttemptPointClick={setDrillAttemptId} />
+        ) : null}
+      </section>
 
       <section className="review-sessions-section" aria-label="Tests and papers to review">
-        {loading ? (
-          <p style={{ marginTop: 0, color: "var(--muted)" }}>Loading…</p>
-        ) : filteredItems.length === 0 ? (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "0.5rem", marginBottom: "1rem" }}>
+          <h2 style={{ fontSize: "1.1rem", margin: 0 }}>Your papers & tests</h2>
+          {!sessionsLoading && total > 0 ? (
+            <span style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+              {total} session{total === 1 ? "" : "s"}
+              {sessionTypeFilter ? ` · ${sessionTypeFilter === "paper" ? "papers" : "standalone"}` : ""}
+            </span>
+          ) : null}
+        </div>
+
+        {sessionsLoading ? (
+          <p style={{ marginTop: 0, color: "var(--muted)" }}>Loading sessions…</p>
+        ) : items.length === 0 ? (
           <div className="card" style={{ marginTop: 0 }}>
-            <p style={{ margin: 0, color: "var(--muted)" }}>
-              {filter === "paper"
-                ? "No paper attempts yet. Complete a paper to review it here."
-                : filter === "standalone"
-                  ? "No standalone attempts yet. Complete a standalone test to review it here."
-                  : "No tests or papers yet. Complete a session to review it here."}
-            </p>
+            <p style={{ margin: 0, color: "var(--muted)" }}>{emptyMessage}</p>
           </div>
         ) : (
-          <ul className="review-snapshot-grid" style={{ listStyle: "none", padding: 0, marginTop: 0 }}>
-            {filteredItems.map((s) => (
-              <li key={`${s.session_type}-${s.id}`}>
-                <Link
-                  to={`/review/${s.session_type}/${encodeURIComponent(s.id)}`}
-                  className="card"
-                  style={{
-                    display: "block",
-                    textDecoration: "none",
-                    color: "inherit",
-                    margin: 0,
-                    padding: "1rem 1rem",
-                    transition: "box-shadow 0.15s ease",
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.75rem", flexWrap: "wrap" }}>
-                    <div>
-                      <span className="badge" style={{ marginBottom: "0.35rem", display: "inline-block" }}>
-                        {s.kind_label}
-                      </span>
-                      <h2 className="review-snapshot-title" style={{ fontSize: "1rem", margin: "0.2rem 0 0.25rem" }}>
-                        {s.title}
-                      </h2>
-                      {s.subtitle ? (
-                        <p style={{ margin: 0, fontSize: "0.84rem", color: "var(--muted)" }}>{s.subtitle}</p>
-                      ) : null}
-                      <p style={{ margin: "0.35rem 0 0", fontSize: "0.78rem", color: "var(--muted)" }}>
+          <>
+            <div className="review-sessions-table-wrap">
+              <table className="review-sessions-table">
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th>Title</th>
+                    <th>Status / score</th>
+                    <th>Started</th>
+                    <th>Finished</th>
+                    <th aria-label="Open review" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((s) => (
+                    <tr key={`${s.session_type}-${s.id}`}>
+                      <td>
+                        <span className="badge">{s.kind_label}</span>
+                      </td>
+                      <td>
+                        <span className="review-sessions-table__title">{s.title}</span>
+                      </td>
+                      <td style={{ color: "var(--muted)", fontSize: "0.9rem" }}>{s.subtitle ?? statusBadge(s.status)}</td>
+                      <td style={{ fontSize: "0.85rem", color: "var(--muted)", whiteSpace: "nowrap" }}>
                         {formatDateTimeIST(s.started_at)}
-                        {s.completed_at ? ` → ${formatDateTimeIST(s.completed_at)}` : ""}
-                      </p>
-                    </div>
-                    <span style={{ fontSize: "0.82rem", color: "var(--primary-dark)", fontWeight: 600 }}>View →</span>
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
+                      </td>
+                      <td style={{ fontSize: "0.85rem", color: "var(--muted)", whiteSpace: "nowrap" }}>
+                        {s.completed_at ? formatDateTimeIST(s.completed_at) : "—"}
+                      </td>
+                      <td>
+                        <Link
+                          to={`/review/${s.session_type}/${encodeURIComponent(s.id)}`}
+                          className="btn btn-ghost"
+                          style={{ padding: "0.35rem 0.75rem", fontSize: "0.85rem" }}
+                        >
+                          Review
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {totalPages > 1 ? (
+              <nav className="review-sessions-pagination" aria-label="Sessions pagination">
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  disabled={page <= 1 || sessionsLoading}
+                  onClick={() => loadSessions(page - 1)}
+                >
+                  Previous
+                </button>
+                {pageList.map((p, i) =>
+                  p === "gap" ? (
+                    <span key={`gap-${i}`} style={{ color: "var(--muted)", padding: "0 0.25rem" }}>
+                      …
+                    </span>
+                  ) : (
+                    <button
+                      key={p}
+                      type="button"
+                      className={`btn ${p === page ? "btn-primary" : "btn-ghost"}`}
+                      style={{ minWidth: "2.25rem", padding: "0.35rem 0.5rem" }}
+                      disabled={sessionsLoading}
+                      onClick={() => loadSessions(p)}
+                      aria-current={p === page ? "page" : undefined}
+                    >
+                      {p}
+                    </button>
+                  ),
+                )}
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  disabled={page >= totalPages || sessionsLoading}
+                  onClick={() => loadSessions(page + 1)}
+                >
+                  Next
+                </button>
+              </nav>
+            ) : null}
+          </>
         )}
       </section>
     </div>

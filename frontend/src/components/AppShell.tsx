@@ -8,6 +8,7 @@ const linkStyle = ({ isActive }: { isActive: boolean }) => ({
   padding: "0.35rem 0.65rem",
   borderRadius: 8,
   background: isActive ? "rgba(14,165,233,0.12)" : "transparent",
+  flexShrink: 0,
 });
 
 export function AppShell() {
@@ -23,41 +24,12 @@ export function AppShell() {
 
   return (
     <div style={{ minHeight: "100%", display: "flex", flexDirection: "column" }}>
-      <header
-        style={{
-          flexShrink: 0,
-          borderBottom: "1px solid var(--border)",
-          background: "rgba(255,255,255,0.92)",
-          backdropFilter: "blur(8px)",
-          position: "sticky",
-          top: 0,
-          zIndex: 20,
-        }}
-      >
-        <div
-          className="app-shell-header-inner"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "1rem",
-            flexWrap: "wrap",
-            paddingTop: "0.85rem",
-            paddingBottom: "0.85rem",
-          }}
-        >
-          <Link
-            to={homeTo}
-            style={{
-              fontWeight: 700,
-              fontSize: "1.05rem",
-              color: "#0f172a",
-              textDecoration: "none",
-            }}
-          >
+      <header className="app-shell-header">
+        <div className="app-shell-header-inner app-shell-header-inner--layout">
+          <Link to={homeTo} className="app-shell-brand">
             AdapTest
           </Link>
-          <nav style={{ display: "flex", gap: "0.35rem", alignItems: "center", flexWrap: "wrap" }}>
+          <nav className="app-shell-nav" aria-label="Main">
             {!isStaff ? (
               <>
                 <NavLink to="/" end style={linkStyle}>
@@ -94,7 +66,7 @@ export function AppShell() {
               </NavLink>
             )}
             {role ? (
-              <button type="button" className="btn btn-ghost" onClick={logout} style={{ padding: "0.35rem 0.65rem" }}>
+              <button type="button" className="btn btn-ghost" onClick={logout} style={{ padding: "0.35rem 0.65rem", flexShrink: 0 }}>
                 Logout
               </button>
             ) : (
@@ -105,26 +77,11 @@ export function AppShell() {
           </nav>
         </div>
       </header>
-      <main
-        style={{
-          flex: 1,
-          minHeight: 0,
-          display: "flex",
-          flexDirection: "column",
-          margin: 0,
-          padding: 0,
-          background: isAdminSection ? "var(--bg-card)" : undefined,
-        }}
-      >
+      <main className={`app-shell-main${isAdminSection ? " app-shell-main--admin" : ""}`}>
         <Outlet />
       </main>
-      <footer style={{ padding: "1.5rem", textAlign: "center", color: "#94a3b8", fontSize: "0.85rem" }}>
-        <a
-          href="https://github.com/lobrockyl"
-          target="_blank"
-          rel="noreferrer"
-          style={{ color: "inherit", textDecoration: "none" }}
-        >
+      <footer className="app-shell-footer">
+        <a href="https://github.com/lobrockyl" target="_blank" rel="noreferrer" style={{ color: "inherit", textDecoration: "none" }}>
           AdapTest - Adaptive Testing for your Success
         </a>
       </footer>

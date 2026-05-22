@@ -116,6 +116,38 @@ class StudentSessionSummary(BaseModel):
     kind_label: str
 
 
+class StudentSessionsPage(BaseModel):
+    items: List[StudentSessionSummary]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
+class StudentDifficultyLevelStat(BaseModel):
+    level: str
+    total: int = Field(..., ge=0)
+    correct: int = Field(..., ge=0)
+    correct_rate: Optional[float] = Field(default=None, ge=0, le=100)
+    avg_time_seconds: Optional[float] = Field(default=None, ge=0)
+
+
+class StudentPaperSectionMeta(BaseModel):
+    section_index: int
+    section_title: str
+    attempt_id: str
+    status: str
+    question_count: int = Field(..., ge=0)
+
+
+class StudentQuestionReviewPage(BaseModel):
+    questions: List[StudentQuestionReview]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
 class StudentStandaloneDetail(BaseModel):
     attempt_id: str
     title: str
@@ -128,6 +160,9 @@ class StudentStandaloneDetail(BaseModel):
     total_questions: int
     percentage: Optional[float] = None
     ended_early: bool
+    cohort_percentile: Optional[float] = None
+    cohort_ranked_count: int = Field(default=0, ge=0)
+    percentile_is_final: bool = Field(default=False)
     questions: List[StudentQuestionReview]
     insights: StudentPerformanceInsights
 
@@ -137,7 +172,8 @@ class StudentPaperSectionReview(BaseModel):
     section_title: str
     attempt_id: str
     status: str
-    questions: List[StudentQuestionReview]
+    questions: List[StudentQuestionReview] = Field(default_factory=list)
+    question_count: int = Field(default=0, ge=0)
 
 
 class StudentPaperDetail(BaseModel):
@@ -158,10 +194,20 @@ class StudentPaperDetail(BaseModel):
     )
     your_score_better_than_percent: Optional[float] = Field(
         default=None,
-        description="Share of those attempts whose total marks are strictly lower than yours (0–100).",
+        description="Deprecated alias; use cohort_percentile.",
     )
+    cohort_percentile: Optional[float] = Field(
+        default=None,
+        description="Overall percentile vs all scored attempts on this paper (0–100).",
+    )
+    cohort_ranked_count: int = Field(default=0, ge=0)
+    percentile_is_final: bool = Field(default=False)
     sections: List[StudentPaperSectionReview]
     insights: StudentPerformanceInsights
+    difficulty_stats: List[StudentDifficultyLevelStat] = Field(
+        default_factory=list,
+        description="Aggregated performance by difficulty tier for charts without loading all questions.",
+    )
 
 
 class StudentOverallFactor(BaseModel):

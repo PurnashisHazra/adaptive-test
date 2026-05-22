@@ -2,13 +2,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { AdminPanel } from "../../components/AdminPanel";
 import {
+  approveAdminPracticeAttemptRequest,
+  denyAdminPracticeAttemptRequest,
   getAdminStudentProfile,
   listAdminPapersCatalog,
+  listAdminPracticeAttemptRequests,
   listAdminStudentExamTags,
   listAdminStudents,
   updateAdminStudentProfile,
 } from "../../api/client";
-import type { StudentProfileListItem } from "../../api/types";
+import type { PracticeAttemptRequestAdminItem, StudentProfileListItem } from "../../api/types";
+import { formatDateTimeIST } from "../../lib/istTime";
 import { useAuthStore } from "../../store/authStore";
 
 export function AdminStudentControlsPage() {
@@ -28,6 +32,21 @@ export function AdminStudentControlsPage() {
   const [allowedExams, setAllowedExams] = useState<Set<string>>(new Set());
   const [assignedPapers, setAssignedPapers] = useState<Set<string>>(new Set());
   const [attemptsUsed, setAttemptsUsed] = useState(0);
+  const [unlimitedAttempts, setUnlimitedAttempts] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState<PracticeAttemptRequestAdminItem[]>([]);
+  const [loadingRequests, setLoadingRequests] = useState(true);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+
+  const loadPendingRequests = useCallback(async () => {
+    setLoadingRequests(true);
+    try {
+      setPendingRequests(await listAdminPracticeAttemptRequests());
+    } catch {
+      toast.error("Could not load practice attempt requests");
+    } finally {
+      setLoadingRequests(false);
+    }
+  }, []);
 
   const loadList = useCallback(async () => {
     setLoadingList(true);
@@ -46,14 +65,20 @@ export function AdminStudentControlsPage() {
 
   useEffect(() => {
     loadList();
-  }, [loadList]);
+    loadPendingRequests();
+  }, [loadList, loadPendingRequests]);
 
   const loadDetail = useCallback(async (username: string) => {
     setLoadingDetail(true);
     try {
       const p = await getAdminStudentProfile(username);
       setDisplayName(p.display_name ?? "");
-      setAttemptsAllowance(p.practice_attempts_allowance == null ? "" : String(p.practice_attempts_allowance));
+      setUnlimitedAttempts(Boolean(p.practice_attempts_unlimited));
+      setAttemptsAllowance(
+        p.practice_attempts_unlimited || p.practice_attempts_allowance == null
+          ? "1"
+          : String(p.practice_attempts_allowance),
+      );
       setBlocked(p.blocked);
       setAllowedExams(new Set(p.allowed_exam_tags));
       setAssignedPapers(new Set(p.assigned_paper_ids));
@@ -85,12 +110,12 @@ export function AdminStudentControlsPage() {
   async function onSave(e: React.FormEvent) {
     e.preventDefault();
     if (!selected) return;
-    const allowanceRaw = attemptsAllowance.trim();
-    let allowance: number | null = null;
-    if (allowanceRaw) {
-      const n = Number(allowanceRaw);
+    let allowance: number | null = 1;
+    if (!unlimitedAttempts) {
+      const allowanceRaw = attemptsAllowance.trim();
+      const n = Number(allowanceRaw || "1");
       if (!Number.isFinite(n) || n < 0) {
-        toast.error("Practice attempts allowance must be a non-negative number or empty for unlimited");
+        toast.error("Practice attempts allowance must be a non-negative number");
         return;
       }
       allowance = Math.floor(n);
@@ -99,7 +124,8 @@ export function AdminStudentControlsPage() {
     try {
       const updated = await updateAdminStudentProfile(selected, {
         display_name: displayName.trim() || null,
-        practice_attempts_allowance: allowance,
+        practice_attempts_allowance: unlimitedAttempts ? null : allowance,
+        practice_attempts_unlimited: unlimitedAttempts,
         allowed_exam_tags: Array.from(allowedExams),
         blocked,
         assigned_paper_ids: Array.from(assignedPapers),
@@ -125,6 +151,41 @@ export function AdminStudentControlsPage() {
       else next.add(tag);
       return next;
     });
+  }
+
+  async function onApproveRequest(requestId: string) {
+    setResolvingId(requestId);
+    try {
+      await approveAdminPracticeAttemptRequest(requestId);
+      toast.success("Approved — student received one more practice attempt");
+      await Promise.all([loadPendingRequests(), loadList()]);
+      if (selected) await loadDetail(selected);
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "response" in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
+      toast.error(typeof msg === "string" ? msg : "Approve failed");
+    } finally {
+      setResolvingId(null);
+    }
+  }
+
+  async function onDenyRequest(requestId: string) {
+    setResolvingId(requestId);
+    try {
+      await denyAdminPracticeAttemptRequest(requestId);
+      toast.success("Request denied");
+      await loadPendingRequests();
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "response" in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
+      toast.error(typeof msg === "string" ? msg : "Deny failed");
+    } finally {
+      setResolvingId(null);
+    }
   }
 
   function togglePaper(id: string) {
@@ -163,6 +224,72 @@ export function AdminStudentControlsPage() {
           <strong>No admin code assigned.</strong> Ask a super admin to set your admin code before students can link to you.
         </div>
       )}
+
+      <section className="card" style={{ marginBottom: "1.25rem" }}>
+        <h2 style={{ marginTop: 0, fontSize: "1.05rem" }}>Practice attempt requests</h2>
+        <p style={{ margin: "0 0 0.75rem", color: "var(--muted)", fontSize: "0.9rem" }}>
+          Students who used all allowed adaptive practice tests can request more. Approving grants one additional attempt.
+        </p>
+        {loadingRequests ? (
+          <p style={{ margin: 0, color: "var(--muted)" }}>Loading…</p>
+        ) : pendingRequests.length === 0 ? (
+          <p style={{ margin: 0, color: "var(--muted)" }}>No pending requests.</p>
+        ) : (
+          <div className="review-sessions-table-wrap">
+            <table className="review-sessions-table">
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>Used / allowed</th>
+                  <th>Requested</th>
+                  <th>Note</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {pendingRequests.map((r) => (
+                  <tr key={r.id}>
+                    <td>
+                      <strong>{r.student_username}</strong>
+                      {r.display_name ? (
+                        <div style={{ fontSize: "0.82rem", color: "var(--muted)" }}>{r.display_name}</div>
+                      ) : null}
+                    </td>
+                    <td style={{ fontSize: "0.9rem" }}>
+                      {r.practice_attempts_used}
+                      {r.practice_attempts_allowance != null ? ` / ${r.practice_attempts_allowance}` : " / unlimited"}
+                    </td>
+                    <td style={{ fontSize: "0.85rem", color: "var(--muted)", whiteSpace: "nowrap" }}>
+                      {formatDateTimeIST(r.requested_at)}
+                    </td>
+                    <td style={{ fontSize: "0.85rem", color: "var(--muted)" }}>{r.message || "—"}</td>
+                    <td style={{ whiteSpace: "nowrap" }}>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        style={{ marginRight: "0.35rem", padding: "0.35rem 0.65rem", fontSize: "0.82rem" }}
+                        disabled={resolvingId === r.id}
+                        onClick={() => void onApproveRequest(r.id)}
+                      >
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        style={{ padding: "0.35rem 0.65rem", fontSize: "0.82rem" }}
+                        disabled={resolvingId === r.id}
+                        onClick={() => void onDenyRequest(r.id)}
+                      >
+                        Deny
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       <div className="admin-student-controls">
         <aside className="admin-student-controls__list card" style={{ margin: 0 }}>
@@ -224,9 +351,11 @@ export function AdminStudentControlsPage() {
               {selectedSummary ? (
                 <p style={{ margin: "0 0 1rem", fontSize: "0.85rem", color: "var(--muted)" }}>
                   Practice attempts used: <strong>{selectedSummary.practice_attempts_used}</strong>
-                  {selectedSummary.practice_attempts_allowance != null
-                    ? ` / ${selectedSummary.practice_attempts_allowance} allowed`
-                    : " (unlimited allowance)"}
+                  {selectedSummary.practice_attempts_unlimited
+                    ? " (unlimited allowance)"
+                    : selectedSummary.practice_attempts_allowance != null
+                      ? ` / ${selectedSummary.practice_attempts_allowance} allowed`
+                      : " / 1 allowed (default)"}
                 </p>
               ) : null}
 
@@ -241,6 +370,14 @@ export function AdminStudentControlsPage() {
               </div>
 
               <div style={{ marginBottom: "1rem" }}>
+                <label className="label" style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                  <input
+                    type="checkbox"
+                    checked={unlimitedAttempts}
+                    onChange={(e) => setUnlimitedAttempts(e.target.checked)}
+                  />
+                  Unlimited practice test attempts
+                </label>
                 <label className="label">Practice test attempts allowance</label>
                 <input
                   className="input"
@@ -248,10 +385,12 @@ export function AdminStudentControlsPage() {
                   min={0}
                   value={attemptsAllowance}
                   onChange={(e) => setAttemptsAllowance(e.target.value)}
-                  placeholder="Leave empty for unlimited"
+                  disabled={unlimitedAttempts}
+                  placeholder="1"
                 />
                 <p style={{ margin: "0.35rem 0 0", fontSize: "0.78rem", color: "var(--muted)" }}>
-                  Counts standalone adaptive tests started (not question papers). Currently used: {attemptsUsed}.
+                  Default for new students is 1. Counts standalone adaptive tests started (not question papers). Currently used:{" "}
+                  {attemptsUsed}.
                 </p>
               </div>
 

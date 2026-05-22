@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { StudentPaperDetail, StudentQuestionReview } from "../api/types";
+import type { StudentDifficultyLevelStat, StudentPaperDetail, StudentQuestionReview } from "../api/types";
 
 const LEVELS = ["EASY", "MEDIUM", "HARD", "EXPERT"] as const;
 type Level = (typeof LEVELS)[number];
@@ -10,6 +10,20 @@ interface DifficultyStat {
   correct: number;
   correctRate: number | null;
   avgTime: number | null;
+}
+
+function statsFromServer(stats: StudentDifficultyLevelStat[]): DifficultyStat[] {
+  const byLevel = new Map(stats.map((s) => [s.level.toUpperCase(), s]));
+  return LEVELS.map((level) => {
+    const s = byLevel.get(level);
+    return {
+      level,
+      total: s?.total ?? 0,
+      correct: s?.correct ?? 0,
+      correctRate: s?.correct_rate ?? null,
+      avgTime: s?.avg_time_seconds ?? null,
+    };
+  });
 }
 
 function aggregateByDifficulty(questions: StudentQuestionReview[]): DifficultyStat[] {
@@ -42,8 +56,13 @@ function aggregateByDifficulty(questions: StudentQuestionReview[]): DifficultySt
 const BAR_MAX_PX = 132;
 
 export function PaperReviewDifficultyChart({ paper }: { paper: StudentPaperDetail }) {
-  const allQuestions = useMemo(() => paper.sections.flatMap((s) => s.questions), [paper]);
-  const stats = useMemo(() => aggregateByDifficulty(allQuestions), [allQuestions]);
+  const stats = useMemo(() => {
+    if (paper.difficulty_stats?.length) {
+      return statsFromServer(paper.difficulty_stats);
+    }
+    const allQuestions = paper.sections.flatMap((s) => s.questions);
+    return aggregateByDifficulty(allQuestions);
+  }, [paper]);
   const hasDifficultyData = stats.some((s) => s.total > 0);
   const maxAvgTime = useMemo(() => {
     const avgs = stats.map((s) => s.avgTime).filter((t): t is number => t != null && t > 0);

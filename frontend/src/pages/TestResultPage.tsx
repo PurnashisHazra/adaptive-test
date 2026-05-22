@@ -1,4 +1,5 @@
 import { Link, Navigate, useNavigate } from "react-router-dom";
+import { CohortPercentileBanner } from "../components/CohortPercentileBanner";
 import { useTestSession } from "../store/testSession";
 
 export function TestResultPage() {
@@ -24,6 +25,7 @@ export function TestResultPage() {
           {paperSummary.ended_early ? (
             <p style={{ color: "var(--muted)", fontSize: "0.95rem" }}>Question paper ended before all sections were completed.</p>
           ) : null}
+          <CohortPercentileBanner data={paperSummary} />
         </div>
         <div className="card" style={{ marginTop: "1.25rem" }}>
           <h3 style={{ marginTop: 0 }}>Sections</h3>
@@ -104,6 +106,7 @@ export function TestResultPage() {
           </>
         )}
         <p style={{ color: "var(--muted)" }}>{summary!.student_name}</p>
+        <CohortPercentileBanner data={summary!} />
       </div>
       {summary!.answers.length > 0 ? (
         <div className="card" style={{ marginTop: "1.25rem" }}>

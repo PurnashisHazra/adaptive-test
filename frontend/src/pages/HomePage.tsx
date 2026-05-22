@@ -1,22 +1,16 @@
 import { useEffect } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
+import { AdaptiveTestPitch } from "../components/AdaptiveTestPitch";
 import { ChallengesHomePage } from "./ChallengesHomePage";
 
 function MarketingLanding() {
   return (
     <div className="page">
-      <ChallengesHomePage />
-      <div style={{ maxWidth: 880, margin: "2rem auto 0", textAlign: "center" }}>
-        <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center", flexWrap: "wrap" }}>
-          <Link to="/take-test" className="btn btn-ghost">
-            Practice test
-          </Link>
-          <Link to="/auth" className="btn btn-primary">
-            Sign in
-          </Link>
-        </div>
+      <div className="content-inner">
+        <AdaptiveTestPitch signedIn={false} />
       </div>
+      <ChallengesHomePage hideAdaptivePitch />
     </div>
   );
 }

@@ -1,24 +1,39 @@
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import get_challenge_service
 from app.api.deps_auth import get_optional_claims, require_student
 from app.schemas.attempt import TestStartResponse
-from app.schemas.challenge import ChallengeCatalogItem
+from app.schemas.challenge import ChallengeCatalogPage, ChallengeParticipantsPage
 from app.schemas.paper import PaperResultSummary
 from app.services.challenge_service import ChallengeService
 
 router = APIRouter(prefix="/challenges", tags=["challenges"])
 
 
-@router.get("/catalog", response_model=List[ChallengeCatalogItem])
+@router.get("/catalog", response_model=ChallengeCatalogPage)
 async def list_challenge_catalog(
+    page: int = 1,
+    page_size: int = 3,
     claims: Optional[dict] = Depends(get_optional_claims),
     svc: ChallengeService = Depends(get_challenge_service),
-) -> List[ChallengeCatalogItem]:
+) -> ChallengeCatalogPage:
     username = str(claims.get("sub", "")) if claims and claims.get("role") == "student" else None
-    return await svc.list_catalog(username)
+    return await svc.list_catalog(username, page=page, page_size=page_size)
+
+
+@router.get("/{challenge_id}/participants", response_model=ChallengeParticipantsPage)
+async def list_challenge_participants(
+    challenge_id: str,
+    page: int = 1,
+    page_size: int = 20,
+    svc: ChallengeService = Depends(get_challenge_service),
+) -> ChallengeParticipantsPage:
+    try:
+        return await svc.list_challenge_participants(challenge_id, page=page, page_size=page_size)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.post("/{challenge_id}/start", response_model=TestStartResponse)

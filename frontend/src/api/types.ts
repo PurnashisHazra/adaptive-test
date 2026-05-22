@@ -173,6 +173,9 @@ export interface PaperResultSummary {
   started_at: string;
   completed_at: string;
   ended_early: boolean;
+  cohort_percentile?: number | null;
+  cohort_ranked_count?: number;
+  percentile_is_final?: boolean;
 }
 
 export interface AssignedPaperItem {
@@ -234,6 +237,14 @@ export interface ChallengeParticipantBrief {
   completed: boolean;
 }
 
+export interface ChallengeCatalogPage {
+  items: ChallengeCatalogItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
 export interface ChallengeCatalogItem {
   challenge_id: string;
   title: string;
@@ -256,7 +267,18 @@ export interface ChallengeCatalogItem {
   participants_count: number;
   ranked_count: number;
   my_percentile?: number | null;
+  my_final_percentile?: number | null;
   participants: ChallengeParticipantBrief[];
+  participants_preview_limit?: number;
+}
+
+export interface ChallengeParticipantsPage {
+  challenge_id: string;
+  participants: ChallengeParticipantBrief[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
 }
 
 export interface PublicProfile {
@@ -336,6 +358,9 @@ export interface AttemptSummary {
   completed_at: string;
   answers: AnswerRecord[];
   ended_early?: boolean;
+  cohort_percentile?: number | null;
+  cohort_ranked_count?: number;
+  percentile_is_final?: boolean;
 }
 
 export interface AppConfig {
@@ -428,6 +453,30 @@ export interface StudentSessionSummary {
   completed_at?: string | null;
   status: string;
   kind_label: string;
+}
+
+export interface StudentSessionsPage {
+  items: StudentSessionSummary[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export interface StudentDifficultyLevelStat {
+  level: string;
+  total: number;
+  correct: number;
+  correct_rate?: number | null;
+  avg_time_seconds?: number | null;
+}
+
+export interface StudentQuestionReviewPage {
+  questions: StudentQuestionReview[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
 }
 
 export type StudentOverallDimensionKey = "time" | "difficulty" | "knowledge";
@@ -633,6 +682,9 @@ export interface StudentStandaloneDetail {
   total_questions: number;
   percentage?: number | null;
   ended_early: boolean;
+  cohort_percentile?: number | null;
+  cohort_ranked_count?: number;
+  percentile_is_final?: boolean;
   questions: StudentQuestionReview[];
   insights: StudentPerformanceInsights;
 }
@@ -643,6 +695,7 @@ export interface StudentPaperSectionReview {
   attempt_id: string;
   status: string;
   questions: StudentQuestionReview[];
+  question_count?: number;
 }
 
 export interface StudentPaperDetail {
@@ -658,8 +711,12 @@ export interface StudentPaperDetail {
   ended_early: boolean;
   cohort_scored_attempt_count?: number;
   your_score_better_than_percent?: number | null;
+  cohort_percentile?: number | null;
+  cohort_ranked_count?: number;
+  percentile_is_final?: boolean;
   sections: StudentPaperSectionReview[];
   insights: StudentPerformanceInsights;
+  difficulty_stats?: StudentDifficultyLevelStat[];
 }
 
 export type QuestionReportSessionType = "standalone" | "paper_section";
@@ -726,6 +783,7 @@ export interface StudentProfileListItem {
   display_name?: string | null;
   blocked: boolean;
   practice_attempts_allowance?: number | null;
+  practice_attempts_unlimited?: boolean;
   practice_attempts_used: number;
   allowed_exam_tags: string[];
   assigned_paper_count: number;
@@ -735,6 +793,7 @@ export interface StudentProfileAdminView {
   student_username: string;
   display_name?: string | null;
   practice_attempts_allowance?: number | null;
+  practice_attempts_unlimited?: boolean;
   allowed_exam_tags: string[];
   blocked: boolean;
   assigned_paper_ids: string[];
@@ -745,6 +804,7 @@ export interface StudentProfileAdminView {
 export interface StudentProfileUpdatePayload {
   display_name?: string | null;
   practice_attempts_allowance?: number | null;
+  practice_attempts_unlimited?: boolean;
   allowed_exam_tags: string[];
   blocked: boolean;
   assigned_paper_ids: string[];
@@ -756,10 +816,34 @@ export interface StudentSessionControls {
   blocked: boolean;
   block_reason?: string | null;
   practice_attempts_allowance?: number | null;
+  practice_attempts_unlimited?: boolean;
   practice_attempts_used: number;
   practice_attempts_remaining?: number | null;
   allowed_exam_tags: string[];
   can_start_practice_test: boolean;
+  has_pending_practice_request?: boolean;
+  can_request_more_attempts?: boolean;
+}
+
+export interface PracticeAttemptRequestOut {
+  id: string;
+  student_username: string;
+  status: "pending" | "approved" | "denied";
+  message?: string | null;
+  requested_at: string;
+  resolved_at?: string | null;
+  resolved_by?: string | null;
+}
+
+export interface PracticeAttemptRequestAdminItem {
+  id: string;
+  student_username: string;
+  display_name?: string | null;
+  status: "pending" | "approved" | "denied";
+  message?: string | null;
+  requested_at: string;
+  practice_attempts_used: number;
+  practice_attempts_allowance?: number | null;
 }
 
 export type StrategyFollowStatus = "on_track" | "partial" | "needs_focus" | "insufficient_data";

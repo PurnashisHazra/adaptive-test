@@ -20,9 +20,14 @@ class ChallengeRepository:
         self._attempts: AsyncIOMotorCollection = db["challenge_attempts"]
 
     async def ensure_indexes(self) -> None:
+        await self._challenges.create_index([("created_at", -1)])
         await self._challenges.create_index([("launch_at", -1)])
         await self._assign.create_index([("challenge_id", 1), ("student_username", 1)], unique=True)
-        await self._attempts.create_index([("challenge_id", 1), ("student_username", 1)], unique=True)
+        await self._attempts.create_index(
+            [("challenge_id", 1), ("student_username", 1)],
+            unique=True,
+        )
+        await self._attempts.create_index([("challenge_id", 1), ("status", 1)])
 
     async def insert_challenge(self, doc: Dict[str, Any]) -> str:
         doc.setdefault("created_at", _utc_now())
@@ -40,8 +45,154 @@ class ChallengeRepository:
         return res.matched_count > 0
 
     async def list_challenges(self, skip: int = 0, limit: int = 200) -> List[Dict[str, Any]]:
-        cur = self._challenges.find({}).sort("launch_at", -1).skip(skip).limit(limit)
+        cur = self._challenges.find({}).sort("created_at", -1).skip(skip).limit(limit)
         return [d async for d in cur]
+
+    async def count_challenges(self) -> int:
+        return int(await self._challenges.count_documents({}))
+
+    async def list_challenges_by_created(self, skip: int, limit: int) -> List[Dict[str, Any]]:
+        cur = self._challenges.find({}).sort("created_at", -1).skip(skip).limit(limit)
+        return [d async for d in cur]
+
+    async def list_assigned_challenge_ids(self, student_username: str) -> List[str]:
+        cur = self._assign.find(
+            {"student_username": student_username.strip()},
+            {"challenge_id": 1},
+        )
+        return [str(d["challenge_id"]) async for d in cur]
+
+    async def find_attempts_for_student_on_challenges(
+        self,
+        student_username: str,
+        challenge_ids: List[str],
+    ) -> Dict[str, Dict[str, Any]]:
+        if not challenge_ids:
+            return {}
+        cur = self._attempts.find(
+            {
+                "student_username": student_username.strip(),
+                "challenge_id": {"$in": challenge_ids},
+            }
+        )
+        out: Dict[str, Dict[str, Any]] = {}
+        async for doc in cur:
+            out[str(doc["challenge_id"])] = doc
+        return out
+
+    async def aggregate_attempt_counts(self, challenge_ids: List[str]) -> Dict[str, Dict[str, int]]:
+        """Per challenge: participants_count (any attempt), ranked_count (scored)."""
+        if not challenge_ids:
+            return {}
+        pipeline = [
+            {"$match": {"challenge_id": {"$in": challenge_ids}}},
+            {
+                "$group": {
+                    "_id": "$challenge_id",
+                    "participants_count": {"$sum": 1},
+                    "ranked_count": {
+                        "$sum": {
+                            "$cond": [
+                                {
+                                    "$and": [
+                                        {"$in": ["$status", ["completed", "ended_early"]]},
+                                        {"$in": [{"$type": "$total_marks"}, ["double", "int", "long", "decimal"]]},
+                                    ]
+                                },
+                                1,
+                                0,
+                            ]
+                        }
+                    },
+                }
+            },
+        ]
+        out: Dict[str, Dict[str, int]] = {}
+        async for row in self._attempts.aggregate(pipeline):
+            cid = str(row["_id"])
+            out[cid] = {
+                "participants_count": int(row.get("participants_count", 0)),
+                "ranked_count": int(row.get("ranked_count", 0)),
+            }
+        return out
+
+    async def participant_previews_for_challenges(
+        self,
+        challenge_ids: List[str],
+        *,
+        limit_per: int = 8,
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """Latest N participants per challenge (username + completed flag), one aggregation."""
+        if not challenge_ids or limit_per <= 0:
+            return {}
+        pipeline = [
+            {"$match": {"challenge_id": {"$in": challenge_ids}}},
+            {"$sort": {"started_at": -1}},
+            {
+                "$group": {
+                    "_id": "$challenge_id",
+                    "rows": {
+                        "$push": {
+                            "student_username": "$student_username",
+                            "completed": {
+                                "$in": [
+                                    "$status",
+                                    ["completed", "ended_early"],
+                                ]
+                            },
+                        }
+                    },
+                }
+            },
+            {"$project": {"rows": {"$slice": ["$rows", limit_per]}}},
+        ]
+        out: Dict[str, List[Dict[str, Any]]] = {cid: [] for cid in challenge_ids}
+        async for doc in self._attempts.aggregate(pipeline):
+            cid = str(doc.get("_id", ""))
+            if cid in out:
+                out[cid] = list(doc.get("rows") or [])
+        return out
+
+    async def list_attempt_usernames_paginated(
+        self,
+        challenge_id: str,
+        *,
+        skip: int = 0,
+        limit: int = 20,
+    ) -> tuple[List[Dict[str, Any]], int]:
+        filt = {"challenge_id": challenge_id.strip()}
+        total = int(await self._attempts.count_documents(filt))
+        cur = (
+            self._attempts.find(
+                filt,
+                projection={"student_username": 1, "status": 1, "started_at": 1},
+            )
+            .sort("started_at", -1)
+            .skip(skip)
+            .limit(limit)
+        )
+        rows = [d async for d in cur]
+        return rows, total
+
+    async def list_ranked_attempts_for_challenges(
+        self, challenge_ids: List[str]
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        if not challenge_ids:
+            return {}
+        cur = self._attempts.find(
+            {
+                "challenge_id": {"$in": challenge_ids},
+                "status": {"$in": ["completed", "ended_early"]},
+                "total_marks": {"$exists": True, "$ne": None},
+            },
+            projection={"challenge_id": 1, "student_username": 1, "total_marks": 1},
+        )
+        grouped: Dict[str, List[Dict[str, Any]]] = {cid: [] for cid in challenge_ids}
+        async for doc in cur:
+            cid = str(doc.get("challenge_id", ""))
+            if cid in grouped:
+                grouped[cid].append(doc)
+        return grouped
 
     async def upsert_assignment(self, challenge_id: str, student_username: str) -> None:
         await self._assign.update_one(

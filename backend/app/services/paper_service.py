@@ -18,6 +18,7 @@ from app.schemas.paper import (
     QuestionPaperUpdate,
 )
 from app.services.admin_limits_service import AdminLimitsService
+from app.services.cohort_percentile_service import CohortPercentileService
 from app.services.test_service import TestService, _attempt_filters_from_doc
 from app.utils.ids import oid_str
 
@@ -438,37 +439,8 @@ class PaperService:
         pct = (total_marks / max_m * 100.0) if max_m > 0 else 0.0
         pct = max(0.0, min(100.0, round(pct, 2)))
 
-        await self._papers.update_paper_attempt(
-            pa_id,
-            {
-                "status": "completed",
-                "completed_at": _utc_now(),
-                "total_marks": total_marks,
-            },
-        )
-
-        pr = PaperResultSummary(
-            paper_attempt_id=pa_id,
-            paper_id=oid_str(paper["_id"]),
-            title=paper["title"],
-            student_name=paper_attempt["student_username"],
-            total_marks=round(total_marks, 4),
-            max_marks=round(max_m, 4),
-            percentage=pct,
-            sections=[
-                PaperSectionResultItem(
-                    section_title=str(r["section_title"]),
-                    total_questions=int(r["total_questions"]),
-                    correct=int(r["correct"]),
-                    wrong=int(r["wrong"]),
-                    marks=round(float(r["marks"]), 4),
-                )
-                for r in prev_results
-            ],
-            started_at=paper_attempt["started_at"],
-            completed_at=_utc_now(),
-            ended_early=False,
-        )
+        pa = await self._papers.get_paper_attempt(pa_id) or paper_attempt
+        pr = await self._finalize_paper_result(pa, paper, ended_early=False)
 
         return SubmitAnswerResponse(
             is_correct=is_correct,
@@ -491,15 +463,26 @@ class PaperService:
         ended_early: bool,
     ) -> PaperResultSummary:
         pa_id = oid_str(paper_attempt["_id"])
+        pid = oid_str(paper["_id"])
         mpc = float(paper.get("marks_per_correct", 1))
         max_m = _max_marks(paper, mpc)
         prev_results = list(paper_attempt.get("section_results", []))
         total_marks = sum(float(r["marks"]) for r in prev_results)
         pct = (total_marks / max_m * 100.0) if max_m > 0 else 0.0
         pct = max(0.0, min(100.0, round(pct, 2)))
+        status_val = "ended_early" if ended_early else "completed"
+        await self._papers.update_paper_attempt(
+            pa_id,
+            {
+                "status": status_val,
+                "completed_at": _utc_now(),
+                "total_marks": round(total_marks, 4),
+            },
+        )
+        cohort = await CohortPercentileService().for_paper(pid, round(total_marks, 4))
         return PaperResultSummary(
             paper_attempt_id=pa_id,
-            paper_id=oid_str(paper["_id"]),
+            paper_id=pid,
             title=paper["title"],
             student_name=paper_attempt["student_username"],
             total_marks=round(total_marks, 4),
@@ -518,6 +501,7 @@ class PaperService:
             started_at=paper_attempt["started_at"],
             completed_at=_utc_now(),
             ended_early=ended_early,
+            **cohort,
         )
 
     async def end_paper_early(self, paper_attempt_id: str, student_username: Optional[str] = None) -> PaperResultSummary:
@@ -561,10 +545,6 @@ class PaperService:
                     await self._papers.update_paper_attempt(paper_attempt_id, {"section_results": prev})
                     pa = await self._papers.get_paper_attempt(paper_attempt_id) or pa
 
-        await self._papers.update_paper_attempt(
-            paper_attempt_id,
-            {"status": "ended_early", "completed_at": _utc_now()},
-        )
         pa = await self._papers.get_paper_attempt(paper_attempt_id) or pa
         paper = await self._papers.get_paper(pa["paper_id"]) or paper
         return await self._finalize_paper_result(pa, paper, ended_early=True)

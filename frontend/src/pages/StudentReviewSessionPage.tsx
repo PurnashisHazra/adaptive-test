@@ -1,8 +1,10 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { formatDateTimeIST } from "../lib/istTime";
+import { CohortPercentileBanner } from "../components/CohortPercentileBanner";
 import { PaperReviewDifficultyChart } from "../components/PaperReviewDifficultyChart";
+import { PaperSectionQuestions } from "../components/PaperSectionQuestions";
 import { StudentPerformanceSpiderChart } from "../components/StudentPerformanceSpiderChart";
 import { getMyPaperReview, getMyStandaloneReview } from "../api/client";
 import type {
@@ -90,7 +92,7 @@ function QuestionInsightCapsules({ capsules }: { capsules: StudentInsightCapsule
   );
 }
 
-function QuestionReviewCard({ q }: { q: StudentQuestionReview }) {
+export function QuestionReviewCard({ q }: { q: StudentQuestionReview }) {
   const diff = q.difficulty_when_served ? String(q.difficulty_when_served).toUpperCase() : null;
   const acc = peerAccuracyLine(q);
   const avgT = peerAvgTimeLine(q);
@@ -196,53 +198,15 @@ function QuestionReviewCard({ q }: { q: StudentQuestionReview }) {
 }
 
 function PaperCohortBanner({ paper }: { paper: StudentPaperDetail }) {
-  const n = paper.cohort_scored_attempt_count ?? 0;
-  const pct = paper.your_score_better_than_percent;
-
-  const boxStyle: CSSProperties = {
-    marginTop: "1rem",
-    padding: "1rem 1.1rem",
-    borderRadius: 10,
-    border: "1px solid #cbd5e1",
-    borderLeft: "4px solid #6366f1",
-    background: "#f5f3ff",
-    color: "#1e1b4b",
-    fontSize: "0.95rem",
-    lineHeight: 1.55,
-  };
-
-  let body: ReactNode;
-  if (paper.total_marks == null) {
-    body = (
-      <p style={{ margin: 0, color: "#4338ca" }}>
-        Your <strong>percentile vs everyone who attempted this paper</strong> will show here once this attempt has a total mark (when the paper is finished or scored).
-      </p>
-    );
-  } else if (n <= 1) {
-    body = (
-      <p style={{ margin: 0, color: "#4338ca" }}>
-        <strong>{n === 1 ? "Only one scored attempt" : "No scored attempts"}</strong> on this paper so far
-        {n === 1 ? " (yours). Percentile compares you to others once more students complete it." : "."}
-      </p>
-    );
-  } else if (pct != null && !Number.isNaN(pct)) {
-    body = (
-      <p style={{ margin: 0, color: "#312e81" }}>
-        Among <strong>{n}</strong> scored attempt{n === 1 ? "" : "s"} on this paper, you scored higher than{" "}
-        <strong style={{ fontSize: "1.15em" }}>{pct.toFixed(1)}%</strong> of them (by total marks).
-      </p>
-    );
-  } else {
-    body = <p style={{ margin: 0, color: "#4338ca" }}>Cohort ranking is not available for this attempt.</p>;
-  }
-
   return (
-    <div style={boxStyle}>
-      <div style={{ fontWeight: 700, fontSize: "0.8rem", letterSpacing: "0.04em", textTransform: "uppercase", color: "#4c1d95", marginBottom: "0.5rem" }}>
-        How you rank on this paper
-      </div>
-      {body}
-    </div>
+    <CohortPercentileBanner
+      data={{
+        cohort_percentile: paper.cohort_percentile ?? paper.your_score_better_than_percent,
+        cohort_ranked_count: paper.cohort_ranked_count ?? paper.cohort_scored_attempt_count,
+        percentile_is_final: paper.percentile_is_final,
+      }}
+      label="Overall percentile on this paper"
+    />
   );
 }
 
@@ -312,7 +276,7 @@ function StudentInsightsPanel({
           ))}
         </ul>
       </div>
-      <StudentPerformanceSpiderChart insights={insights} questions={questions} />
+      {questions.length > 0 ? <StudentPerformanceSpiderChart insights={insights} questions={questions} /> : null}
     </section>
   );
 }
@@ -388,6 +352,7 @@ export function StudentReviewSessionPage() {
             Started {formatDateTimeIST(standalone.started_at)}
             {standalone.completed_at ? ` · Finished ${formatDateTimeIST(standalone.completed_at)}` : ""}
           </p>
+          <CohortPercentileBanner data={standalone} label="Overall percentile in this practice cohort" />
           <StudentInsightsPanel insights={standalone.insights} questions={standalone.questions} />
           <h2 style={{ fontSize: "1.05rem", marginTop: "2rem", marginBottom: "0.75rem" }}>Questions</h2>
           {standalone.questions.length === 0 ? (
@@ -418,23 +383,37 @@ export function StudentReviewSessionPage() {
             Started {formatDateTimeIST(paper.started_at)}
             {paper.completed_at ? ` · Finished ${formatDateTimeIST(paper.completed_at)}` : ""}
           </p>
-          <StudentInsightsPanel insights={paper.insights} questions={paper.sections.flatMap((s) => s.questions)} />
+          <StudentInsightsPanel
+            insights={paper.insights}
+            questions={[]}
+          />
           <PaperCohortBanner paper={paper} />
           <PaperReviewDifficultyChart paper={paper} />
-          {paper.sections.map((sec) => (
-            <section key={sec.attempt_id} style={{ marginTop: "2rem" }}>
-              <h2 style={{ fontSize: "1.1rem", marginBottom: "0.75rem" }}>
-                {sec.section_title} <span style={{ color: "var(--muted)", fontWeight: 500 }}>(section {sec.section_index + 1})</span>
-              </h2>
-              {sec.questions.length === 0 ? (
-                <p className="empty">No questions recorded for this section.</p>
-              ) : (
-                sec.questions.map((q) => (
-                  <QuestionReviewCard key={`${sec.attempt_id}-${q.question_id}-${q.index}`} q={q} />
-                ))
-              )}
-            </section>
-          ))}
+          {paper.sections.map((sec) => {
+            const qCount = sec.question_count ?? sec.questions.length;
+            return (
+              <section key={sec.attempt_id} style={{ marginTop: "2rem" }}>
+                <h2 style={{ fontSize: "1.1rem", marginBottom: "0.75rem" }}>
+                  {sec.section_title}{" "}
+                  <span style={{ color: "var(--muted)", fontWeight: 500 }}>
+                    (section {sec.section_index + 1} · {qCount} question{qCount === 1 ? "" : "s"})
+                  </span>
+                </h2>
+                {sec.questions.length > 0 ? (
+                  sec.questions.map((q) => (
+                    <QuestionReviewCard key={`${sec.attempt_id}-${q.question_id}-${q.index}`} q={q} />
+                  ))
+                ) : (
+                  <PaperSectionQuestions
+                    paperAttemptId={paper.paper_attempt_id}
+                    sectionAttemptId={sec.attempt_id}
+                    questionCount={qCount}
+                    QuestionCard={QuestionReviewCard}
+                  />
+                )}
+              </section>
+            );
+          })}
           {paper.sections.length === 0 ? <p className="empty">No section data yet.</p> : null}
         </>
       ) : (

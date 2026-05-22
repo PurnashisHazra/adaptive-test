@@ -21,6 +21,8 @@ import type {
   QuestionAdmin,
   QuestionCreatePayload,
   Challenge,
+  ChallengeCatalogPage,
+  ChallengeParticipantsPage,
   ChallengeCatalogItem,
   QuestionPaper,
   StudentHistoryStats,
@@ -30,10 +32,14 @@ import type {
   StudentLearningTrendsResponse,
   StudentOverallAnalytics,
   StudentPaperDetail,
+  StudentSessionsPage,
+  StudentQuestionReviewPage,
   StudentSessionSummary,
   QuestionReport,
   QuestionReportCreatePayload,
   StudentProfileAdminView,
+  PracticeAttemptRequestAdminItem,
+  PracticeAttemptRequestOut,
   StudentProfileListItem,
   StudentProfileUpdatePayload,
   StudentSessionControls,
@@ -476,8 +482,17 @@ export async function listPaperAssignments(paperId: string) {
   return data;
 }
 
-export async function listChallengeCatalog() {
-  const { data } = await api.get<ChallengeCatalogItem[]>("/challenges/catalog");
+export async function listChallengeCatalog(page = 1, pageSize = 3) {
+  const { data } = await api.get<ChallengeCatalogPage>("/challenges/catalog", {
+    params: { page, page_size: pageSize },
+  });
+  return data;
+}
+
+export async function listChallengeParticipants(challengeId: string, page = 1, pageSize = 20) {
+  const { data } = await api.get<ChallengeParticipantsPage>(`/challenges/${challengeId}/participants`, {
+    params: { page, page_size: pageSize },
+  });
   return data;
 }
 
@@ -590,6 +605,32 @@ export async function getMySessionControls() {
   return data;
 }
 
+export async function requestMorePracticeAttempts(message?: string) {
+  const { data } = await api.post<PracticeAttemptRequestOut>("/me/practice-attempt-requests", {
+    message: message?.trim() || undefined,
+  });
+  return data;
+}
+
+export async function listAdminPracticeAttemptRequests() {
+  const { data } = await api.get<PracticeAttemptRequestAdminItem[]>("/admin/students/practice-attempt-requests");
+  return data;
+}
+
+export async function approveAdminPracticeAttemptRequest(requestId: string) {
+  const { data } = await api.post<PracticeAttemptRequestOut>(
+    `/admin/students/practice-attempt-requests/${encodeURIComponent(requestId)}/approve`,
+  );
+  return data;
+}
+
+export async function denyAdminPracticeAttemptRequest(requestId: string) {
+  const { data } = await api.post<PracticeAttemptRequestOut>(
+    `/admin/students/practice-attempt-requests/${encodeURIComponent(requestId)}/deny`,
+  );
+  return data;
+}
+
 export async function listAttempts(params?: { student_name?: string; limit?: number }) {
   const { data } = await api.get("/attempts", { params });
   return data;
@@ -607,8 +648,18 @@ export async function getMyStudentHistory() {
   return data;
 }
 
-export async function listMyAnalyticsSessions() {
-  const { data } = await api.get<StudentSessionSummary[]>("/me/analytics/sessions");
+export async function listMyAnalyticsSessions(params?: {
+  page?: number;
+  pageSize?: number;
+  sessionType?: "standalone" | "paper";
+}) {
+  const { data } = await api.get<StudentSessionsPage>("/me/analytics/sessions", {
+    params: {
+      page: params?.page ?? 1,
+      page_size: params?.pageSize ?? 15,
+      session_type: params?.sessionType,
+    },
+  });
   return data;
 }
 
@@ -678,8 +729,23 @@ export async function getMyAttemptAccuracyImprovement(
   return data;
 }
 
-export async function getMyPaperReview(paperAttemptId: string) {
-  const { data } = await api.get<StudentPaperDetail>(`/me/analytics/paper/${encodeURIComponent(paperAttemptId)}`);
+export async function getMyPaperReview(paperAttemptId: string, includeQuestions = false) {
+  const { data } = await api.get<StudentPaperDetail>(`/me/analytics/paper/${encodeURIComponent(paperAttemptId)}`, {
+    params: { include_questions: includeQuestions },
+  });
+  return data;
+}
+
+export async function getMyPaperSectionQuestions(
+  paperAttemptId: string,
+  sectionAttemptId: string,
+  page = 1,
+  pageSize = 8,
+) {
+  const { data } = await api.get<StudentQuestionReviewPage>(
+    `/me/analytics/paper/${encodeURIComponent(paperAttemptId)}/sections/${encodeURIComponent(sectionAttemptId)}/questions`,
+    { params: { page, page_size: pageSize } },
+  );
   return data;
 }
 

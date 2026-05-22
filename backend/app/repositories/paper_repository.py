@@ -34,6 +34,23 @@ class PaperRepository:
     async def get_paper(self, paper_id: str) -> Optional[Dict[str, Any]]:
         return await self._papers.find_one({"_id": ObjectId(paper_id)})
 
+    async def get_papers_by_ids(self, paper_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        oids: List[ObjectId] = []
+        for pid in paper_ids:
+            pid = str(pid).strip()
+            if not pid:
+                continue
+            try:
+                oids.append(ObjectId(pid))
+            except Exception:
+                continue
+        if not oids:
+            return {}
+        out: Dict[str, Dict[str, Any]] = {}
+        async for doc in self._papers.find({"_id": {"$in": oids}}):
+            out[oid_str(doc["_id"])] = doc
+        return out
+
     async def update_paper(self, paper_id: str, patch: Dict[str, Any]) -> bool:
         patch = dict(patch)
         patch["updated_at"] = _utc_now()

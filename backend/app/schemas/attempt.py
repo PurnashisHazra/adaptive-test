@@ -142,6 +142,12 @@ class AttemptSummary(BaseModel):
     completed_at: datetime
     answers: List[AnswerRecord]
     ended_early: bool = False
+    cohort_percentile: Optional[float] = Field(
+        default=None,
+        description="Overall percentile vs completed standalone attempts in the same subject/topic/exam lens.",
+    )
+    cohort_ranked_count: int = Field(default=0, ge=0)
+    percentile_is_final: bool = Field(default=False)
 
 
 class AttemptListItem(BaseModel):

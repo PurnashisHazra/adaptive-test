@@ -101,9 +101,38 @@ class ChallengeCatalogItem(BaseModel):
     ranked_count: int = Field(default=0, description="Students with a final score (for percentile).")
     my_percentile: Optional[float] = Field(
         default=None,
-        description="Percentile vs other ranked students (higher marks = higher percentile).",
+        description="Current overall percentile vs all ranked attempts so far (live while challenge is open).",
     )
-    participants: List[ChallengeParticipantBrief] = Field(default_factory=list)
+    my_final_percentile: Optional[float] = Field(
+        default=None,
+        description="Final overall percentile after the challenge has ended (same cohort, frozen).",
+    )
+    participants: List[ChallengeParticipantBrief] = Field(
+        default_factory=list,
+        description="Preview of recent participants (capped); use participants endpoint for full list.",
+    )
+    participants_preview_limit: int = Field(
+        default=8,
+        ge=0,
+        description="Max participants included in participants preview on this response.",
+    )
+
+
+class ChallengeParticipantsPage(BaseModel):
+    challenge_id: str
+    participants: List[ChallengeParticipantBrief]
+    total: int = Field(ge=0)
+    page: int = Field(ge=1)
+    page_size: int = Field(ge=1, le=100)
+    total_pages: int = Field(ge=0)
+
+
+class ChallengeCatalogPage(BaseModel):
+    items: List[ChallengeCatalogItem]
+    total: int = Field(ge=0)
+    page: int = Field(ge=1)
+    page_size: int = Field(ge=1, le=50)
+    total_pages: int = Field(ge=0)
 
 
 class AssignedChallengeItem(BaseModel):

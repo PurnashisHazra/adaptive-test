@@ -1,0 +1,404 @@
+/* Mobile & tablet: portrait and landscape */
+
+html {
+  overflow-x: clip;
+  -webkit-text-size-adjust: 100%;
+}
+
+#root {
+  max-width: 100%;
+  min-height: 100%;
+}
+
+img,
+svg,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+.content-inner {
+  width: 100%;
+  max-width: 880px;
+  margin-inline: auto;
+}
+
+.text-measure {
+  max-width: min(40rem, 100%);
+}
+
+/* App shell */
+.app-shell-header {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.app-shell-header-inner--layout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding-top: 0.85rem;
+  padding-bottom: 0.85rem;
+}
+
+.app-shell-brand {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: #0f172a;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.app-shell-nav {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+.app-shell-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+}
+
+.app-shell-main--admin {
+  background: var(--bg-card);
+}
+
+.app-shell-footer {
+  padding: 1.25rem clamp(0.75rem, 3vw, 1.5rem);
+  text-align: center;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+/* Challenge cards */
+.challenge-card__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.challenge-card__body {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.challenge-card__countdown {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.challenge-card__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* Tables without an explicit wrap still scroll inside panels */
+.table-wrap,
+.review-sessions-table-wrap,
+.admin-panel-body {
+  max-width: 100%;
+}
+
+table.data,
+table.super-admin-table,
+.review-sessions-table {
+  min-width: min(100%, 32rem);
+}
+
+@media (max-width: 900px) {
+  :root {
+    --layout-page-width: 100%;
+  }
+
+  /* Inline max-widths on pages become full-width on small screens */
+  .page p[style*="maxWidth"],
+  .page p[style*="max-width"],
+  .page form[style*="maxWidth"],
+  .page form[style*="max-width"],
+  .page .card[style*="maxWidth"],
+  .page .card[style*="max-width"],
+  .page div[style*="maxWidth"]:not(.admin-analytics-print-host) {
+    max-width: 100% !important;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .admin-panel p[style*="maxWidth"],
+  .admin-panel p[style*="max-width"],
+  .admin-panel form[style*="maxWidth"],
+  .admin-panel .card[style*="maxWidth"] {
+    max-width: 100% !important;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .page {
+    padding: 1.15rem clamp(0.75rem, 3vw, 1.25rem) 2.5rem;
+  }
+
+  .app-shell-header-inner,
+  .app-shell-header-inner--layout {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .app-shell-nav {
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    padding-bottom: 0.15rem;
+  }
+
+  .app-shell-nav .btn-ghost {
+    flex-shrink: 0;
+  }
+
+  .card {
+    padding: 1.1rem;
+  }
+
+  .admin-analytics-print__summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .test-exam-body {
+    grid-template-columns: 1fr !important;
+  }
+
+  .test-exam-sidebar {
+    border-left: none !important;
+    border-top: 1px solid #e2e8f0;
+  }
+
+  .test-exam-main {
+    border-right: none;
+  }
+
+  .test-exam-tab {
+    max-width: min(42vw, 10rem);
+  }
+
+  .review-charts-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .review-snapshot-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .adaptive-pitch__paths {
+    grid-template-columns: 1fr;
+  }
+
+  .challenge-card__countdown {
+    width: 100%;
+    text-align: left;
+  }
+
+  .challenge-card__actions {
+    justify-content: stretch;
+  }
+
+  .challenge-card__actions .btn,
+  .challenge-card__actions a.btn {
+    flex: 1 1 auto;
+    min-width: min(100%, 10rem);
+  }
+}
+
+/* Admin: sidebar becomes top nav on narrow screens */
+@media (max-width: 768px) {
+  .admin-root {
+    flex-direction: column;
+    overflow: visible;
+    min-height: 0;
+  }
+
+  .admin-sidebar {
+    width: 100%;
+    flex-shrink: 0;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    box-shadow: none;
+  }
+
+  .admin-nav {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 0.25rem;
+    padding: 0 0.65rem 0.65rem;
+    scrollbar-width: thin;
+  }
+
+  .admin-nav-link {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .admin-stage {
+    min-height: 0;
+    flex: 1;
+  }
+
+  .admin-panel {
+    padding: 0 0.65rem 0.5rem;
+  }
+
+  .admin-panel-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-student-controls__roster {
+    max-height: min(40vh, 320px);
+  }
+
+  .admin-student-reports__list {
+    max-height: min(36vh, 280px);
+  }
+
+  .test-exam-top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .test-exam-top-right {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .radar-modal-backdrop {
+    padding: 0.5rem;
+    align-items: flex-end;
+  }
+
+  .radar-modal-panel {
+    width: 100%;
+    max-width: 100%;
+    max-height: min(92vh, 100dvh);
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+
+  .strategy-session__toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .strategy-session__toolbar-field {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  h1 {
+    font-size: clamp(1.25rem, 5vw, 1.75rem);
+  }
+
+  .btn {
+    min-height: 44px;
+  }
+
+  .test-exam-page {
+    padding-bottom: 3rem;
+  }
+
+  .test-exam-passage,
+  .test-exam-question {
+    padding: 0.85rem;
+  }
+
+  table.data th,
+  table.data td,
+  .review-sessions-table th,
+  .review-sessions-table td {
+    padding: 0.55rem 0.6rem;
+    font-size: 0.82rem;
+  }
+
+  .adaptive-pitch {
+    padding: 1rem 0.85rem 1.15rem;
+  }
+}
+
+/* Landscape phones & short viewports */
+@media (max-height: 520px) and (orientation: landscape) {
+  .page {
+    padding-top: 0.65rem;
+    padding-bottom: 1.25rem;
+  }
+
+  .app-shell-header-inner--layout {
+    padding-top: 0.45rem;
+    padding-bottom: 0.45rem;
+  }
+
+  .admin-sidebar-brand {
+    padding: 0.5rem 1rem 0.35rem;
+  }
+
+  .admin-nav-link {
+    padding: 0.35rem 0.55rem;
+    font-size: 0.85rem;
+  }
+
+  .test-exam-passage {
+    max-height: 32vh;
+  }
+
+  .test-exam-question {
+    max-height: 55vh;
+  }
+
+  .radar-modal-panel {
+    max-height: 96dvh;
+  }
+
+  .admin-student-controls__roster,
+  .admin-student-reports__list {
+    max-height: 28vh;
+  }
+}
+
+/* Slightly wider landscape tablets */
+@media (max-height: 700px) and (min-width: 600px) and (orientation: landscape) {
+  .test-exam-body {
+    grid-template-columns: minmax(0, 1.15fr) minmax(200px, 260px) !important;
+  }
+
+  .test-exam-sidebar {
+    border-left: 1px solid #e2e8f0 !important;
+    border-top: none !important;
+  }
+
+  .test-exam-passage {
+    max-height: 35vh;
+  }
+
+  .test-exam-question {
+    max-height: 50vh;
+  }
+}

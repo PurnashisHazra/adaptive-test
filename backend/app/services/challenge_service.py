@@ -12,10 +12,14 @@ from app.schemas.attempt import (
 )
 from app.schemas.challenge import (
     ChallengeCatalogItem,
+    ChallengeCatalogPage,
     ChallengeCreate,
     ChallengeOut,
+    ChallengeParticipantBrief,
+    ChallengeParticipantsPage,
     ChallengeUpdate,
 )
+from app.utils.cohort_percentile import percentile_among_ranked_attempts
 from app.schemas.public_profile import ChallengeParticipantBrief
 from app.services.public_profile_service import PublicProfileService
 from app.schemas.paper import (
@@ -25,6 +29,7 @@ from app.schemas.paper import (
     PaperSessionMeta,
 )
 from app.services.admin_limits_service import AdminLimitsService
+from app.services.cohort_percentile_service import CohortPercentileService
 from app.services.test_service import TestService, _attempt_filters_from_doc
 from app.utils.ids import oid_str
 
@@ -53,20 +58,6 @@ def _marks_from_answers(answers: List[Dict[str, Any]], mpc: float, mpi: float) -
 
 def _max_marks(challenge: Dict[str, Any], mpc: float) -> float:
     return sum(int(s.get("total_questions", 0)) for s in _sorted_sections(challenge)) * mpc
-
-
-def _percentile_among_ranked(username: str, ranked: List[Dict[str, Any]]) -> Optional[float]:
-    if not ranked:
-        return None
-    scores = [(str(r["student_username"]), float(r.get("total_marks", 0))) for r in ranked]
-    user_score = next((s for u, s in scores if u == username), None)
-    if user_score is None:
-        return None
-    n = len(scores)
-    if n <= 1:
-        return 100.0
-    below = sum(1 for _, s in scores if s < user_score)
-    return round(100.0 * below / (n - 1), 1)
 
 
 def _window_status(launch_at: datetime, end_at: datetime, now: Optional[datetime] = None) -> Tuple[str, Optional[int], Optional[int]]:
@@ -490,33 +481,8 @@ class ChallengeService:
         pct = (total_marks / max_m * 100.0) if max_m > 0 else 0.0
         pct = max(0.0, min(100.0, round(pct, 2)))
 
-        await self._challenges.update_challenge_attempt(
-            ca_id,
-            {"status": "completed", "completed_at": utc_now(), "total_marks": total_marks},
-        )
-
-        pr = PaperResultSummary(
-            paper_attempt_id=ca_id,
-            paper_id=oid_str(challenge["_id"]),
-            title=challenge["title"],
-            student_name=challenge_attempt["student_username"],
-            total_marks=round(total_marks, 4),
-            max_marks=round(max_m, 4),
-            percentage=pct,
-            sections=[
-                PaperSectionResultItem(
-                    section_title=str(r["section_title"]),
-                    total_questions=int(r["total_questions"]),
-                    correct=int(r["correct"]),
-                    wrong=int(r["wrong"]),
-                    marks=round(float(r["marks"]), 4),
-                )
-                for r in prev_results
-            ],
-            started_at=challenge_attempt["started_at"],
-            completed_at=utc_now(),
-            ended_early=False,
-        )
+        c_att = await self._challenges.get_challenge_attempt(ca_id) or c_att
+        pr = await self._finalize_result(c_att, challenge, ended_early=False)
 
         return SubmitAnswerResponse(
             is_correct=is_correct,
@@ -573,27 +539,39 @@ class ChallengeService:
                     await self._challenges.update_challenge_attempt(challenge_attempt_id, {"section_results": prev})
                     ca = await self._challenges.get_challenge_attempt(challenge_attempt_id) or ca
 
-        await self._challenges.update_challenge_attempt(
-            challenge_attempt_id,
-            {"status": "ended_early", "completed_at": utc_now()},
-        )
         ca = await self._challenges.get_challenge_attempt(challenge_attempt_id) or ca
         challenge = await self._challenges.get_challenge(ca["challenge_id"]) or challenge
-        return self._finalize_result(ca, challenge, ended_early=True)
+        return await self._finalize_result(ca, challenge, ended_early=True)
 
-    def _finalize_result(
+    async def _finalize_result(
         self, challenge_attempt: Dict[str, Any], challenge: Dict[str, Any], ended_early: bool
     ) -> PaperResultSummary:
         ca_id = oid_str(challenge_attempt["_id"])
+        cid = oid_str(challenge["_id"])
         mpc = float(challenge.get("marks_per_correct", 1))
         max_m = _max_marks(challenge, mpc)
         prev_results = list(challenge_attempt.get("section_results", []))
         total_marks = sum(float(r["marks"]) for r in prev_results)
         pct = (total_marks / max_m * 100.0) if max_m > 0 else 0.0
         pct = max(0.0, min(100.0, round(pct, 2)))
+        status_val = "ended_early" if ended_early else "completed"
+        await self._challenges.update_challenge_attempt(
+            ca_id,
+            {
+                "status": status_val,
+                "completed_at": utc_now(),
+                "total_marks": round(total_marks, 4),
+            },
+        )
+        ch_status, _, _ = _window_status(challenge["launch_at"], challenge["end_at"])
+        cohort = await CohortPercentileService().for_challenge(
+            cid,
+            str(challenge_attempt["student_username"]),
+            challenge_ended=ch_status == "ended",
+        )
         return PaperResultSummary(
             paper_attempt_id=ca_id,
-            paper_id=oid_str(challenge["_id"]),
+            paper_id=cid,
             title=challenge["title"],
             student_name=challenge_attempt["student_username"],
             total_marks=round(total_marks, 4),
@@ -612,6 +590,7 @@ class ChallengeService:
             started_at=challenge_attempt["started_at"],
             completed_at=utc_now(),
             ended_early=ended_early,
+            **cohort,
         )
 
     async def timeout_current_section(
@@ -697,13 +676,8 @@ class ChallengeService:
                 paper_summary=None,
             )
 
-        total_marks = sum(float(r["marks"]) for r in prev)
-        await self._challenges.update_challenge_attempt(
-            challenge_attempt_id,
-            {"status": "completed", "completed_at": utc_now(), "total_marks": total_marks},
-        )
         ca = await self._challenges.get_challenge_attempt(challenge_attempt_id) or ca
-        pr = self._finalize_result(ca, challenge, ended_early=False)
+        pr = await self._finalize_result(ca, challenge, ended_early=False)
         return SubmitAnswerResponse(
             is_correct=False,
             explanation=None,
@@ -738,30 +712,157 @@ class ChallengeService:
             )
         return len(attempts), len(ranked), participants
 
-    async def list_catalog(self, student_username: Optional[str] = None) -> List[ChallengeCatalogItem]:
-        rows = await self._challenges.list_challenges()
-        out: List[ChallengeCatalogItem] = []
+    PREVIEW_PARTICIPANTS_LIMIT = 8
+
+    async def _participant_briefs_for_challenges(
+        self,
+        challenge_ids: List[str],
+        *,
+        limit_per: int = PREVIEW_PARTICIPANTS_LIMIT,
+    ) -> Dict[str, List[ChallengeParticipantBrief]]:
+        previews = await self._challenges.participant_previews_for_challenges(
+            challenge_ids, limit_per=limit_per
+        )
+        usernames: List[str] = []
+        for rows in previews.values():
+            for row in rows:
+                u = str(row.get("student_username", "")).strip()
+                if u:
+                    usernames.append(u)
+        profiles = await PublicProfileService().brief_for_usernames(
+            list(dict.fromkeys(usernames))
+        )
+        out: Dict[str, List[ChallengeParticipantBrief]] = {}
+        for cid in challenge_ids:
+            briefs: List[ChallengeParticipantBrief] = []
+            for row in previews.get(cid, []):
+                u = str(row.get("student_username", "")).strip()
+                if not u:
+                    continue
+                meta = profiles.get(u, {"profile_slug": u, "display_name": u})
+                briefs.append(
+                    ChallengeParticipantBrief(
+                        profile_slug=meta["profile_slug"],
+                        display_name=meta["display_name"],
+                        completed=bool(row.get("completed")),
+                    )
+                )
+            out[cid] = briefs
+        return out
+
+    async def list_challenge_participants(
+        self,
+        challenge_id: str,
+        *,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> ChallengeParticipantsPage:
+        got = await self._challenges.get_challenge(challenge_id)
+        if not got:
+            raise ValueError("Challenge not found")
+        page = max(1, int(page))
+        page_size = max(1, min(100, int(page_size)))
+        skip = (page - 1) * page_size
+        rows, total = await self._challenges.list_attempt_usernames_paginated(
+            challenge_id, skip=skip, limit=page_size
+        )
+        total_pages = max(0, (total + page_size - 1) // page_size) if total else 0
+        usernames = [str(r.get("student_username", "")).strip() for r in rows if r.get("student_username")]
+        profiles = await PublicProfileService().brief_for_usernames(usernames)
+        participants: List[ChallengeParticipantBrief] = []
+        for row in rows:
+            u = str(row.get("student_username", "")).strip()
+            if not u:
+                continue
+            meta = profiles.get(u, {"profile_slug": u, "display_name": u})
+            participants.append(
+                ChallengeParticipantBrief(
+                    profile_slug=meta["profile_slug"],
+                    display_name=meta["display_name"],
+                    completed=row.get("status") in ("completed", "ended_early"),
+                )
+            )
+        return ChallengeParticipantsPage(
+            challenge_id=challenge_id,
+            participants=participants,
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+        )
+
+    async def list_catalog(
+        self,
+        student_username: Optional[str] = None,
+        *,
+        page: int = 1,
+        page_size: int = 3,
+    ) -> ChallengeCatalogPage:
+        """Paginated catalog (newest challenge first) with batched DB reads."""
+        page = max(1, int(page))
+        page_size = max(1, min(50, int(page_size)))
+        total = await self._challenges.count_challenges()
+        total_pages = max(0, (total + page_size - 1) // page_size) if total else 0
+        if total == 0:
+            return ChallengeCatalogPage(
+                items=[],
+                total=0,
+                page=page,
+                page_size=page_size,
+                total_pages=0,
+            )
+
+        skip = (page - 1) * page_size
+        rows = await self._challenges.list_challenges_by_created(skip, page_size)
         uname = student_username.strip() if student_username else None
+
+        cids = [oid_str(doc["_id"]) for doc in rows]
+        stats = await self._challenges.aggregate_attempt_counts(cids)
+        preview_limit = self.PREVIEW_PARTICIPANTS_LIMIT
+        participant_previews = await self._participant_briefs_for_challenges(
+            cids, limit_per=preview_limit
+        )
+        assigned_ids: set[str] = set()
+        attempts_by_cid: Dict[str, Dict[str, Any]] = {}
+        ranked_by_cid: Dict[str, List[Dict[str, Any]]] = {}
+        if uname:
+            assigned_ids = set(await self._challenges.list_assigned_challenge_ids(uname))
+            attempts_by_cid = await self._challenges.find_attempts_for_student_on_challenges(uname, cids)
+            completed_cids = [
+                cid
+                for cid, att in attempts_by_cid.items()
+                if att.get("status") in ("completed", "ended_early") and att.get("total_marks") is not None
+            ]
+            if completed_cids:
+                ranked_by_cid = await self._challenges.list_ranked_attempts_for_challenges(completed_cids)
+
+        out: List[ChallengeCatalogItem] = []
         for doc in rows:
             cid = oid_str(doc["_id"])
             status, until_launch, until_end = _window_status(doc["launch_at"], doc["end_at"])
-            has_access = False
-            has_started = False
-            completed = False
+            open_to_all = bool(doc.get("open_to_all", False))
+            has_access = open_to_all or (bool(uname) and cid in assigned_ids)
+            ca = attempts_by_cid.get(cid) if uname else None
+            has_started = ca is not None
+            completed = bool(
+                ca and ca.get("status") in ("completed", "ended_early")
+            )
             attempt_id: Optional[str] = None
+            if ca and ca.get("status") == "in_progress":
+                attempt_id = oid_str(ca["_id"])
+
+            st = stats.get(cid, {})
+            p_count = int(st.get("participants_count", 0))
+            ranked_count = int(st.get("ranked_count", 0))
+
             my_percentile: Optional[float] = None
-            if uname:
-                has_access = await self._student_has_access(doc, uname)
-                ca = await self._challenges.find_challenge_attempt(cid, uname)
-                if ca:
-                    has_started = True
-                    completed = ca.get("status") in ("completed", "ended_early")
-                    if ca.get("status") == "in_progress":
-                        attempt_id = oid_str(ca["_id"])
-            p_count, ranked_count, participants = await self._challenge_participants(cid)
-            if uname and completed:
-                ranked = await self._challenges.list_ranked_attempts_for_challenge(cid)
-                my_percentile = _percentile_among_ranked(uname, ranked)
+            my_final_percentile: Optional[float] = None
+            if uname and completed and ca and ca.get("total_marks") is not None:
+                ranked = ranked_by_cid.get(cid, [])
+                my_percentile, ranked_count = percentile_among_ranked_attempts(uname, ranked)
+                if status == "ended":
+                    my_final_percentile = my_percentile
+
             secs = _sorted_sections(doc)
             out.append(
                 ChallengeCatalogItem(
@@ -772,7 +873,7 @@ class ChallengeService:
                     is_adaptive=bool(doc.get("is_adaptive", True)),
                     launch_at=ensure_utc(doc["launch_at"]),
                     end_at=ensure_utc(doc["end_at"]),
-                    open_to_all=bool(doc.get("open_to_all", False)),
+                    open_to_all=open_to_all,
                     section_count=len(secs),
                     marks_per_correct=float(doc.get("marks_per_correct", 1)),
                     marks_per_incorrect=float(doc.get("marks_per_incorrect", 0)),
@@ -786,7 +887,16 @@ class ChallengeService:
                     participants_count=p_count,
                     ranked_count=ranked_count,
                     my_percentile=my_percentile,
-                    participants=participants,
+                    my_final_percentile=my_final_percentile,
+                    participants=participant_previews.get(cid, []),
+                    participants_preview_limit=preview_limit,
                 )
             )
-        return out
+
+        return ChallengeCatalogPage(
+            items=out,
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+        )

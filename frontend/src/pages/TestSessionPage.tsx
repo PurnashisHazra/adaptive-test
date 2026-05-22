@@ -718,7 +718,7 @@ export function TestSessionPage() {
             </div>
             <h2 className="test-exam-qno">Question No. {currentIndex}</h2>
             <p className="test-exam-stem">{currentQuestion.question_text}</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            <div className="test-exam-options">
               {isTita ? (
                 <input
                   type="text"
@@ -760,6 +760,38 @@ export function TestSessionPage() {
                 ))
               )}
             </div>
+
+            <div className="test-exam-question-actions" aria-label="Question actions">
+              <button
+                type="button"
+                className="test-exam-footer__btn test-exam-footer__btn--primary"
+                onClick={onSubmit}
+                disabled={
+                  submitting || !canSubmit || loadingIndex != null || sectionTimingOut || (isTita ? !selected?.trim() : selected == null)
+                }
+              >
+                {submitting ? "Checking…" : "Save & next"}
+              </button>
+              <div className="test-exam-question-actions__row">
+                <button
+                  type="button"
+                  className="test-exam-footer__btn"
+                  onClick={onMarkReviewAndNext}
+                  disabled={loadingIndex != null || sectionTimingOut}
+                >
+                  Mark for review &amp; next
+                </button>
+                <button
+                  type="button"
+                  className="test-exam-footer__btn"
+                  onClick={onClearResponse}
+                  disabled={!canSubmit || loadingIndex != null || sectionTimingOut}
+                >
+                  Clear response
+                </button>
+              </div>
+            </div>
+
             {!canSubmit ? (
               <p className="test-exam-review-note">You are reviewing a submitted answer. Only the active question can be changed.</p>
             ) : null}
@@ -825,7 +857,7 @@ export function TestSessionPage() {
         </aside>
       </div>
 
-      <footer className="test-exam-footer">
+      <footer className="test-exam-footer test-exam-footer--desktop">
         <div className="test-exam-footer__left">
           <button type="button" className="test-exam-footer__btn" onClick={onMarkReviewAndNext} disabled={loadingIndex != null || sectionTimingOut}>
             Mark for review &amp; next

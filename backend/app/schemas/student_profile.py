@@ -10,7 +10,11 @@ class StudentProfileBase(BaseModel):
         default=None,
         ge=0,
         le=10_000,
-        description="Max standalone practice tests; null = unlimited.",
+        description="Max standalone practice tests started; null uses platform default (1).",
+    )
+    practice_attempts_unlimited: bool = Field(
+        default=False,
+        description="When true, student may start unlimited standalone practice tests.",
     )
     allowed_exam_tags: List[str] = Field(default_factory=list)
     blocked: bool = False
@@ -32,6 +36,7 @@ class StudentProfileListItem(BaseModel):
     display_name: Optional[str] = None
     blocked: bool = False
     practice_attempts_allowance: Optional[int] = None
+    practice_attempts_unlimited: bool = False
     practice_attempts_used: int = 0
     allowed_exam_tags: List[str] = Field(default_factory=list)
     assigned_paper_count: int = 0
@@ -44,7 +49,10 @@ class StudentSessionControls(BaseModel):
     blocked: bool = False
     block_reason: Optional[str] = None
     practice_attempts_allowance: Optional[int] = None
+    practice_attempts_unlimited: bool = False
     practice_attempts_used: int = 0
     practice_attempts_remaining: Optional[int] = None
     allowed_exam_tags: List[str] = Field(default_factory=list)
     can_start_practice_test: bool = True
+    has_pending_practice_request: bool = False
+    can_request_more_attempts: bool = False

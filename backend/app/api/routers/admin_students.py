@@ -2,6 +2,8 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.schemas.practice_attempt_request import PracticeAttemptRequestAdminItem, PracticeAttemptRequestOut
+
 from app.api.deps_auth import require_admin
 from app.schemas.admin_student_report import (
     AdminStudentReportCardDetail,
@@ -10,6 +12,7 @@ from app.schemas.admin_student_report import (
 )
 from app.schemas.student_profile import StudentProfileAdminView, StudentProfileListItem, StudentProfileUpdate
 from app.services.admin_student_report_service import AdminStudentReportService
+from app.services.practice_attempt_request_service import PracticeAttemptRequestService
 from app.services.student_profile_service import StudentProfileService
 
 router = APIRouter(prefix="/admin/students", tags=["admin-students"])
@@ -70,6 +73,35 @@ async def get_student_report_pdf_bundle(
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.get("/practice-attempt-requests", response_model=List[PracticeAttemptRequestAdminItem])
+async def list_practice_attempt_requests(
+    claims: dict = Depends(require_admin),
+) -> List[PracticeAttemptRequestAdminItem]:
+    return await PracticeAttemptRequestService().list_pending_admin(str(claims.get("sub", "")))
+
+
+@router.post("/practice-attempt-requests/{request_id}/approve", response_model=PracticeAttemptRequestOut)
+async def approve_practice_attempt_request(
+    request_id: str,
+    claims: dict = Depends(require_admin),
+) -> PracticeAttemptRequestOut:
+    try:
+        return await PracticeAttemptRequestService().approve(str(claims.get("sub", "")), request_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/practice-attempt-requests/{request_id}/deny", response_model=PracticeAttemptRequestOut)
+async def deny_practice_attempt_request(
+    request_id: str,
+    claims: dict = Depends(require_admin),
+) -> PracticeAttemptRequestOut:
+    try:
+        return await PracticeAttemptRequestService().deny(str(claims.get("sub", "")), request_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.get("/{username}", response_model=StudentProfileAdminView)

@@ -2,6 +2,7 @@ from typing import Any, Dict, List, Optional
 
 from app.repositories.attempt_repository import AttemptRepository
 from app.repositories.paper_repository import PaperRepository
+from app.repositories.practice_attempt_request_repository import PracticeAttemptRequestRepository
 from app.repositories.question_repository import QuestionRepository
 from app.repositories.student_profile_repository import StudentProfileRepository
 from app.repositories.user_repository import UserRepository
@@ -13,6 +14,8 @@ from app.schemas.student_profile import (
 )
 from app.utils.ids import oid_str
 
+DEFAULT_PRACTICE_ATTEMPTS_ALLOWANCE = 1
+
 
 class StudentProfileService:
     def __init__(self) -> None:
@@ -21,18 +24,30 @@ class StudentProfileService:
         self._papers = PaperRepository()
         self._attempts = AttemptRepository()
         self._questions = QuestionRepository()
+        self._practice_requests = PracticeAttemptRequestRepository()
 
     async def ensure_indexes(self) -> None:
         await self._profiles.ensure_indexes()
+        await self._practice_requests.ensure_indexes()
 
     def _defaults(self, username: str) -> Dict[str, Any]:
         return {
             "student_username": username.strip(),
             "display_name": None,
-            "practice_attempts_allowance": None,
+            "practice_attempts_allowance": DEFAULT_PRACTICE_ATTEMPTS_ALLOWANCE,
+            "practice_attempts_unlimited": False,
             "allowed_exam_tags": [],
             "blocked": False,
         }
+
+    def _effective_allowance(self, doc: Dict[str, Any]) -> Optional[int]:
+        """None means unlimited; otherwise capped attempt count."""
+        if bool(doc.get("practice_attempts_unlimited")):
+            return None
+        raw = doc.get("practice_attempts_allowance")
+        if raw is None:
+            return DEFAULT_PRACTICE_ATTEMPTS_ALLOWANCE
+        return int(raw)
 
     async def get_or_create_doc(self, student_username: str) -> Dict[str, Any]:
         uname = student_username.strip()
@@ -52,31 +67,47 @@ class StudentProfileService:
         doc = await self.get_or_create_doc(student_username)
         uname = student_username.strip()
         used = await self._attempts_used(uname)
-        allowance = doc.get("practice_attempts_allowance")
+        allowance = self._effective_allowance(doc)
+        unlimited = bool(doc.get("practice_attempts_unlimited"))
         blocked = bool(doc.get("blocked"))
+        pending = await self._practice_requests.find_pending_for_student(uname)
+        has_pending = pending is not None
         remaining: Optional[int] = None
         can_start = True
         block_reason: Optional[str] = None
+        exhausted = False
 
         if blocked:
             can_start = False
             block_reason = "Your account has been blocked from AdapTest. Contact your instructor."
+        elif has_pending:
+            can_start = False
+            block_reason = "Your request for more practice attempts is pending instructor approval."
         elif allowance is not None:
             remaining = max(0, int(allowance) - used)
             if remaining <= 0:
                 can_start = False
-                block_reason = f"You have used all {int(allowance)} practice test attempts allowed."
+                exhausted = True
+                block_reason = (
+                    f"You have used all {int(allowance)} practice test attempt"
+                    f"{'' if allowance == 1 else 's'} allowed."
+                )
+
+        can_request = not blocked and exhausted and not has_pending and not unlimited
 
         return StudentSessionControls(
             student_username=uname,
             display_name=self._display_name(doc, uname),
             blocked=blocked,
             block_reason=block_reason,
-            practice_attempts_allowance=int(allowance) if allowance is not None else None,
+            practice_attempts_allowance=allowance,
+            practice_attempts_unlimited=unlimited,
             practice_attempts_used=used,
             practice_attempts_remaining=remaining,
             allowed_exam_tags=list(doc.get("allowed_exam_tags") or []),
             can_start_practice_test=can_start,
+            has_pending_practice_request=has_pending,
+            can_request_more_attempts=can_request,
         )
 
     async def assert_not_blocked(self, student_username: str) -> None:
@@ -135,7 +166,8 @@ class StudentProfileService:
                     student_username=uname,
                     display_name=doc.get("display_name"),
                     blocked=bool(doc.get("blocked")),
-                    practice_attempts_allowance=doc.get("practice_attempts_allowance"),
+                    practice_attempts_allowance=self._effective_allowance(doc),
+                    practice_attempts_unlimited=bool(doc.get("practice_attempts_unlimited")),
                     practice_attempts_used=used,
                     allowed_exam_tags=list(doc.get("allowed_exam_tags") or []),
                     assigned_paper_count=len(assigns),
@@ -160,6 +192,7 @@ class StudentProfileService:
             student_username=uname,
             display_name=doc.get("display_name"),
             practice_attempts_allowance=doc.get("practice_attempts_allowance"),
+            practice_attempts_unlimited=bool(doc.get("practice_attempts_unlimited")),
             allowed_exam_tags=list(doc.get("allowed_exam_tags") or []),
             blocked=bool(doc.get("blocked")),
             assigned_paper_ids=[str(a["paper_id"]) for a in assigns],
@@ -179,15 +212,19 @@ class StudentProfileService:
             raise ValueError("Student not found")
 
         dn = (body.display_name or "").strip() or None
-        await self._profiles.upsert(
-            uname,
-            {
-                "display_name": dn,
-                "practice_attempts_allowance": body.practice_attempts_allowance,
-                "allowed_exam_tags": body.allowed_exam_tags,
-                "blocked": body.blocked,
-            },
-        )
+        patch: Dict[str, Any] = {
+            "display_name": dn,
+            "allowed_exam_tags": body.allowed_exam_tags,
+            "blocked": body.blocked,
+            "practice_attempts_unlimited": body.practice_attempts_unlimited,
+        }
+        if body.practice_attempts_unlimited:
+            patch["practice_attempts_allowance"] = None
+        elif body.practice_attempts_allowance is not None:
+            patch["practice_attempts_allowance"] = int(body.practice_attempts_allowance)
+        else:
+            patch["practice_attempts_allowance"] = DEFAULT_PRACTICE_ATTEMPTS_ALLOWANCE
+        await self._profiles.upsert(uname, patch)
         await self._papers.sync_assignments_for_student(uname, body.assigned_paper_ids)
         return await self.get_admin_view(uname, admin_username)
 

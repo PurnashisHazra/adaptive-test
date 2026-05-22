@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import App from "./App";
 import "./styles/global.css";
+import "./styles/responsive.css";
 
 console.log("Developed by Purnashis Hazra, Github: github.com/lobrockyl");
 

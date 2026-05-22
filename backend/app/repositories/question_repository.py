@@ -72,6 +72,23 @@ class QuestionRepository:
         doc = await self._col.find_one({"_id": ObjectId(qid)})
         return doc
 
+    async def list_by_ids(self, question_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        oids: List[ObjectId] = []
+        for qid in question_ids:
+            qid = str(qid).strip()
+            if not qid:
+                continue
+            try:
+                oids.append(ObjectId(qid))
+            except Exception:
+                continue
+        if not oids:
+            return {}
+        out: Dict[str, Dict[str, Any]] = {}
+        async for doc in self._col.find({"_id": {"$in": oids}}):
+            out[oid_str(doc["_id"])] = doc
+        return out
+
     async def count(self, query: Optional[Dict[str, Any]] = None) -> int:
         return await self._col.count_documents(query or {})
 

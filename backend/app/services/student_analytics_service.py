@@ -16,6 +16,7 @@ from app.schemas.student_analytics import (
     StudentAttemptAccuracyImprovementResponse,
     StudentAttemptTimeStrategyResponse,
     StudentCoachPlanBundle,
+    StudentDifficultyLevelStat,
     StudentLearningTrendsResponse,
     StudentOverallAnalytics,
     StudentOverallAttemptPoint,
@@ -29,6 +30,8 @@ from app.schemas.student_analytics import (
     StudentPaperSectionReview,
     StudentQuestionOptionOut,
     StudentQuestionReview,
+    StudentQuestionReviewPage,
+    StudentSessionsPage,
     StudentStrategyAdvice,
     StudentInsightArea,
     StudentSessionSummary,
@@ -69,6 +72,39 @@ def _attempt_id_str(x: Any) -> str:
     if isinstance(x, ObjectId):
         return str(x)
     return str(x)
+
+
+_DIFFICULTY_LEVELS = ("EASY", "MEDIUM", "HARD", "EXPERT")
+
+
+def _difficulty_stats_from_reviews(reviews: List[StudentQuestionReview]) -> List[StudentDifficultyLevelStat]:
+    buckets: Dict[str, Dict[str, Any]] = {
+        level: {"total": 0, "correct": 0, "times": []} for level in _DIFFICULTY_LEVELS
+    }
+    for r in reviews:
+        raw = (r.difficulty_when_served or "").upper()
+        if raw not in buckets:
+            continue
+        buckets[raw]["total"] += 1
+        if r.is_correct:
+            buckets[raw]["correct"] += 1
+        if r.time_spent_seconds is not None and int(r.time_spent_seconds) >= 0:
+            buckets[raw]["times"].append(int(r.time_spent_seconds))
+    out: List[StudentDifficultyLevelStat] = []
+    for level in _DIFFICULTY_LEVELS:
+        b = buckets[level]
+        avg = sum(b["times"]) / len(b["times"]) if b["times"] else None
+        rate = (b["correct"] / b["total"] * 100.0) if b["total"] else None
+        out.append(
+            StudentDifficultyLevelStat(
+                level=level,
+                total=b["total"],
+                correct=b["correct"],
+                correct_rate=round(rate, 2) if rate is not None else None,
+                avg_time_seconds=round(avg, 2) if avg is not None else None,
+            )
+        )
+    return out
 
 
 class StudentAnalyticsService:
@@ -314,13 +350,19 @@ class StudentAnalyticsService:
         )
 
     async def _reviews_from_answers(
-        self, answers: List[Dict[str, Any]], answer_attempt_id: str
+        self,
+        answers: List[Dict[str, Any]],
+        answer_attempt_id: str,
+        *,
+        index_offset: int = 0,
     ) -> List[StudentQuestionReview]:
+        qids = [str(a.get("question_id", "")).strip() for a in answers if str(a.get("question_id", "")).strip()]
+        qmap = await self._questions.list_by_ids(qids)
         out: List[StudentQuestionReview] = []
-        for i, a in enumerate(answers, start=1):
+        for i, a in enumerate(answers, start=index_offset + 1):
             qid = str(a.get("question_id", ""))
             chosen = str(a.get("chosen_answer", ""))
-            qdoc = await self._questions.get_by_id(qid) if qid else None
+            qdoc = qmap.get(qid.strip()) if qid else None
             diff_served = self._difficulty_served(a, qdoc)
             if not qdoc:
                 out.append(
@@ -373,12 +415,17 @@ class StudentAnalyticsService:
             )
         return out
 
-    async def list_sessions(self, username: str) -> List[StudentSessionSummary]:
+    async def _build_all_session_summaries(self, username: str) -> List[StudentSessionSummary]:
         uname = username.strip()
         items: List[StudentSessionSummary] = []
 
-        for pa in await self._papers.list_paper_attempts_for_student(uname):
-            pdoc = await self._papers.get_paper(pa["paper_id"])
+        paper_attempts = await self._papers.list_paper_attempts_for_student(uname)
+        paper_ids = list({str(pa["paper_id"]) for pa in paper_attempts})
+        papers_by_id = await self._papers.get_papers_by_ids(paper_ids)
+
+        for pa in paper_attempts:
+            pid = str(pa["paper_id"])
+            pdoc = papers_by_id.get(pid)
             title = str(pdoc["title"]) if pdoc else "Question paper"
             st = str(pa.get("status", ""))
             sub_parts: List[str] = [st.replace("_", " ").title()]
@@ -429,6 +476,32 @@ class StudentAnalyticsService:
         items.sort(key=lambda x: x.started_at, reverse=True)
         return items
 
+    async def list_sessions(self, username: str) -> List[StudentSessionSummary]:
+        return await self._build_all_session_summaries(username)
+
+    async def list_sessions_page(
+        self,
+        username: str,
+        page: int = 1,
+        page_size: int = 15,
+        session_type: Optional[Literal["standalone", "paper"]] = None,
+    ) -> StudentSessionsPage:
+        items = await self._build_all_session_summaries(username)
+        if session_type:
+            items = [s for s in items if s.session_type == session_type]
+        total = len(items)
+        page_size = max(1, min(50, page_size))
+        total_pages = max(1, (total + page_size - 1) // page_size) if total else 1
+        page = max(1, min(page, total_pages))
+        start = (page - 1) * page_size
+        return StudentSessionsPage(
+            items=items[start : start + page_size],
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+        )
+
     async def standalone_detail(self, username: str, attempt_id: str) -> StudentStandaloneDetail:
         att = await self._attempts.get(attempt_id)
         if not att or not self._owns_test_attempt(att, username):
@@ -457,6 +530,20 @@ class StudentAnalyticsService:
             hint_parts = [x for x in (subj, top) if x]
             title = "Adaptive test" + (f" ({' · '.join(str(x) for x in hint_parts)})" if hint_parts else "")
 
+        cohort_pct: Optional[float] = None
+        cohort_n = 0
+        if pct is not None and str(att.get("status", "")) == "completed" and not pa_id:
+            from app.services.cohort_percentile_service import CohortPercentileService
+
+            cohort_meta = await CohortPercentileService().for_standalone(
+                subject=str(subj) if subj else None,
+                topic=str(top) if top else None,
+                exam_tag=str(att.get("exam_tag_filter") or "") or None,
+                percentage=float(pct),
+            )
+            cohort_pct = cohort_meta.get("cohort_percentile")
+            cohort_n = int(cohort_meta.get("cohort_ranked_count") or 0)
+
         return StudentStandaloneDetail(
             attempt_id=oid_str(att["_id"]),
             title=title,
@@ -469,11 +556,20 @@ class StudentAnalyticsService:
             total_questions=int(att.get("total_questions", total)),
             percentage=pct,
             ended_early=ended_early,
+            cohort_percentile=cohort_pct,
+            cohort_ranked_count=cohort_n,
+            percentile_is_final=False,
             questions=reviews,
             insights=self._build_performance_insights(reviews, ended_early=ended_early),
         )
 
-    async def paper_detail(self, username: str, paper_attempt_id: str) -> StudentPaperDetail:
+    async def paper_detail(
+        self,
+        username: str,
+        paper_attempt_id: str,
+        *,
+        include_questions: bool = False,
+    ) -> StudentPaperDetail:
         pa = await self._papers.get_paper_attempt(paper_attempt_id)
         if not pa or not self._owns_paper_attempt(pa, username):
             raise ValueError("Not found")
@@ -510,7 +606,8 @@ class StudentAnalyticsService:
                     section_title=sec_title,
                     attempt_id=aid_s,
                     status=str(att.get("status", "")),
-                    questions=reviews,
+                    questions=reviews if include_questions else [],
+                    question_count=len(reviews),
                 )
             )
 
@@ -520,14 +617,14 @@ class StudentAnalyticsService:
         self._apply_peer_stats(all_reviews, rows)
         self._apply_question_insight_capsules(all_reviews)
 
-        cohort_docs = await self._papers.list_scored_attempts_for_paper(str(pa["paper_id"]))
-        cohort_marks = [float(d["total_marks"]) for d in cohort_docs if d.get("total_marks") is not None]
-        cohort_n = len(cohort_marks)
-        better_pct: Optional[float] = None
-        if total_marks is not None and cohort_n > 1:
-            ym = float(total_marks)
-            below = sum(1 for m in cohort_marks if m < ym - 1e-9)
-            better_pct = round(100.0 * below / cohort_n, 1)
+        cohort_pct: Optional[float] = None
+        cohort_n = 0
+        if total_marks is not None:
+            from app.services.cohort_percentile_service import CohortPercentileService
+
+            cohort_meta = await CohortPercentileService().for_paper(str(pa["paper_id"]), float(total_marks))
+            cohort_pct = cohort_meta.get("cohort_percentile")
+            cohort_n = int(cohort_meta.get("cohort_ranked_count") or 0)
 
         return StudentPaperDetail(
             paper_attempt_id=oid_str(pa["_id"]),
@@ -541,9 +638,52 @@ class StudentAnalyticsService:
             percentage=pct,
             ended_early=ended_early,
             cohort_scored_attempt_count=cohort_n,
-            your_score_better_than_percent=better_pct,
+            your_score_better_than_percent=cohort_pct,
+            cohort_percentile=cohort_pct,
+            cohort_ranked_count=cohort_n,
+            percentile_is_final=False,
             sections=sections_out,
             insights=self._build_performance_insights(all_reviews, ended_early=ended_early),
+            difficulty_stats=_difficulty_stats_from_reviews(all_reviews),
+        )
+
+    async def paper_section_questions_page(
+        self,
+        username: str,
+        paper_attempt_id: str,
+        section_attempt_id: str,
+        page: int = 1,
+        page_size: int = 8,
+    ) -> StudentQuestionReviewPage:
+        pa = await self._papers.get_paper_attempt(paper_attempt_id)
+        if not pa or not self._owns_paper_attempt(pa, username):
+            raise ValueError("Not found")
+        pa_id = oid_str(pa["_id"])
+        att = await self._attempts.get(section_attempt_id)
+        if not att or not self._owns_test_attempt(att, username):
+            raise ValueError("Not found")
+        if str(att.get("paper_attempt_id") or "").strip() != pa_id:
+            raise ValueError("Not found")
+
+        answers = list(att.get("answers") or [])
+        total = len(answers)
+        page_size = max(1, min(30, page_size))
+        total_pages = max(1, (total + page_size - 1) // page_size) if total else 1
+        page = max(1, min(page, total_pages))
+        start = (page - 1) * page_size
+        slice_answers = answers[start : start + page_size]
+        reviews = await self._reviews_from_answers(slice_answers, section_attempt_id, index_offset=start)
+        qids = [r.question_id for r in reviews if r.question_id != "unknown"]
+        rows = await self._attempts.list_answer_slices_for_questions(qids)
+        self._apply_peer_stats(reviews, rows)
+        self._apply_question_insight_capsules(reviews)
+
+        return StudentQuestionReviewPage(
+            questions=reviews,
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
         )
 
     @staticmethod

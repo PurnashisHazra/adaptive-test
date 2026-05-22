@@ -2,10 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps_auth import require_student, require_student_with_admin_code
 from app.schemas.student_account import StudentAccountOut, StudentAccountUpdate
+from app.schemas.practice_attempt_request import PracticeAttemptRequestCreate, PracticeAttemptRequestOut
 from app.schemas.student_profile import StudentSessionControls
 from app.schemas.public_profile import PublicProfileOut, PublicProfileUpdate
 from app.services.public_profile_service import PublicProfileService
 from app.services.student_account_service import StudentAccountService
+from app.services.practice_attempt_request_service import PracticeAttemptRequestService
 from app.services.student_profile_service import StudentProfileService
 
 router = APIRouter(prefix="/me", tags=["student-me"])
@@ -50,3 +52,14 @@ async def update_my_public_profile(
 async def get_my_session_controls(claims: dict = Depends(require_student_with_admin_code)) -> StudentSessionControls:
     username = str(claims.get("sub", "")).strip()
     return await StudentProfileService().get_session_controls(username)
+
+
+@router.post("/practice-attempt-requests", response_model=PracticeAttemptRequestOut)
+async def request_more_practice_attempts(
+    body: PracticeAttemptRequestCreate,
+    claims: dict = Depends(require_student_with_admin_code),
+) -> PracticeAttemptRequestOut:
+    try:
+        return await PracticeAttemptRequestService().create_request(str(claims.get("sub", "")), body)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e

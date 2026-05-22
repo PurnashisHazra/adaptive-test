@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
+import { AdaptiveTestPitch } from "../components/AdaptiveTestPitch";
+import { ChallengeParticipants } from "../components/ChallengeParticipants";
+import { CohortPercentileBanner } from "../components/CohortPercentileBanner";
 import { listChallengeCatalog, resumeChallenge, startChallenge } from "../api/client";
 import { parseUtcInstant } from "../lib/istTime";
 import type { ChallengeCatalogItem, ChallengeStatus } from "../api/types";
@@ -40,6 +43,114 @@ function countdownSeconds(item: ChallengeCatalogItem, nowMs: number): number | n
   return null;
 }
 
+/** Page numbers to render, with "gap" for ellipsis. */
+function buildPageList(current: number, total: number): Array<number | "gap"> {
+  if (total <= 1) return total === 1 ? [1] : [];
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages = new Set<number>([1, total, current, current - 1, current + 1]);
+  const sorted = [...pages].filter((p) => p >= 1 && p <= total).sort((a, b) => a - b);
+  const out: Array<number | "gap"> = [];
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && sorted[i] - sorted[i - 1] > 1) out.push("gap");
+    out.push(sorted[i]);
+  }
+  return out;
+}
+
+function ChallengeCatalogPagination({
+  page,
+  totalPages,
+  total,
+  loading,
+  onPageChange,
+}: {
+  page: number;
+  totalPages: number;
+  total: number;
+  loading: boolean;
+  onPageChange: (page: number) => void;
+}) {
+  const pageList = useMemo(() => buildPageList(page, totalPages), [page, totalPages]);
+
+  const navStyle: CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexWrap: "wrap",
+    gap: "0.5rem",
+    marginTop: "1.5rem",
+    paddingTop: "1rem",
+    borderTop: "1px solid var(--border)",
+  };
+
+  const pageBtn = (active: boolean): CSSProperties => ({
+    minWidth: 40,
+    padding: "0.45rem 0.65rem",
+    borderRadius: 8,
+    border: active ? "2px solid var(--primary)" : "1px solid var(--border)",
+    background: active ? "rgba(99, 102, 241, 0.12)" : "var(--surface)",
+    color: active ? "var(--primary-dark)" : "inherit",
+    fontWeight: active ? 700 : 500,
+    fontVariantNumeric: "tabular-nums",
+    cursor: loading ? "wait" : "pointer",
+  });
+
+  if (totalPages < 1) return null;
+
+  return (
+    <nav style={navStyle} aria-label="Challenge pages">
+      <button
+        type="button"
+        className="btn btn-ghost"
+        disabled={loading || page <= 1}
+        onClick={() => onPageChange(page - 1)}
+        aria-label="Previous page (newer challenges)"
+      >
+        Previous
+      </button>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", flexWrap: "wrap", justifyContent: "center" }}>
+        {pageList.map((p, i) =>
+          p === "gap" ? (
+            <span key={`gap-${i}`} style={{ padding: "0 0.25rem", color: "var(--muted)" }} aria-hidden>
+              …
+            </span>
+          ) : (
+            <button
+              key={p}
+              type="button"
+              style={pageBtn(p === page)}
+              disabled={loading}
+              aria-label={`Page ${p}`}
+              aria-current={p === page ? "page" : undefined}
+              onClick={() => onPageChange(p)}
+            >
+              {p}
+            </button>
+          )
+        )}
+      </div>
+      <button
+        type="button"
+        className="btn btn-ghost"
+        disabled={loading || page >= totalPages}
+        onClick={() => onPageChange(page + 1)}
+        aria-label="Next page (older challenges)"
+      >
+        Next
+      </button>
+      <p style={{ width: "100%", textAlign: "center", margin: "0.35rem 0 0", fontSize: "0.875rem", color: "var(--muted)" }}>
+        Page <strong>{page}</strong> of <strong>{totalPages}</strong>
+        {total > 0 ? (
+          <>
+            {" "}
+            · {total} challenge{total === 1 ? "" : "s"} · newest first
+          </>
+        ) : null}
+      </p>
+    </nav>
+  );
+}
+
 function ChallengeCard({
   item,
   nowMs,
@@ -62,9 +173,9 @@ function ChallengeCard({
   const canContinue = signedIn && status === "live" && item.has_access && Boolean(item.challenge_attempt_id);
 
   return (
-    <div className="card" style={{ margin: 0, display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap", alignItems: "flex-start" }}>
-        <div style={{ flex: 1, minWidth: 200 }}>
+    <div className="card challenge-card" style={{ margin: 0, display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+      <div className="challenge-card__row">
+        <div className="challenge-card__body">
           <h3 style={{ margin: "0 0 0.35rem" }}>{item.title}</h3>
           <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
             <span className="badge">{item.level}</span>
@@ -80,34 +191,33 @@ function ChallengeCard({
           <p style={{ margin: "0.5rem 0 0", fontSize: "0.85rem", color: "var(--muted)" }}>
             {item.section_count} section{item.section_count === 1 ? "" : "s"} · +{item.marks_per_correct} / −{item.marks_per_incorrect}
             {item.participants_count > 0 ? (
-              <> · {item.participants_count} attempted</>
+              <> · {item.participants_count} participants</>
             ) : null}
           </p>
-          {item.my_percentile != null && item.ranked_count > 0 ? (
-            <p style={{ margin: "0.35rem 0 0", fontSize: "0.9rem", fontWeight: 600 }}>
-              Your score: {item.my_percentile}th percentile among {item.ranked_count} student
-              {item.ranked_count === 1 ? "" : "s"}
-            </p>
-          ) : null}
-          {item.participants.length > 0 ? (
+          {item.completed ? (
             <div style={{ marginTop: "0.65rem" }}>
-              <p style={{ margin: "0 0 0.35rem", fontSize: "0.8rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                Attempted by
-              </p>
-              <p style={{ margin: 0, fontSize: "0.9rem", lineHeight: 1.65 }}>
-                {item.participants.map((p, i) => (
-                  <span key={`${item.challenge_id}-${p.profile_slug}`}>
-                    {i > 0 ? ", " : null}
-                    <Link to={`/u/${encodeURIComponent(p.profile_slug)}`}>{p.display_name}</Link>
-                    {!p.completed ? <span style={{ color: "var(--muted)" }}> (in progress)</span> : null}
-                  </span>
-                ))}
-              </p>
+              <CohortPercentileBanner
+                data={{
+                  cohort_percentile:
+                    status === "ended" && item.my_final_percentile != null
+                      ? item.my_final_percentile
+                      : item.my_percentile,
+                  cohort_ranked_count: item.ranked_count,
+                  percentile_is_final: status === "ended",
+                }}
+                label={status === "ended" ? "Final overall percentile" : "Live overall percentile"}
+              />
             </div>
           ) : null}
+          <ChallengeParticipants
+            challengeId={item.challenge_id}
+            preview={item.participants}
+            totalCount={item.participants_count}
+            previewLimit={item.participants_preview_limit ?? 8}
+          />
         </div>
         {countdownSec != null ? (
-          <div style={{ textAlign: "right", minWidth: 120 }}>
+          <div className="challenge-card__countdown">
             <div style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
               {statusLabel(status)}
             </div>
@@ -150,44 +260,45 @@ function ChallengeCard({
   );
 }
 
-export function ChallengesHomePage() {
+export function ChallengesHomePage({ hideAdaptivePitch = false }: { hideAdaptivePitch?: boolean }) {
   const nav = useNavigate();
   const role = useAuthStore((s) => s.role);
   const session = useAuthStore((s) => s.session);
   const hydratePaperStart = useTestSession((s) => s.hydratePaperStart);
   const reset = useTestSession((s) => s.reset);
 
+  const PAGE_SIZE = 3;
   const [items, setItems] = useState<ChallengeCatalogItem[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   const signedIn = role === "student" && Boolean(session?.username);
 
-  const load = useCallback(() => {
-    listChallengeCatalog()
-      .then(setItems)
+  const load = useCallback((targetPage: number) => {
+    setLoading(true);
+    listChallengeCatalog(targetPage, PAGE_SIZE)
+      .then((res) => {
+        setItems(res.items);
+        setPage(res.page);
+        setTotalPages(res.total_pages);
+        setTotal(res.total);
+      })
       .catch(() => toast.error("Could not load challenges"))
       .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    load(page);
+  }, [page, load]);
 
   useEffect(() => {
     const id = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
-
-  const sorted = useMemo(() => {
-    const order: Record<ChallengeStatus, number> = { live: 0, upcoming: 1, ended: 2 };
-    return [...items].sort((a, b) => {
-      const d = order[liveStatus(a, nowMs)] - order[liveStatus(b, nowMs)];
-      if (d !== 0) return d;
-      return parseUtcInstant(a.launch_at).getTime() - parseUtcInstant(b.launch_at).getTime();
-    });
-  }, [items, nowMs]);
 
   async function onStart(challengeId: string) {
     if (!session?.username) {
@@ -233,11 +344,11 @@ export function ChallengesHomePage() {
 
   return (
     <div className="page">
-      <div style={{ maxWidth: 880, margin: "0 auto" }}>
+      <div className="content-inner">
         <div style={{ marginBottom: "1.5rem" }}>
           <h1 style={{ margin: "0 0 0.5rem" }}>Challenges</h1>
-          <p style={{ margin: 0, color: "var(--muted)", maxWidth: 560 }}>
-            Timed contests with scheduled launch and end windows — similar to coding platforms, built for adaptive tests.
+          <p className="text-measure" style={{ margin: 0, color: "var(--muted)" }}>
+            Timed contests announced weekly.
           </p>
           {signedIn ? (
             <p style={{ margin: "0.75rem 0 0", fontSize: "0.9rem" }}>
@@ -245,24 +356,36 @@ export function ChallengesHomePage() {
             </p>
           ) : null}
         </div>
+
+        {hideAdaptivePitch ? null : <AdaptiveTestPitch signedIn={signedIn} />}
+
         {loading ? (
           <p style={{ color: "var(--muted)" }}>Loading challenges…</p>
-        ) : sorted.length === 0 ? (
+        ) : items.length === 0 ? (
           <p className="empty">No challenges published yet.</p>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            {sorted.map((c) => (
-              <ChallengeCard
-                key={c.challenge_id}
-                item={c}
-                nowMs={nowMs}
-                starting={starting}
-                onStart={onStart}
-                onContinue={onContinue}
-                signedIn={signedIn}
-              />
-            ))}
-          </div>
+          <>
+            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              {items.map((c) => (
+                <ChallengeCard
+                  key={c.challenge_id}
+                  item={c}
+                  nowMs={nowMs}
+                  starting={starting}
+                  onStart={onStart}
+                  onContinue={onContinue}
+                  signedIn={signedIn}
+                />
+              ))}
+            </div>
+            <ChallengeCatalogPagination
+              page={page}
+              totalPages={Math.max(1, totalPages)}
+              total={total}
+              loading={loading}
+              onPageChange={(p) => setPage(Math.max(1, Math.min(Math.max(1, totalPages), p)))}
+            />
+          </>
         )}
       </div>
     </div>

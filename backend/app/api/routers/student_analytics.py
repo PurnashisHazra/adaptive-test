@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -11,7 +11,9 @@ from app.schemas.student_analytics import (
     StudentLearningTrendsResponse,
     StudentOverallAnalytics,
     StudentPaperDetail,
+    StudentQuestionReviewPage,
     StudentSessionSummary,
+    StudentSessionsPage,
     StudentStandaloneDetail,
 )
 from app.services.student_analytics_service import StudentAnalyticsService
@@ -42,12 +44,15 @@ async def my_coach_plan(
     )
 
 
-@router.get("/sessions", response_model=List[StudentSessionSummary])
+@router.get("/sessions", response_model=StudentSessionsPage)
 async def list_my_sessions(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(15, ge=1, le=50),
+    session_type: Optional[Literal["standalone", "paper"]] = Query(default=None),
     claims: dict = Depends(require_student),
     svc: StudentAnalyticsService = Depends(get_student_analytics_service),
-) -> List[StudentSessionSummary]:
-    return await svc.list_sessions(_me(claims))
+) -> StudentSessionsPage:
+    return await svc.list_sessions_page(_me(claims), page=page, page_size=page_size, session_type=session_type)
 
 
 @router.get("/overall", response_model=StudentOverallAnalytics)
@@ -131,10 +136,42 @@ async def my_attempt_accuracy_improvement(
 @router.get("/paper/{paper_attempt_id}", response_model=StudentPaperDetail)
 async def my_paper_detail(
     paper_attempt_id: str,
+    include_questions: bool = Query(
+        False,
+        description="When true, embeds all section questions (slow). Default loads summary only.",
+    ),
     claims: dict = Depends(require_student),
     svc: StudentAnalyticsService = Depends(get_student_analytics_service),
 ) -> StudentPaperDetail:
     try:
-        return await svc.paper_detail(_me(claims), paper_attempt_id)
+        return await svc.paper_detail(
+            _me(claims),
+            paper_attempt_id,
+            include_questions=include_questions,
+        )
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Not found") from None
+
+
+@router.get(
+    "/paper/{paper_attempt_id}/sections/{section_attempt_id}/questions",
+    response_model=StudentQuestionReviewPage,
+)
+async def my_paper_section_questions(
+    paper_attempt_id: str,
+    section_attempt_id: str,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(8, ge=1, le=30),
+    claims: dict = Depends(require_student),
+    svc: StudentAnalyticsService = Depends(get_student_analytics_service),
+) -> StudentQuestionReviewPage:
+    try:
+        return await svc.paper_section_questions_page(
+            _me(claims),
+            paper_attempt_id,
+            section_attempt_id,
+            page=page,
+            page_size=page_size,
+        )
     except ValueError:
         raise HTTPException(status_code=404, detail="Not found") from None

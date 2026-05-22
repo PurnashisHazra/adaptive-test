@@ -44,7 +44,7 @@ export function ChallengesPage() {
       }
     >
       <p style={{ color: "var(--muted)", maxWidth: 640, marginTop: 0 }}>
-        Timed contests with launch and end windows. Same section structure as question papers; optionally open to all students.
+        Timed contests announced weekly.
       </p>
       {loading ? (
         <p style={{ marginTop: "1rem", color: "var(--muted)" }}>Loading…</p>
