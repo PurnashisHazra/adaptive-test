@@ -2,6 +2,8 @@ import { useMemo, useState, type FormEvent } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useAuthStore } from "../store/authStore";
+import { Seo } from "../components/Seo";
+import { SEO_AUTH } from "../seo/pages";
 import type { Role } from "../api/types";
 
 function redirectForRole(role: Role, studentPath: string): string {
@@ -75,6 +77,7 @@ export function AuthPage() {
 
   return (
     <div className="page">
+      <Seo seo={SEO_AUTH} />
       <h1>{mode === "login" ? "Login" : "Sign up"}</h1>
       {session && (
         <p style={{ color: "var(--muted)", marginTop: "-0.5rem" }}>

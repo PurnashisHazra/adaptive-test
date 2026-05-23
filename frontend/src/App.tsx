@@ -32,12 +32,20 @@ import { RequireRole } from "./components/RequireRole";
 import { StudentProtectedRoute } from "./components/StudentProtectedRoute";
 import { SuperAdminLayout } from "./components/SuperAdminLayout";
 import { SuperAdminDashboardPage } from "./pages/admin/SuperAdminDashboardPage";
+import { CatMockTestPage } from "./pages/seo/CatMockTestPage";
+import { SscMockTestPage } from "./pages/seo/SscMockTestPage";
+import { BankExamMockTestPage } from "./pages/seo/BankExamMockTestPage";
+import { MockTestsHubPage } from "./pages/seo/MockTestsHubPage";
 
 export default function App() {
   return (
     <Routes>
       <Route element={<AppShell />}>
         <Route path="/" element={<HomePage />} />
+        <Route path="/mock-tests" element={<MockTestsHubPage />} />
+        <Route path="/cat-mock-test" element={<CatMockTestPage />} />
+        <Route path="/ssc-mock-test" element={<SscMockTestPage />} />
+        <Route path="/bank-exam-mock-test" element={<BankExamMockTestPage />} />
         <Route path="/auth" element={<AuthPage />} />
         <Route
           path="/profile"

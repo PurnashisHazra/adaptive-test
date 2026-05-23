@@ -2315,3 +2315,261 @@ table.data th {
   background: rgba(234, 88, 12, 0.12);
   color: #c2410c;
 }
+
+/* —— SEO landing & footer —— */
+.seo-home-hero {
+  margin-bottom: 1.25rem;
+  text-align: center;
+}
+
+.seo-home-hero__h1 {
+  font-size: clamp(1.35rem, 3.5vw, 1.85rem);
+  line-height: 1.25;
+  margin: 0 0 0.75rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.seo-home-hero__lead {
+  margin: 0 auto;
+  max-width: 42rem;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.seo-home-hero__lead a {
+  color: var(--accent, #0369a1);
+  font-weight: 600;
+}
+
+.seo-home-faq {
+  margin-top: 2rem;
+  padding-bottom: 1rem;
+}
+
+.seo-landing__inner {
+  padding-bottom: 1.5rem;
+}
+
+.seo-landing__breadcrumb {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 1rem;
+}
+
+.seo-landing__breadcrumb a {
+  color: var(--accent, #0369a1);
+  text-decoration: none;
+}
+
+.seo-landing__breadcrumb a:hover {
+  text-decoration: underline;
+}
+
+.seo-landing__hero {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.seo-landing__eyebrow {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 0.5rem;
+}
+
+.seo-landing__h1 {
+  font-size: clamp(1.5rem, 4vw, 2.1rem);
+  line-height: 1.2;
+  margin: 0 0 1rem;
+  font-weight: 700;
+}
+
+.seo-landing__intro {
+  max-width: 40rem;
+  margin: 0 auto 1.25rem;
+  font-size: 1.05rem;
+  line-height: 1.65;
+  color: var(--muted);
+}
+
+.seo-landing__cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.seo-landing__section {
+  margin-bottom: 2rem;
+  max-width: 48rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.seo-landing__h2 {
+  font-size: 1.2rem;
+  margin: 0 0 0.75rem;
+  font-weight: 700;
+}
+
+.seo-landing__p {
+  margin: 0 0 0.85rem;
+  line-height: 1.65;
+  color: var(--text);
+}
+
+.seo-landing__list {
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
+  line-height: 1.65;
+}
+
+.seo-landing__faq-list {
+  margin: 0;
+}
+
+.seo-landing__faq-item {
+  margin-bottom: 1.25rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+}
+
+.seo-landing__faq-item:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.seo-landing__faq-item dt {
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+}
+
+.seo-landing__faq-item dd {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.seo-landing__related {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+}
+
+.seo-landing__related a {
+  font-weight: 600;
+  color: var(--accent, #0369a1);
+}
+
+.seo-hub__grid {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.seo-hub__card {
+  display: block;
+  padding: 1.25rem;
+  text-decoration: none;
+  color: inherit;
+  height: 100%;
+}
+
+.seo-hub__card h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.seo-hub__card p {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.seo-hub__keywords {
+  font-size: 0.8rem;
+  color: var(--muted);
+  opacity: 0.85;
+}
+
+.seo-footer {
+  margin-top: 2.5rem;
+  padding: 2rem 0 1.5rem;
+  border-top: 1px solid var(--border, #e2e8f0);
+  background: rgba(248, 250, 252, 0.6);
+}
+
+.seo-footer__inner {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 640px) {
+  .seo-footer__inner {
+    grid-template-columns: 1.4fr 1fr 1fr;
+  }
+}
+
+.seo-footer__logo {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.seo-footer__tagline {
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--muted);
+  max-width: 22rem;
+}
+
+.seo-footer__nav-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin: 0 0 0.5rem;
+}
+
+.seo-footer__nav ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.seo-footer__nav li {
+  margin-bottom: 0.35rem;
+}
+
+.seo-footer__nav a {
+  color: var(--accent, #0369a1);
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+
+.seo-footer__nav a:hover {
+  text-decoration: underline;
+}
+
+.seo-footer__copy {
+  margin: 1.25rem auto 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-align: center;
+}

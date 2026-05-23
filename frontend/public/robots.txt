@@ -1,0 +1,16 @@
+# https://adaptest.in — allow public marketing pages; block app internals.
+User-agent: *
+Allow: /
+Allow: /cat-mock-test
+Allow: /ssc-mock-test
+Allow: /bank-exam-mock-test
+Allow: /mock-tests
+
+Disallow: /admin
+Disallow: /super-admin
+Disallow: /test
+Disallow: /instructions
+Disallow: /result
+Disallow: /api/
+
+Sitemap: https://adaptest.in/sitemap.xml
