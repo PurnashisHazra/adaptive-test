@@ -16,6 +16,9 @@ import type {
   QuestionAdmin,
   QuestionCreatePayload,
   QuestionPaper,
+  Challenge,
+  ChallengeCatalogPage,
+  ChallengeParticipantsPage,
   StudentHistoryStats,
   StudentPaperDetail,
   StudentSessionSummary,
@@ -438,6 +441,71 @@ export async function listAdminQuestionReports(params?: { page?: number; page_si
 
 export function exportAttemptsUrl(format: "csv" | "json") {
   return `/api/attempts/export?format=${format}`;
+}
+
+export async function listChallengeCatalog(page = 1, pageSize = 3) {
+  const { data } = await api.get<ChallengeCatalogPage>("/challenges/catalog", {
+    params: { page, page_size: pageSize },
+  });
+  return data;
+}
+
+export async function listChallengeParticipants(challengeId: string, page = 1, pageSize = 20) {
+  const { data } = await api.get<ChallengeParticipantsPage>(`/challenges/${challengeId}/participants`, {
+    params: { page, page_size: pageSize },
+  });
+  return data;
+}
+
+export async function startChallenge(challengeId: string) {
+  const { data } = await api.post<TestStartResponse>(`/challenges/${challengeId}/start`);
+  return data;
+}
+
+export async function resumeChallenge(challengeId: string) {
+  const { data } = await api.post<TestStartResponse>(`/challenges/${challengeId}/resume`);
+  return data;
+}
+
+export async function endChallengeAttempt(challengeAttemptId: string) {
+  const { data } = await api.post<{ paper_summary: PaperResultSummary }>(
+    `/challenges/attempts/${challengeAttemptId}/end`,
+  );
+  return data;
+}
+
+export async function timeoutChallengeSection(challengeAttemptId: string) {
+  const { data } = await api.post<SubmitAnswerResponse>(`/challenges/attempts/${challengeAttemptId}/timeout-section`);
+  return data;
+}
+
+export async function listChallenges() {
+  const { data } = await api.get<Challenge[]>("/admin/challenges");
+  return data;
+}
+
+export async function getChallenge(id: string) {
+  const { data } = await api.get<Challenge>(`/admin/challenges/${id}`);
+  return data;
+}
+
+export async function createChallenge(body: object) {
+  const { data } = await api.post<Challenge>("/admin/challenges", body);
+  return data;
+}
+
+export async function updateChallenge(id: string, body: object) {
+  const { data } = await api.patch<Challenge>(`/admin/challenges/${id}`, body);
+  return data;
+}
+
+export async function syncChallengeAssignments(challengeId: string, student_usernames: string[]) {
+  await api.put(`/admin/challenges/${challengeId}/assignments`, { student_usernames });
+}
+
+export async function listChallengeAssignments(challengeId: string) {
+  const { data } = await api.get<{ student_username: string }[]>(`/admin/challenges/${challengeId}/assignments`);
+  return data;
 }
 
 export type { AttemptSummary };

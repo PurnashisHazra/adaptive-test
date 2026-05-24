@@ -1035,3 +1035,28 @@ table.data th {
   justify-content: center;
   flex-shrink: 0;
 }
+
+.challenge-card__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.challenge-card__body {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.challenge-card__countdown {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .challenge-card__countdown {
+    width: 100%;
+    text-align: left;
+  }
+}

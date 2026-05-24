@@ -4,6 +4,7 @@ import { AdminPanel } from "../../components/AdminPanel";
 const tiles = [
   { to: "/admin/questions", title: "Question bank", desc: "Create, edit, filter, and delete items." },
   { to: "/admin/question-papers", title: "Question papers", desc: "Multi-section papers, marking, assign to students." },
+  { to: "/admin/challenges", title: "Challenges", desc: "Scheduled contests with launch/end windows and platform-wide access." },
   { to: "/admin/upload", title: "Bulk upload", desc: "Import CSV or JSON with validation." },
   { to: "/admin/analytics", title: "Analytics", desc: "Accuracy, topics, and top performers." },
   { to: "/admin/reports", title: "Reports & queries", desc: "Student-reported question issues." },

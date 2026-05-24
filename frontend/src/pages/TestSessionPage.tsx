@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
+  endChallengeAttempt,
   endPaperAttempt,
   endTest,
   getQuestionAt,
@@ -9,6 +10,7 @@ import {
   skipQuestion,
   submitAnswer,
   submitQuestionReport,
+  timeoutChallengeSection,
   timeoutPaperSection,
 } from "../api/client";
 import type { PaperNextSection } from "../api/types";
@@ -36,6 +38,7 @@ export function TestSessionPage() {
   const canSubmit = useTestSession((s) => s.canSubmit);
   const paperMeta = useTestSession((s) => s.paperMeta);
   const paperAttemptId = useTestSession((s) => s.paperAttemptId);
+  const structuredKind = useTestSession((s) => s.structuredKind);
   const sectionStartedAt = useTestSession((s) => s.sectionStartedAt);
   const studentName = useTestSession((s) => s.studentName);
 
@@ -99,7 +102,10 @@ export function TestSessionPage() {
     setSectionTimingOut(true);
     (async () => {
       try {
-        const res = await timeoutPaperSection(paperAttemptId);
+        const res =
+          structuredKind === "challenge"
+            ? await timeoutChallengeSection(paperAttemptId)
+            : await timeoutPaperSection(paperAttemptId);
         if (res.paper_summary) {
           setLastPaperSummary(res.paper_summary);
           nav("/result");
@@ -253,7 +259,10 @@ export function TestSessionPage() {
     setEnding(true);
     try {
       if (paperMeta && paperAttemptId) {
-        const summary = await endPaperAttempt(paperAttemptId);
+        const summary =
+          structuredKind === "challenge"
+            ? (await endChallengeAttempt(paperAttemptId)).paper_summary
+            : await endPaperAttempt(paperAttemptId);
         setLastPaperSummary(summary);
         nav("/result");
         return;

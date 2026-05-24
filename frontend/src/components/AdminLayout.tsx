@@ -7,6 +7,7 @@ const items: { to: string; end?: boolean; label: string }[] = [
   { to: "/admin", end: true, label: "Overview" },
   { to: "/admin/questions", label: "Questions" },
   { to: "/admin/question-papers", label: "Papers" },
+  { to: "/admin/challenges", label: "Challenges" },
   { to: "/admin/upload", label: "Bulk upload" },
   { to: "/admin/analytics", label: "Analytics" },
   { to: "/admin/reports", label: "Reports" },

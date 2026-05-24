@@ -7,8 +7,10 @@ from fastapi.security import APIKeyHeader, OAuth2PasswordBearer
 from app.core.config import get_settings
 from app.services.auth_service import AuthService
 from app.schemas.auth import Role
+from app.utils.roles import parse_role
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
 public_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 super_admin_api_key_header = APIKeyHeader(name="X-Super-Admin-Key", auto_error=False)
 
@@ -21,10 +23,18 @@ def get_current_claims(token: str = Depends(oauth2_scheme)) -> Dict[str, Any]:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token") from exc
 
 
+async def get_optional_claims(token: Optional[str] = Depends(oauth2_scheme_optional)) -> Optional[Dict[str, Any]]:
+    if not token:
+        return None
+    try:
+        return AuthService.decode_token(token)
+    except Exception:
+        return None
+
+
 def require_role(allowed_roles: List[Role]):
     def _dep(claims: Dict[str, Any] = Depends(get_current_claims)) -> Dict[str, Any]:
-        role_raw = str(claims.get("role", "student")).strip().lower()
-        role = Role.admin if role_raw == "admin" else Role.student
+        role = parse_role(str(claims.get("role", "student")))
         if role not in allowed_roles:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
         return claims
@@ -33,6 +43,7 @@ def require_role(allowed_roles: List[Role]):
 
 
 require_admin = require_role([Role.admin])
+require_student = require_role([Role.student])
 
 
 def require_public_api_key(api_key: Optional[str] = Depends(public_api_key_header)) -> None:

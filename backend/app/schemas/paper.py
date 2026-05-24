@@ -159,6 +159,12 @@ class PaperResultSummary(BaseModel):
     started_at: datetime
     completed_at: datetime
     ended_early: bool
+    cohort_percentile: Optional[float] = Field(
+        default=None,
+        description="Overall percentile vs scored attempts on this paper/challenge (0–100).",
+    )
+    cohort_ranked_count: int = Field(default=0, ge=0)
+    percentile_is_final: bool = Field(default=False)
 
 
 class AssignedPaperItem(BaseModel):

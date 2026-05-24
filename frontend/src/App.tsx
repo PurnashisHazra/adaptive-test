@@ -1,6 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
-import { LandingPage } from "./pages/LandingPage";
+import { HomePage } from "./pages/HomePage";
 import { StudentStartPage } from "./pages/StudentStartPage";
 import { TestInstructionsPage } from "./pages/TestInstructionsPage";
 import { TestSessionPage } from "./pages/TestSessionPage";
@@ -16,6 +16,8 @@ import { AttemptsPage } from "./pages/admin/AttemptsPage";
 import { SettingsPage } from "./pages/admin/SettingsPage";
 import { QuestionPapersPage } from "./pages/admin/QuestionPapersPage";
 import { QuestionPaperFormPage } from "./pages/admin/QuestionPaperFormPage";
+import { ChallengesPage } from "./pages/admin/ChallengesPage";
+import { ChallengeFormPage } from "./pages/admin/ChallengeFormPage";
 import { QuestionReportsPage } from "./pages/admin/QuestionReportsPage";
 import { AuthPage } from "./pages/AuthPage";
 import { PapersPage } from "./pages/PapersPage";
@@ -27,7 +29,7 @@ export default function App() {
   return (
     <Routes>
       <Route element={<AppShell />}>
-        <Route path="/" element={<LandingPage />} />
+        <Route path="/" element={<HomePage />} />
         <Route path="/auth" element={<AuthPage />} />
         <Route
           path="/start"
@@ -113,6 +115,9 @@ export default function App() {
           <Route path="question-papers" element={<QuestionPapersPage />} />
           <Route path="question-papers/new" element={<QuestionPaperFormPage />} />
           <Route path="question-papers/:id" element={<QuestionPaperFormPage />} />
+          <Route path="challenges" element={<ChallengesPage />} />
+          <Route path="challenges/new" element={<ChallengeFormPage />} />
+          <Route path="challenges/:id" element={<ChallengeFormPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

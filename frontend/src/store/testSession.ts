@@ -26,6 +26,7 @@ interface TestSessionState {
   canSubmit: boolean;
   paperAttemptId: string | null;
   paperMeta: PaperSessionMeta | null;
+  structuredKind: "paper" | "challenge" | null;
   sectionStartedAt: string | null;
   pendingStart:
     | {
@@ -51,7 +52,7 @@ interface TestSessionState {
     maxReachableIndex?: number;
     isAdaptive?: boolean;
   }) => void;
-  hydratePaperStart: (res: TestStartResponse, studentName: string) => void;
+  hydratePaperStart: (res: TestStartResponse, studentName: string, kind?: "paper" | "challenge") => void;
   applyPaperNext: (res: PaperNextSection) => void;
   applyNavigate: (p: {
     question: QuestionStudent;
@@ -88,6 +89,7 @@ interface TestSessionState {
 const paperClear = {
   paperAttemptId: null as string | null,
   paperMeta: null as PaperSessionMeta | null,
+  structuredKind: null as "paper" | "challenge" | null,
   sectionStartedAt: null as string | null,
   lastPaperSummary: null as PaperResultSummary | null,
 };
@@ -110,6 +112,7 @@ export const useTestSession = create<TestSessionState>((set) => ({
   canSubmit: true,
   paperAttemptId: null,
   paperMeta: null,
+  structuredKind: null,
   sectionStartedAt: null,
   pendingStart: null,
   reset: () =>
@@ -148,7 +151,7 @@ export const useTestSession = create<TestSessionState>((set) => ({
       canSubmit: true,
       ...paperClear,
     }),
-  hydratePaperStart: (res, studentName) => {
+  hydratePaperStart: (res, studentName, kind = "paper") => {
     if (!res.paper) {
       throw new Error("Missing paper metadata");
     }
@@ -169,6 +172,7 @@ export const useTestSession = create<TestSessionState>((set) => ({
       lastSummary: null,
       paperAttemptId: res.paper.paper_attempt_id,
       paperMeta: res.paper,
+      structuredKind: kind,
       sectionStartedAt: res.started_at,
       lastPaperSummary: null,
     });

@@ -26,6 +26,12 @@ class TestStartRequest(BaseModel):
     time_limit_seconds: Optional[int] = Field(default=None, ge=60, le=7200)
 
 
+class AttemptSessionFilters(BaseModel):
+    subject: Optional[str] = None
+    topic: Optional[str] = None
+    exam_tag: Optional[str] = None
+
+
 class TestStartResponse(BaseModel):
     attempt_id: str
     question: "QuestionPayload"
@@ -40,6 +46,7 @@ class TestStartResponse(BaseModel):
     can_submit: bool = True
     is_adaptive: bool = True
     paper: Optional["PaperSessionMeta"] = None
+    attempt_filters: AttemptSessionFilters = Field(default_factory=AttemptSessionFilters)
 
 
 class QuestionPayload(BaseModel):

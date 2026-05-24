@@ -8,6 +8,7 @@ from app.repositories.attempt_repository import AttemptRepository
 from app.repositories.config_repository import ConfigRepository
 from app.repositories.question_repository import QuestionRepository
 from app.schemas.attempt import (
+    AttemptSessionFilters,
     AttemptSummary,
     QuestionAtIndexResponse,
     QuestionPayload,
@@ -21,6 +22,16 @@ from app.utils.ids import oid_str
 
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _attempt_filters_from_doc(doc: Dict[str, Any]) -> AttemptSessionFilters:
+    et = doc.get("exam_tag_filter")
+    exam = str(et).strip().upper() if et else None
+    return AttemptSessionFilters(
+        subject=str(doc["subject_filter"]).strip() if doc.get("subject_filter") else None,
+        topic=str(doc["topic_filter"]).strip() if doc.get("topic_filter") else None,
+        exam_tag=exam or None,
+    )
 
 
 def _explanation_from_qdoc(qdoc: Dict[str, Any]) -> tuple[Optional[str], Optional[str]]:

@@ -129,6 +129,9 @@ export interface PaperResultSummary {
   started_at: string;
   completed_at: string;
   ended_early: boolean;
+  cohort_percentile?: number | null;
+  cohort_ranked_count?: number;
+  percentile_is_final?: boolean;
 }
 
 export interface AssignedPaperItem {
@@ -165,6 +168,75 @@ export interface QuestionPaper {
   is_adaptive: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export type ChallengeLevel = "BEGINNER" | "INTERMEDIATE" | "ADVANCED" | "EXPERT";
+export type ChallengeStatus = "upcoming" | "live" | "ended";
+
+export interface Challenge {
+  id: string;
+  title: string;
+  description: string;
+  level: ChallengeLevel;
+  is_adaptive: boolean;
+  launch_at: string;
+  end_at: string;
+  open_to_all: boolean;
+  sections: QuestionPaperSection[];
+  marks_per_correct: number;
+  marks_per_incorrect: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChallengeParticipantBrief {
+  profile_slug: string;
+  display_name: string;
+  completed: boolean;
+}
+
+export interface ChallengeCatalogPage {
+  items: ChallengeCatalogItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export interface ChallengeCatalogItem {
+  challenge_id: string;
+  title: string;
+  description: string;
+  level: ChallengeLevel;
+  is_adaptive: boolean;
+  launch_at: string;
+  end_at: string;
+  open_to_all: boolean;
+  section_count: number;
+  marks_per_correct: number;
+  marks_per_incorrect: number;
+  status: ChallengeStatus;
+  seconds_until_launch?: number | null;
+  seconds_until_end?: number | null;
+  has_access: boolean;
+  has_started: boolean;
+  completed: boolean;
+  challenge_attempt_id?: string | null;
+  participants_count: number;
+  ranked_count: number;
+  my_percentile?: number | null;
+  my_final_percentile?: number | null;
+  participants: ChallengeParticipantBrief[];
+  participants_preview_limit?: number;
+}
+
+export interface ChallengeParticipantsPage {
+  challenge_id: string;
+  participants: ChallengeParticipantBrief[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
 }
 
 export interface AssignPaperByTitleBody {

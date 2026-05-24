@@ -70,6 +70,24 @@ class AttemptRepository:
     async def count(self, filt: Optional[Dict[str, Any]] = None) -> int:
         return await self._col.count_documents(filt or {})
 
+    async def count_attempts_in_month_for_students(
+        self,
+        student_usernames: List[str],
+        month_start: datetime,
+        month_end: datetime,
+    ) -> int:
+        if not student_usernames:
+            return 0
+        names = [u.strip() for u in student_usernames if u and str(u).strip()]
+        if not names:
+            return 0
+        return await self._col.count_documents(
+            {
+                "student_username": {"$in": names},
+                "started_at": {"$gte": month_start, "$lt": month_end},
+            }
+        )
+
     async def find_all(self, limit: int = 50000) -> List[Dict[str, Any]]:
         cursor = self._col.find({}).sort("started_at", -1).limit(limit)
         return [d async for d in cursor]

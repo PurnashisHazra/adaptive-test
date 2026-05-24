@@ -124,3 +124,21 @@ class PaperRepository:
             projection={"_id": 1, "total_marks": 1},
         )
         return [d async for d in cur]
+
+    async def count_paper_attempts_in_month_for_students(
+        self,
+        student_usernames: List[str],
+        month_start,
+        month_end,
+    ) -> int:
+        if not student_usernames:
+            return 0
+        names = [u.strip() for u in student_usernames if u and str(u).strip()]
+        if not names:
+            return 0
+        return await self._attempts.count_documents(
+            {
+                "student_username": {"$in": names},
+                "started_at": {"$gte": month_start, "$lt": month_end},
+            }
+        )

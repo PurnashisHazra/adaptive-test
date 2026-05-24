@@ -14,7 +14,10 @@ export function LandingPage() {
           Each test begins at an accessible level and adjusts difficulty based on performance — without showing labels during the exam.
         </p>
         <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center", flexWrap: "wrap" }}>
-          <Link to="/start" className="btn btn-primary">
+          <Link to="/auth" className="btn btn-primary">
+            Sign in
+          </Link>
+          <Link to="/start" className="btn btn-secondary">
             Start a test
           </Link>
         </div>

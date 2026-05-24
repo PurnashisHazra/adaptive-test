@@ -1,5 +1,6 @@
 from app.services.analytics_service import AnalyticsService
 from app.services.bulk_import_service import BulkImportService
+from app.services.challenge_service import ChallengeService
 from app.services.paper_service import PaperService
 from app.services.pdf_question_import_service import PdfQuestionImportService
 from app.services.question_report_service import QuestionReportService
@@ -20,6 +21,10 @@ def get_test_service() -> TestService:
 
 def get_paper_service() -> PaperService:
     return PaperService()
+
+
+def get_challenge_service() -> ChallengeService:
+    return ChallengeService()
 
 
 def get_analytics_service() -> AnalyticsService:
