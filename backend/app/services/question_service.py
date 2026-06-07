@@ -259,10 +259,10 @@ class QuestionService:
         from app.services.ai_question_generator import AIQuestionGenerator
 
         settings = get_settings()
-        if not (settings.openai_api_key or "").strip():
+        if not settings.ai_configured:
             return AutoAssignDifficultyResponse(
                 updated=0,
-                errors=["OpenAI API key is not configured (OPENAI_API_KEY)."],
+                errors=["AI is not configured (set OPENAI_API_KEY or GEMINI_API_KEY)."],
             )
 
         gen = AIQuestionGenerator()

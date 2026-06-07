@@ -1,4 +1,4 @@
-"""OpenAI-backed accuracy improvement plan (concepts, tricks, formulae, deep knowledge) for one attempt."""
+"""AI-backed accuracy improvement plan (OpenAI / Gemini) for one attempt."""
 
 from __future__ import annotations
 
@@ -6,18 +6,23 @@ import json
 import logging
 import re
 from typing import Any, Dict, List, Optional, cast
-from urllib import error as urllib_error
-from urllib import request
 
 from pydantic import BaseModel, Field
 
-from app.core.config import get_settings
 from app.schemas.student_analytics import (
     AccuracyBuildCategory,
     StudentAccuracyBuildItem,
     StudentAttemptAccuracyImprovementResponse,
     StudentOverallAnalytics,
     StudentStandaloneDetail,
+)
+
+from app.services.llm_client import (
+    LlmChatError,
+    ai_any_configured,
+    ai_not_configured_message,
+    chat_completion,
+    strip_markdown_fence,
 )
 
 logger = logging.getLogger(__name__)
@@ -40,18 +45,6 @@ _CAT_ALIASES: Dict[str, AccuracyBuildCategory] = {
     "rigor": "deep_knowledge",
     "mixed": "mixed",
 }
-
-
-def _strip_markdown_fence(text: str) -> str:
-    t = text.strip()
-    if t.startswith("```"):
-        lines = t.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].strip().startswith("```"):
-            lines = lines[:-1]
-        t = "\n".join(lines).strip()
-    return t
 
 
 def _normalize_category(raw: str) -> AccuracyBuildCategory:
@@ -188,13 +181,11 @@ def request_openai_accuracy_improvement(
     topic_filter: Optional[str],
     exam_tag_filter: Optional[str],
 ) -> StudentAttemptAccuracyImprovementResponse:
-    settings = get_settings()
-    key = (settings.openai_api_key or "").strip()
-    if not key:
+    if not ai_any_configured():
         return StudentAttemptAccuracyImprovementResponse(
             openai_configured=False,
             used_openai=False,
-            error="OpenAI is not configured (set OPENAI_API_KEY on the server).",
+            error=ai_not_configured_message(),
         )
 
     n = len(detail.questions)
@@ -229,63 +220,33 @@ def request_openai_accuracy_improvement(
 
     user_content = json.dumps(payload, ensure_ascii=False) + "\n\n" + schema
 
-    body: Dict[str, Any] = {
-        "model": settings.openai_model,
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You are a senior tutor for high-stakes adaptive tests. "
-                    "Given one attempt's item-level outcomes and dashboard strategy, propose what the learner should "
-                    "actually build in their head: precise concepts, reusable exam tricks, formulae to memorise (with notation), "
-                    "and deep knowledge links. Respect subject and exam_tag when provided — vocabulary and depth must match. "
-                    "Avoid vague platitudes; every build_item must be actionable and specific. Output valid JSON only."
-                ),
-            },
-            {"role": "user", "content": user_content},
-        ],
-        "temperature": 0.4,
-        "response_format": {"type": "json_object"},
-    }
-
-    req = request.Request(
-        settings.openai_api_url,
-        data=json.dumps(body).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
     try:
-        with request.urlopen(req, timeout=55) as resp:
-            raw_http = resp.read().decode("utf-8")
-    except urllib_error.HTTPError as exc:
-        logger.warning("AI HTTP error for accuracy improvement: %s", exc)
-        return StudentAttemptAccuracyImprovementResponse(
-            openai_configured=True,
-            used_openai=False,
-            subject_context=subj_echo,
-            exam_context=exam_echo or "General exam readiness",
-            error=f"OpenAI request failed ({getattr(exc, 'code', 'error')}).",
+        result = chat_completion(
+            system=(
+                "You are a senior tutor for high-stakes adaptive tests. "
+                "Given one attempt's item-level outcomes and dashboard strategy, propose what the learner should "
+                "actually build in their head: precise concepts, reusable exam tricks, formulae to memorise (with notation), "
+                "and deep knowledge links. Respect subject and exam_tag when provided — vocabulary and depth must match. "
+                "Avoid vague platitudes; every build_item must be actionable and specific. Output valid JSON only."
+            ),
+            user=user_content,
+            temperature=0.4,
+            json_mode=True,
+            timeout=55,
         )
-    except Exception as exc:
-        logger.warning("OpenAI request failed for accuracy improvement: %s", exc)
-        return StudentAttemptAccuracyImprovementResponse(
-            openai_configured=True,
-            used_openai=False,
-            subject_context=subj_echo,
-            exam_context=exam_echo or "General exam readiness",
-            error="OpenAI request failed or timed out.",
-        )
-
-    try:
-        data = json.loads(raw_http)
-        content = data["choices"][0]["message"]["content"]
-        cleaned = _strip_markdown_fence(content)
+        cleaned = strip_markdown_fence(result.content)
         parsed = _RawAccOut.model_validate_json(cleaned)
+    except LlmChatError as exc:
+        logger.warning("AI accuracy improvement failed: %s", exc.message)
+        return StudentAttemptAccuracyImprovementResponse(
+            openai_configured=True,
+            used_openai=False,
+            subject_context=subj_echo,
+            exam_context=exam_echo or "General exam readiness",
+            error=exc.message,
+        )
     except Exception as exc:
-        logger.warning("OpenAI accuracy improvement parse failed: %s", exc)
+        logger.warning("AI accuracy improvement parse failed: %s", exc)
         return StudentAttemptAccuracyImprovementResponse(
             openai_configured=True,
             used_openai=False,

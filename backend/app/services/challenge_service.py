@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -20,8 +21,11 @@ from app.schemas.challenge import (
     ChallengeUpdate,
 )
 from app.utils.cohort_percentile import percentile_among_ranked_attempts
-from app.schemas.public_profile import ChallengeParticipantBrief
+from app.utils.guest import is_guest_username
 from app.services.public_profile_service import PublicProfileService
+from app.schemas.challenge import ChallengeKnowledgeGapItem, ChallengeRecapResponse
+from app.schemas.student_analytics import StudentPerformanceInsights, StudentQuestionReview
+from app.services.student_analytics_service import StudentAnalyticsService
 from app.schemas.paper import (
     PaperResultSummary,
     PaperSectionOut,
@@ -282,7 +286,7 @@ class ChallengeService:
         pool_arg = pool_list if pool_list else None
         adaptive = bool(challenge.get("is_adaptive", True))
         res = await self._tests.start_test(
-            student_name=challenge_attempt["student_username"],
+            student_name=self._display_name(challenge_attempt),
             subject=sec.get("subject"),
             topic=sec.get("topic"),
             exam_tag=sec.get("exam_tag"),
@@ -309,15 +313,144 @@ class ChallengeService:
             attempt_filters=res.attempt_filters,
         )
 
-    async def start_challenge(self, challenge_id: str, student_username: str) -> TestStartResponse:
-        from app.services.student_profile_service import StudentProfileService
+    def _display_name(self, challenge_attempt: Dict[str, Any]) -> str:
+        dn = str(challenge_attempt.get("display_name") or "").strip()
+        if dn:
+            return dn
+        return str(challenge_attempt.get("student_username", ""))
 
-        await AdminLimitsService().assert_student_can_start_attempt(student_username)
-        await StudentProfileService().assert_not_blocked(student_username)
+    async def _assert_attempt_owner(self, ca: Dict[str, Any], student_username: str) -> None:
+        if str(ca.get("student_username", "")).strip() != student_username.strip():
+            raise ValueError("Not found")
+
+    def _build_knowledge_gaps(
+        self,
+        reviews: List[Any],
+        insights: Any,
+    ) -> List[ChallengeKnowledgeGapItem]:
+        """Aggregate insight themes (not per-question blunders) for challenge recap."""
+        from app.schemas.student_analytics import StudentPerformanceInsights, StudentQuestionReview
+
+        gaps: List[ChallengeKnowledgeGapItem] = []
+        if not isinstance(insights, StudentPerformanceInsights):
+            return gaps
+
+        for w in insights.weak_areas:
+            gaps.append(
+                ChallengeKnowledgeGapItem(
+                    title=f"{w.name} difficulty",
+                    detail=(
+                        f"Accuracy was {w.accuracy_percent:.0f}% across {w.attempts} "
+                        f"question{'s' if w.attempts != 1 else ''} at this level — revise fundamentals here first."
+                    ),
+                    metric=f"{w.accuracy_percent:.0f}%",
+                    tone="warn",
+                )
+            )
+
+        capsule_counts: Dict[str, int] = defaultdict(int)
+        for r in reviews:
+            if not isinstance(r, StudentQuestionReview):
+                continue
+            for c in r.insight_capsules:
+                capsule_counts[str(c.key)] += 1
+
+        if capsule_counts.get("missed_opportunity", 0) > 0:
+            n = capsule_counts["missed_opportunity"]
+            gaps.append(
+                ChallengeKnowledgeGapItem(
+                    title="Missed opportunity",
+                    detail="Questions where peers usually convert but you did not — concept refresh and option elimination drills help most.",
+                    metric=str(n),
+                    tone="warn",
+                )
+            )
+        if capsule_counts.get("wasted_time", 0) > 0:
+            n = capsule_counts["wasted_time"]
+            gaps.append(
+                ChallengeKnowledgeGapItem(
+                    title="Wasted time",
+                    detail="Items where you spent notably more time than your own average without a correct payoff — cap time and revisit later.",
+                    metric=str(n),
+                    tone="time",
+                )
+            )
+        if capsule_counts.get("skip_revisit", 0) > 0:
+            n = capsule_counts["skip_revisit"]
+            gaps.append(
+                ChallengeKnowledgeGapItem(
+                    title="Skip & revisit",
+                    detail="Hard items where marking and returning after easier marks may recover score — use a strict two-pass rule.",
+                    metric=str(n),
+                    tone="accent",
+                )
+            )
+
+        topic_stats: Dict[str, Dict[str, int]] = defaultdict(lambda: {"total": 0, "wrong": 0})
+        for r in reviews:
+            if not isinstance(r, StudentQuestionReview):
+                continue
+            topic = str(r.topic_when_served or "").strip() or "General"
+            topic_stats[topic]["total"] += 1
+            if not r.is_correct:
+                topic_stats[topic]["wrong"] += 1
+
+        topic_rows = sorted(
+            ((t, s["total"], s["wrong"]) for t, s in topic_stats.items() if s["wrong"] > 0),
+            key=lambda x: (-x[2], x[0]),
+        )
+        for topic, total, wrong in topic_rows[:4]:
+            acc = ((total - wrong) / total * 100.0) if total else 0.0
+            if wrong >= 2 or acc < 50.0:
+                gaps.append(
+                    ChallengeKnowledgeGapItem(
+                        title=f"Topic: {topic}",
+                        detail=f"{wrong} of {total} wrong in this topic ({acc:.0f}% accuracy) — targeted revision recommended.",
+                        metric=f"{acc:.0f}%",
+                        tone="warn" if acc < 50 else "neutral",
+                    )
+                )
+
+        for tip in insights.recommendations[:3]:
+            gaps.append(
+                ChallengeKnowledgeGapItem(
+                    title=tip.title,
+                    detail=tip.detail,
+                    tone="accent",
+                )
+            )
+
+        if not gaps and insights.attempted_questions > 0:
+            for s in insights.strong_areas[:2]:
+                gaps.append(
+                    ChallengeKnowledgeGapItem(
+                        title=f"Strength: {s.name}",
+                        detail=f"Solid {s.accuracy_percent:.0f}% accuracy over {s.attempts} questions — keep this band in your exam plan.",
+                        metric=f"{s.accuracy_percent:.0f}%",
+                        tone="accent",
+                    )
+                )
+
+        return gaps[:10]
+
+    async def start_challenge(
+        self,
+        challenge_id: str,
+        student_username: str,
+        *,
+        display_name: Optional[str] = None,
+    ) -> TestStartResponse:
+        uname = student_username.strip()
+        if not is_guest_username(uname):
+            from app.services.student_profile_service import StudentProfileService
+
+            await AdminLimitsService().assert_student_can_start_attempt(uname)
+            await StudentProfileService().assert_not_blocked(uname)
         challenge = await self._challenges.get_challenge(challenge_id)
         if not challenge:
             raise ValueError("Challenge not found")
-        uname = student_username.strip()
+        if is_guest_username(uname) and not bool(challenge.get("open_to_all", False)):
+            raise ValueError("This challenge requires an account. Sign in to enter.")
         if not await self._student_has_access(challenge, uname):
             raise ValueError("You do not have access to this challenge")
         self._assert_live(challenge)
@@ -326,9 +459,11 @@ class ChallengeService:
         if existing and existing.get("status") in ("in_progress", "completed", "ended_early"):
             raise ValueError("You have already started this challenge. It cannot be restarted.")
 
+        guest_label = str(display_name or "").strip()[:120] if is_guest_username(uname) else ""
         doc = {
             "challenge_id": challenge_id,
             "student_username": uname,
+            "display_name": guest_label,
             "status": "in_progress",
             "current_section_index": 0,
             "section_attempt_ids": [],
@@ -573,7 +708,7 @@ class ChallengeService:
             paper_attempt_id=ca_id,
             paper_id=cid,
             title=challenge["title"],
-            student_name=challenge_attempt["student_username"],
+            student_name=self._display_name(challenge_attempt),
             total_marks=round(total_marks, 4),
             max_marks=round(max_m, 4),
             percentage=pct,
@@ -813,7 +948,17 @@ class ChallengeService:
             )
 
         skip = (page - 1) * page_size
-        rows = await self._challenges.list_challenges_by_created(skip, page_size)
+        all_rows = await self._challenges.list_all_challenges()
+        order_map = {"live": 0, "upcoming": 1, "ended": 2}
+
+        def _catalog_sort_key(doc: Dict[str, Any]) -> tuple:
+            status, _, _ = _window_status(doc["launch_at"], doc["end_at"])
+            created = doc.get("created_at")
+            ts = created.timestamp() if created is not None and hasattr(created, "timestamp") else 0.0
+            return (order_map.get(status, 9), -ts)
+
+        all_rows.sort(key=_catalog_sort_key)
+        rows = all_rows[skip : skip + page_size]
         uname = student_username.strip() if student_username else None
 
         cids = [oid_str(doc["_id"]) for doc in rows]
@@ -841,7 +986,12 @@ class ChallengeService:
             cid = oid_str(doc["_id"])
             status, until_launch, until_end = _window_status(doc["launch_at"], doc["end_at"])
             open_to_all = bool(doc.get("open_to_all", False))
-            has_access = open_to_all or (bool(uname) and cid in assigned_ids)
+            if uname and is_guest_username(uname):
+                has_access = open_to_all
+            elif uname:
+                has_access = open_to_all or cid in assigned_ids
+            else:
+                has_access = open_to_all
             ca = attempts_by_cid.get(cid) if uname else None
             has_started = ca is not None
             completed = bool(
@@ -899,4 +1049,83 @@ class ChallengeService:
             page=page,
             page_size=page_size,
             total_pages=total_pages,
+        )
+
+    async def get_challenge_recap(self, challenge_attempt_id: str, student_username: str) -> ChallengeRecapResponse:
+        ca = await self._challenges.get_challenge_attempt(challenge_attempt_id)
+        if not ca:
+            raise ValueError("Not found")
+        await self._assert_attempt_owner(ca, student_username)
+
+        if ca.get("status") not in ("completed", "ended_early"):
+            raise ValueError("Challenge attempt is not finished yet")
+
+        challenge = await self._challenges.get_challenge(str(ca["challenge_id"]))
+        if not challenge:
+            raise ValueError("Challenge not found")
+
+        analytics = StudentAnalyticsService()
+        all_reviews: List[StudentQuestionReview] = []
+        idx = 0
+        for attempt_id in list(ca.get("section_attempt_ids") or []):
+            att = await self._tests._attempts.get(str(attempt_id))
+            if not att:
+                continue
+            answers = list(att.get("answers") or [])
+            chunk = await analytics._reviews_from_answers(answers, str(attempt_id), index_offset=idx)
+            all_reviews.extend(chunk)
+            idx += len(answers)
+
+        if all_reviews:
+            qids = [r.question_id for r in all_reviews if r.question_id != "unknown"]
+            rows = await analytics._attempts.list_answer_slices_for_questions(qids)
+            analytics._apply_peer_stats(all_reviews, rows)
+            analytics._apply_question_insight_capsules(all_reviews)
+
+        ended_early = ca.get("status") == "ended_early"
+        insights = analytics._build_performance_insights(all_reviews, ended_early=ended_early)
+        knowledge_gaps = self._build_knowledge_gaps(all_reviews, insights)
+
+        ca_id = oid_str(ca["_id"])
+        cid = oid_str(challenge["_id"])
+        mpc = float(challenge.get("marks_per_correct", 1))
+        max_m = _max_marks(challenge, mpc)
+        prev_results = list(ca.get("section_results", []))
+        total_marks = float(ca.get("total_marks") or sum(float(r["marks"]) for r in prev_results))
+        pct = (total_marks / max_m * 100.0) if max_m > 0 else 0.0
+        pct = max(0.0, min(100.0, round(pct, 2)))
+        ch_status, _, _ = _window_status(challenge["launch_at"], challenge["end_at"])
+        cohort = await CohortPercentileService().for_challenge(
+            cid,
+            str(ca["student_username"]),
+            challenge_ended=ch_status == "ended",
+        )
+        paper_summary = PaperResultSummary(
+            paper_attempt_id=ca_id,
+            paper_id=cid,
+            title=challenge["title"],
+            student_name=self._display_name(ca),
+            total_marks=round(total_marks, 4),
+            max_marks=round(max_m, 4),
+            percentage=pct,
+            sections=[
+                PaperSectionResultItem(
+                    section_title=str(r["section_title"]),
+                    total_questions=int(r["total_questions"]),
+                    correct=int(r["correct"]),
+                    wrong=int(r["wrong"]),
+                    marks=round(float(r["marks"]), 4),
+                )
+                for r in prev_results
+            ],
+            started_at=ca["started_at"],
+            completed_at=ca.get("completed_at") or utc_now(),
+            ended_early=ended_early,
+            **cohort,
+        )
+        return ChallengeRecapResponse(
+            paper_summary=paper_summary,
+            insights=insights,
+            questions=all_reviews,
+            knowledge_gaps=knowledge_gaps,
         )

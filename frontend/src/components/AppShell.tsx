@@ -35,25 +35,27 @@ export function AppShell() {
                 <NavLink to="/" end style={linkStyle}>
                   Home
                 </NavLink>
-                <NavLink to="/take-test" style={linkStyle}>
-                  Take test
-                </NavLink>
-                <NavLink to="/history" style={linkStyle}>
-                  My results
-                </NavLink>
-                <NavLink to="/performance" style={linkStyle}>
-                  Performance
-                </NavLink>
-                <NavLink to="/review" style={linkStyle}>
-                  Analytics
-                </NavLink>
-                <NavLink to="/papers" style={linkStyle}>
-                  Papers
-                </NavLink>
                 {isStudent ? (
-                  <NavLink to="/profile" style={linkStyle}>
-                    Profile
-                  </NavLink>
+                  <>
+                    <NavLink to="/take-test" style={linkStyle}>
+                      Take test
+                    </NavLink>
+                    <NavLink to="/history" style={linkStyle}>
+                      My results
+                    </NavLink>
+                    <NavLink to="/performance" style={linkStyle}>
+                      Performance
+                    </NavLink>
+                    <NavLink to="/review" style={linkStyle}>
+                      Analytics
+                    </NavLink>
+                    <NavLink to="/papers" style={linkStyle}>
+                      Papers
+                    </NavLink>
+                    <NavLink to="/profile" style={linkStyle}>
+                      Profile
+                    </NavLink>
+                  </>
                 ) : null}
               </>
             ) : isSuperAdmin ? (

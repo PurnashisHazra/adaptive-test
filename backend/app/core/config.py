@@ -62,6 +62,20 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o-mini"
     openai_api_url: str = "https://api.openai.com/v1/chat/completions"
 
+    gemini_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("GEMINI_API_KEY", "GOOGLE_GEMINI_API_KEY"),
+        description="Google Gemini API key (fallback when OpenAI fails or is unset).",
+    )
+    gemini_model: str = Field(
+        default="gemini-3.1-flash-lite",
+        validation_alias=AliasChoices("GEMINI_MODEL"),
+    )
+    gemini_api_url: str = Field(
+        default="https://generativelanguage.googleapis.com/v1beta",
+        validation_alias=AliasChoices("GEMINI_API_URL"),
+    )
+
     # Auth (login/signup) JWT
     auth_jwt_secret: str = Field(
         default="dev-change-me",
@@ -110,6 +124,11 @@ class Settings(BaseSettings):
         # Fallback: try reading from `.env` manually.
         return _read_openai_key_from_env_file().strip()
 
+    @field_validator("gemini_api_key")
+    @classmethod
+    def _strip_gemini_api_key(cls, v: str) -> str:
+        return (v or "").strip()
+
     default_test_question_count: int = 10
     default_test_time_limit_seconds: int = 1800
 
@@ -124,6 +143,10 @@ class Settings(BaseSettings):
     @property
     def super_admin_api_keys_list(self) -> List[str]:
         return [k.strip() for k in self.super_admin_api_keys.split(",") if k.strip()]
+
+    @property
+    def ai_configured(self) -> bool:
+        return bool((self.openai_api_key or "").strip() or (self.gemini_api_key or "").strip())
 
 
 @lru_cache

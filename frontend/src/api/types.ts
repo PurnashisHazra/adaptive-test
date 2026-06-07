@@ -281,6 +281,20 @@ export interface ChallengeParticipantsPage {
   total_pages: number;
 }
 
+export interface ChallengeKnowledgeGapItem {
+  title: string;
+  detail: string;
+  metric?: string | null;
+  tone: "accent" | "time" | "warn" | "neutral" | string;
+}
+
+export interface ChallengeRecapResponse {
+  paper_summary: PaperResultSummary;
+  insights: StudentPerformanceInsights;
+  questions: StudentQuestionReview[];
+  knowledge_gaps: ChallengeKnowledgeGapItem[];
+}
+
 export interface PublicProfile {
   profile_slug: string;
   display_name: string;

@@ -1,22 +1,27 @@
-"""OpenAI-backed optimum time-management plan for a single attempt (student-only API)."""
+"""AI-backed optimum time-management plan for a single attempt (OpenAI / Gemini)."""
 
 from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict, List, Literal, Optional, cast
-from urllib import error as urllib_error
-from urllib import request
+from typing import Any, Dict, List, Literal, cast
 
 from pydantic import BaseModel, Field
 
-from app.core.config import get_settings
 from app.schemas.student_analytics import (
     StudentAttemptTimeStrategyResponse,
     StudentOverallAnalytics,
     StudentStandaloneDetail,
     StudentTimeStrategyPerQuestion,
     TimeStrategyAction,
+)
+
+from app.services.llm_client import (
+    LlmChatError,
+    ai_any_configured,
+    ai_not_configured_message,
+    chat_completion,
+    strip_markdown_fence,
 )
 
 logger = logging.getLogger(__name__)
@@ -37,18 +42,6 @@ _ACTION_ALIASES: Dict[str, TimeStrategyAction] = {
     "skip": "skip_if_behind",
     "skip_late": "skip_if_behind",
 }
-
-
-def _strip_markdown_fence(text: str) -> str:
-    t = text.strip()
-    if t.startswith("```"):
-        lines = t.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].strip().startswith("```"):
-            lines = lines[:-1]
-        t = "\n".join(lines).strip()
-    return t
 
 
 def _normalize_action(raw: str) -> TimeStrategyAction:
@@ -178,13 +171,11 @@ def _normalize_per_question(rows: List[_RawPQ], n: int) -> List[StudentTimeStrat
 
 
 def request_openai_time_strategy(detail: StudentStandaloneDetail, overall: StudentOverallAnalytics) -> StudentAttemptTimeStrategyResponse:
-    settings = get_settings()
-    key = (settings.openai_api_key or "").strip()
-    if not key:
+    if not ai_any_configured():
         return StudentAttemptTimeStrategyResponse(
             openai_configured=False,
             used_openai=False,
-            error="OpenAI is not configured (set OPENAI_API_KEY on the server).",
+            error=ai_not_configured_message(),
         )
 
     n = len(detail.questions)
@@ -213,58 +204,30 @@ def request_openai_time_strategy(detail: StudentStandaloneDetail, overall: Stude
 
     user_content = json.dumps(payload, ensure_ascii=False) + "\n\n" + schema
 
-    body: Dict[str, Any] = {
-        "model": settings.openai_model,
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You optimise exam time management for high-stakes adaptive tests. "
-                    "Use the dashboard strategy lines and per-question stats (difficulty, correctness, time vs peers, insight flags). "
-                    "Be conservative: skipping has a real marks risk; say so in risk_level and risks_overview. "
-                    "Output valid JSON only."
-                ),
-            },
-            {"role": "user", "content": user_content},
-        ],
-        "temperature": 0.35,
-        "response_format": {"type": "json_object"},
-    }
-
-    req = request.Request(
-        settings.openai_api_url,
-        data=json.dumps(body).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
     try:
-        with request.urlopen(req, timeout=55) as resp:
-            raw_http = resp.read().decode("utf-8")
-    except urllib_error.HTTPError as exc:
-        logger.warning("OpenAI HTTP error for time strategy: %s", exc)
-        return StudentAttemptTimeStrategyResponse(
-            openai_configured=True,
-            used_openai=False,
-            error=f"OpenAI request failed ({getattr(exc, 'code', 'error')}).",
+        result = chat_completion(
+            system=(
+                "You optimise exam time management for high-stakes adaptive tests. "
+                "Use the dashboard strategy lines and per-question stats (difficulty, correctness, time vs peers, insight flags). "
+                "Be conservative: skipping has a real marks risk; say so in risk_level and risks_overview. "
+                "Output valid JSON only."
+            ),
+            user=user_content,
+            temperature=0.35,
+            json_mode=True,
+            timeout=55,
         )
-    except Exception as exc:
-        logger.warning("OpenAI request failed for time strategy: %s", exc)
-        return StudentAttemptTimeStrategyResponse(
-            openai_configured=True,
-            used_openai=False,
-            error="OpenAI request failed or timed out.",
-        )
-
-    try:
-        data = json.loads(raw_http)
-        content = data["choices"][0]["message"]["content"]
-        cleaned = _strip_markdown_fence(content)
+        cleaned = strip_markdown_fence(result.content)
         parsed = _RawOut.model_validate_json(cleaned)
+    except LlmChatError as exc:
+        logger.warning("AI time strategy failed: %s", exc.message)
+        return StudentAttemptTimeStrategyResponse(
+            openai_configured=True,
+            used_openai=False,
+            error=exc.message,
+        )
     except Exception as exc:
-        logger.warning("OpenAI time strategy parse failed: %s", exc)
+        logger.warning("AI time strategy parse failed: %s", exc)
         return StudentAttemptTimeStrategyResponse(
             openai_configured=True,
             used_openai=False,

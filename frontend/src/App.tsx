@@ -30,6 +30,7 @@ import { StudentReviewListPage } from "./pages/StudentReviewListPage";
 import { StudentReviewSessionPage } from "./pages/StudentReviewSessionPage";
 import { RequireRole } from "./components/RequireRole";
 import { StudentProtectedRoute } from "./components/StudentProtectedRoute";
+import { ChallengeExamRoute } from "./components/ChallengeExamRoute";
 import { SuperAdminLayout } from "./components/SuperAdminLayout";
 import { SuperAdminDashboardPage } from "./pages/admin/SuperAdminDashboardPage";
 import { CatMockTestPage } from "./pages/seo/CatMockTestPage";
@@ -47,6 +48,7 @@ export default function App() {
         <Route path="/ssc-mock-test" element={<SscMockTestPage />} />
         <Route path="/bank-exam-mock-test" element={<BankExamMockTestPage />} />
         <Route path="/auth" element={<AuthPage />} />
+        <Route path="/account" element={<Navigate to="/profile" replace />} />
         <Route
           path="/profile"
           element={
@@ -75,17 +77,17 @@ export default function App() {
         <Route
           path="/test"
           element={
-            <StudentProtectedRoute requireInstructor={false}>
+            <ChallengeExamRoute>
               <TestSessionPage />
-            </StudentProtectedRoute>
+            </ChallengeExamRoute>
           }
         />
         <Route
           path="/result"
           element={
-            <StudentProtectedRoute requireInstructor={false}>
+            <ChallengeExamRoute>
               <TestResultPage />
-            </StudentProtectedRoute>
+            </ChallengeExamRoute>
           }
         />
         <Route

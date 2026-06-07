@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 from datetime import datetime
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.schemas.paper import PaperSectionIn, PaperSectionOut
+from app.schemas.paper import PaperResultSummary, PaperSectionIn, PaperSectionOut
+from app.schemas.student_analytics import StudentPerformanceInsights, StudentQuestionReview
 from app.schemas.public_profile import ChallengeParticipantBrief
 
 
@@ -133,6 +136,24 @@ class ChallengeCatalogPage(BaseModel):
     page: int = Field(ge=1)
     page_size: int = Field(ge=1, le=50)
     total_pages: int = Field(ge=0)
+
+
+class ChallengeGuestStartBody(BaseModel):
+    display_name: Optional[str] = Field(default=None, max_length=120)
+
+
+class ChallengeKnowledgeGapItem(BaseModel):
+    title: str = Field(..., max_length=120)
+    detail: str = Field(..., max_length=600)
+    metric: Optional[str] = Field(default=None, max_length=32)
+    tone: str = Field(default="neutral", description="accent | time | warn | neutral")
+
+
+class ChallengeRecapResponse(BaseModel):
+    paper_summary: PaperResultSummary
+    insights: StudentPerformanceInsights
+    questions: List[StudentQuestionReview] = Field(default_factory=list)
+    knowledge_gaps: List[ChallengeKnowledgeGapItem] = Field(default_factory=list)
 
 
 class AssignedChallengeItem(BaseModel):

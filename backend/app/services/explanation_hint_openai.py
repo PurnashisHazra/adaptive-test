@@ -1,32 +1,23 @@
-"""Turn a question's official explanation into a short in-session hint (OpenAI)."""
+"""Turn a question's official explanation into a short in-session hint (OpenAI / Gemini)."""
 
 from __future__ import annotations
 
 import json
 import logging
 import re
-from typing import Any, Dict, Optional
-from urllib import error as urllib_error
-from urllib import request
 
 from pydantic import BaseModel, Field
 
-from app.core.config import get_settings
 from app.schemas.attempt import CoachExplanationHintResponse
+from app.services.llm_client import (
+    LlmChatError,
+    ai_any_configured,
+    ai_not_configured_message,
+    chat_completion,
+    strip_markdown_fence,
+)
 
 logger = logging.getLogger(__name__)
-
-
-def _strip_markdown_fence(text: str) -> str:
-    t = text.strip()
-    if t.startswith("```"):
-        lines = t.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].strip().startswith("```"):
-            lines = lines[:-1]
-        t = "\n".join(lines).strip()
-    return t
 
 
 class _RawHint(BaseModel):
@@ -37,13 +28,11 @@ def request_openai_explanation_hint(
     question_text: str,
     explanation: str,
 ) -> CoachExplanationHintResponse:
-    settings = get_settings()
-    key = (settings.openai_api_key or "").strip()
-    if not key:
+    if not ai_any_configured():
         return CoachExplanationHintResponse(
             openai_configured=False,
             used_openai=False,
-            error="OpenAI is not configured (set OPENAI_API_KEY on the server).",
+            error=ai_not_configured_message(),
         )
 
     exp = (explanation or "").strip()
@@ -69,56 +58,28 @@ def request_openai_explanation_hint(
     )
     user_content = user_content + "\n\n" + schema
 
-    body: Dict[str, Any] = {
-        "model": settings.openai_model,
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You convert official answer explanations into gentle, Socratic hints for students "
-                    "who are stuck during a timed test. Never leak the final answer key."
-                ),
-            },
-            {"role": "user", "content": user_content},
-        ],
-        "temperature": 0.35,
-        "max_tokens": 400,
-    }
-
-    req = request.Request(
-        settings.openai_api_url,
-        data=json.dumps(body).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
     try:
-        with request.urlopen(req, timeout=35) as resp:
-            raw_http = resp.read().decode("utf-8")
-    except urllib_error.HTTPError as exc:
-        logger.warning("OpenAI HTTP error for explanation hint: %s", exc)
-        return CoachExplanationHintResponse(
-            openai_configured=True,
-            used_openai=False,
-            error=f"OpenAI request failed ({getattr(exc, 'code', 'error')}).",
+        result = chat_completion(
+            system=(
+                "You convert official answer explanations into gentle, Socratic hints for students "
+                "who are stuck during a timed test. Never leak the final answer key."
+            ),
+            user=user_content,
+            temperature=0.35,
+            max_tokens=400,
+            timeout=35,
         )
-    except Exception as exc:
-        logger.warning("OpenAI request failed for explanation hint: %s", exc)
-        return CoachExplanationHintResponse(
-            openai_configured=True,
-            used_openai=False,
-            error="OpenAI request failed or timed out.",
-        )
-
-    try:
-        data = json.loads(raw_http)
-        content = data["choices"][0]["message"]["content"]
-        cleaned = _strip_markdown_fence(content)
+        cleaned = strip_markdown_fence(result.content)
         parsed = _RawHint.model_validate_json(cleaned)
+    except LlmChatError as exc:
+        logger.warning("AI explanation hint failed: %s", exc.message)
+        return CoachExplanationHintResponse(
+            openai_configured=True,
+            used_openai=False,
+            error=exc.message,
+        )
     except Exception as exc:
-        logger.warning("OpenAI explanation hint parse failed: %s", exc)
+        logger.warning("AI explanation hint parse failed: %s", exc)
         return CoachExplanationHintResponse(
             openai_configured=True,
             used_openai=False,

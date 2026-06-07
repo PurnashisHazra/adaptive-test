@@ -180,9 +180,12 @@ class AdminStudentReportService:
         if not isinstance(plan, dict) or not plan:
             return None
         try:
-            return model_cls.model_validate(plan)
+            parsed = model_cls.model_validate(plan)
         except Exception:
             return None
+        if parsed.used_openai and not parsed.error:
+            return parsed
+        return None
 
     async def get_pdf_bundle(
         self,

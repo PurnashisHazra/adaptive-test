@@ -1,4 +1,5 @@
 import { Link, Navigate, useNavigate } from "react-router-dom";
+import { ChallengeResultPanel } from "../components/ChallengeResultPanel";
 import { CohortPercentileBanner } from "../components/CohortPercentileBanner";
 import { useTestSession } from "../store/testSession";
 
@@ -6,10 +7,31 @@ export function TestResultPage() {
   const nav = useNavigate();
   const summary = useTestSession((s) => s.lastSummary);
   const paperSummary = useTestSession((s) => s.lastPaperSummary);
+  const structuredKind = useTestSession((s) => s.structuredKind);
   const reset = useTestSession((s) => s.reset);
 
   if (!summary && !paperSummary) {
     return <Navigate to="/" replace />;
+  }
+
+  if (paperSummary && structuredKind === "challenge") {
+    return (
+      <div className="page">
+        <ChallengeResultPanel challengeAttemptId={paperSummary.paper_attempt_id} />
+        <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.5rem", flexWrap: "wrap", justifyContent: "center" }}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => {
+              reset();
+              nav("/");
+            }}
+          >
+            Back to challenges
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (paperSummary) {

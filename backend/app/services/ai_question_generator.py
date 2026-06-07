@@ -2,9 +2,8 @@ import asyncio
 import json
 import logging
 from typing import Any, Dict, List, Optional
-from urllib import request
 
-from app.core.config import get_settings
+from app.services.llm_client import LlmChatError, ai_any_configured, chat_completion, strip_markdown_fence
 from app.models.domain import Difficulty, QuestionType
 from app.repositories.question_repository import QuestionRepository
 from app.schemas.question import QuestionCreate, QuestionOption
@@ -25,8 +24,7 @@ class AIQuestionGenerator:
         subject: Optional[str],
         topic: Optional[str],
     ) -> Optional[str]:
-        settings = get_settings()
-        if not settings.openai_api_key:
+        if not ai_any_configured():
             return None
 
         payload = await asyncio.to_thread(self._generate_question_payload, subject, topic)
@@ -52,8 +50,7 @@ class AIQuestionGenerator:
         topic: Optional[str],
     ) -> Optional[QuestionCreate]:
         """Generate (but do not store) one EXPERT question draft from admin prompt."""
-        settings = get_settings()
-        if not settings.openai_api_key:
+        if not ai_any_configured():
             return None
         payload = await asyncio.to_thread(self._generate_question_payload, subject, topic, prompt)
         if not payload:
@@ -70,59 +67,25 @@ class AIQuestionGenerator:
         topic: Optional[str],
         admin_prompt: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
-        settings = get_settings()
         prompt = self._build_prompt(subject, topic, admin_prompt=admin_prompt)
-        body = {
-            "model": settings.openai_model,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a CAT convener with 50+ years of experience setting high-quality "
-                        "CAT exam questions. Produce rigorous, unambiguous, test-ready questions."
-                    ),
-                },
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.7,
-        }
-
-        req = request.Request(
-            settings.openai_api_url,
-            data=json.dumps(body).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {settings.openai_api_key}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
-        )
         try:
-            with request.urlopen(req, timeout=25) as resp:
-                raw = resp.read().decode("utf-8")
-        except Exception as exc:
-            logger.warning("OpenAI request failed while generating expert question: %s", exc)
-            return None
-
-        try:
-            data = json.loads(raw)
-            content = data["choices"][0]["message"]["content"]
-            cleaned = self._strip_markdown_fence(content)
+            result = chat_completion(
+                system=(
+                    "You are a CAT convener with 50+ years of experience setting high-quality "
+                    "CAT exam questions. Produce rigorous, unambiguous, test-ready questions."
+                ),
+                user=prompt,
+                temperature=0.7,
+                timeout=25,
+            )
+            cleaned = strip_markdown_fence(result.content)
             return json.loads(cleaned)
-        except Exception as exc:
-            logger.warning("OpenAI response parse failed for expert question generation: %s", exc)
+        except LlmChatError as exc:
+            logger.warning("AI request failed while generating expert question: %s", exc.message)
             return None
-
-    @staticmethod
-    def _strip_markdown_fence(text: str) -> str:
-        t = text.strip()
-        if t.startswith("```"):
-            lines = t.splitlines()
-            if lines and lines[0].startswith("```"):
-                lines = lines[1:]
-            if lines and lines[-1].strip() == "```":
-                lines = lines[:-1]
-            return "\n".join(lines).strip()
-        return t
+        except Exception as exc:
+            logger.warning("AI response parse failed for expert question generation: %s", exc)
+            return None
 
     @staticmethod
     def _build_prompt(subject: Optional[str], topic: Optional[str], admin_prompt: Optional[str] = None) -> str:
@@ -189,13 +152,11 @@ class AIQuestionGenerator:
 
     async def classify_difficulties_batch(self, docs: List[Dict[str, Any]]) -> Dict[str, Difficulty]:
         """Return ``question_id`` → ``Difficulty`` for each document in ``docs`` (single OpenAI call)."""
-        settings = get_settings()
-        if not (settings.openai_api_key or "").strip() or not docs:
+        if not ai_any_configured() or not docs:
             return {}
         return await asyncio.to_thread(self._classify_difficulties_sync, docs)
 
     def _classify_difficulties_sync(self, docs: List[Dict[str, Any]]) -> Dict[str, Difficulty]:
-        settings = get_settings()
         items: List[Dict[str, Any]] = []
         for d in docs:
             qid = oid_str(d["_id"])
@@ -217,53 +178,32 @@ class AIQuestionGenerator:
                 }
             )
 
-        body = {
-            "model": settings.openai_model,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": (
-                        "You assign difficulty labels for Indian competitive-exam practice questions. "
-                        "Use norms for the stated exam categories (e.g. CAT quant is often harder than "
-                        "equivalent SSC for the same mathematical topic). "
-                        "Each question must get exactly one of: EASY, MEDIUM, HARD, EXPERT. "
-                        "Reply with ONLY valid JSON, no markdown: "
-                        '{"results":[{"question_id":"<id>","difficulty":"EASY|MEDIUM|HARD|EXPERT"}]} '
-                        "Include one entry for every question_id you were given, in any order."
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": json.dumps({"questions": items}, ensure_ascii=False),
-                },
-            ],
-            "temperature": 0.25,
-            "max_tokens": 800,
-        }
-
-        req = request.Request(
-            settings.openai_api_url,
-            data=json.dumps(body).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {settings.openai_api_key}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
+        system = (
+            "You assign difficulty labels for Indian competitive-exam practice questions. "
+            "Use norms for the stated exam categories (e.g. CAT quant is often harder than "
+            "equivalent SSC for the same mathematical topic). "
+            "Each question must get exactly one of: EASY, MEDIUM, HARD, EXPERT. "
+            "Reply with ONLY valid JSON, no markdown: "
+            '{"results":[{"question_id":"<id>","difficulty":"EASY|MEDIUM|HARD|EXPERT"}]} '
+            "Include one entry for every question_id you were given, in any order."
         )
+        user = json.dumps({"questions": items}, ensure_ascii=False)
         try:
-            with request.urlopen(req, timeout=60) as resp:
-                raw = resp.read().decode("utf-8")
-        except Exception as exc:
-            logger.warning("OpenAI request failed for difficulty classification: %s", exc)
-            return {}
-
-        try:
-            data = json.loads(raw)
-            content = data["choices"][0]["message"]["content"]
-            cleaned = self._strip_markdown_fence(content)
+            result = chat_completion(
+                system=system,
+                user=user,
+                temperature=0.25,
+                max_tokens=800,
+                json_mode=True,
+                timeout=60,
+            )
+            cleaned = strip_markdown_fence(result.content)
             parsed = json.loads(cleaned)
+        except LlmChatError as exc:
+            logger.warning("AI request failed for difficulty classification: %s", exc.message)
+            return {}
         except Exception as exc:
-            logger.warning("OpenAI difficulty classification parse failed: %s", exc)
+            logger.warning("AI difficulty classification parse failed: %s", exc)
             return {}
 
         results = parsed.get("results")

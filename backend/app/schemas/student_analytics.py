@@ -66,6 +66,10 @@ class StudentQuestionReview(BaseModel):
         default_factory=list,
         description="Per-question behavior flags (e.g. missed opportunity vs peers, wasted time).",
     )
+    topic_when_served: Optional[str] = Field(
+        default=None,
+        description="Topic label when the question was served.",
+    )
 
 
 class StudentInsightArea(BaseModel):

@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "r
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { AdaptiveTestPitch } from "../components/AdaptiveTestPitch";
+import { ChallengeHeroCta } from "../components/ChallengeHeroCta";
 import { ChallengeParticipants } from "../components/ChallengeParticipants";
 import { CohortPercentileBanner } from "../components/CohortPercentileBanner";
 import { listChallengeCatalog, resumeChallenge, startChallenge } from "../api/client";
 import { parseUtcInstant } from "../lib/istTime";
 import type { ChallengeCatalogItem, ChallengeStatus } from "../api/types";
+import { getGuestId, getOrCreateGuestId } from "../lib/guestSession";
 import { useAuthStore } from "../store/authStore";
 import { useTestSession } from "../store/testSession";
 
@@ -169,8 +171,10 @@ function ChallengeCard({
   const status = liveStatus(item, nowMs);
   const countdownSec = countdownSeconds(item, nowMs);
 
-  const canStart = signedIn && status === "live" && item.has_access && !item.has_started && !item.completed;
-  const canContinue = signedIn && status === "live" && item.has_access && Boolean(item.challenge_attempt_id);
+  const canStart =
+    status === "live" && item.has_access && !item.has_started && !item.completed && (signedIn || item.open_to_all);
+  const canContinue =
+    status === "live" && item.has_access && Boolean(item.challenge_attempt_id) && (signedIn || item.open_to_all);
 
   return (
     <div className="card challenge-card" style={{ margin: 0, display: "flex", flexDirection: "column", gap: "0.75rem" }}>
@@ -186,9 +190,9 @@ function ChallengeCard({
             {item.open_to_all ? <span className="badge">Open to all</span> : null}
           </div>
           {item.description ? (
-            <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.95rem", lineHeight: 1.5 }}>{item.description}</p>
+            <p className="challenge-card__desc">{item.description}</p>
           ) : null}
-          <p style={{ margin: "0.5rem 0 0", fontSize: "0.85rem", color: "var(--muted)" }}>
+          <p className="challenge-card__meta">
             {item.section_count} section{item.section_count === 1 ? "" : "s"} · +{item.marks_per_correct} / −{item.marks_per_incorrect}
             {item.participants_count > 0 ? (
               <> · {item.participants_count} participants</>
@@ -218,10 +222,8 @@ function ChallengeCard({
         </div>
         {countdownSec != null ? (
           <div className="challenge-card__countdown">
-            <div style={{ fontSize: "0.75rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-              {statusLabel(status)}
-            </div>
-            <div style={{ fontSize: "1.35rem", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{formatCountdown(countdownSec)}</div>
+            <div className="challenge-card__countdown-label">{statusLabel(status)}</div>
+            <div className="challenge-card__countdown-value">{formatCountdown(countdownSec)}</div>
           </div>
         ) : status === "ended" ? (
           <span className="badge">Closed</span>
@@ -230,10 +232,15 @@ function ChallengeCard({
       <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
         {item.completed ? (
           <span className="badge">Completed</span>
-        ) : !signedIn ? (
-          <Link to="/auth" className="btn btn-primary">
-            Sign in to enter
-          </Link>
+        ) : canStart && !signedIn ? (
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={starting === item.challenge_id}
+            onClick={() => onStart(item.challenge_id)}
+          >
+            {starting === item.challenge_id ? "Starting…" : "Start"}
+          </button>
         ) : !item.has_access && status === "live" ? (
           <span style={{ color: "var(--muted)", fontSize: "0.9rem" }}>Not assigned to you</span>
         ) : (
@@ -278,9 +285,20 @@ export function ChallengesHomePage({ hideAdaptivePitch = false }: { hideAdaptive
 
   const signedIn = role === "student" && Boolean(session?.username);
 
+  const featuredChallenge = useMemo(() => {
+    for (const item of items) {
+      const status = liveStatus(item, nowMs);
+      if (status !== "live" || !item.open_to_all) continue;
+      if (item.completed) continue;
+      return item;
+    }
+    return null;
+  }, [items, nowMs]);
+
   const load = useCallback((targetPage: number) => {
     setLoading(true);
-    listChallengeCatalog(targetPage, PAGE_SIZE)
+    const guestId = signedIn ? undefined : getGuestId() ?? undefined;
+    listChallengeCatalog(targetPage, PAGE_SIZE, guestId)
       .then((res) => {
         setItems(res.items);
         setPage(res.page);
@@ -289,7 +307,7 @@ export function ChallengesHomePage({ hideAdaptivePitch = false }: { hideAdaptive
       })
       .catch(() => toast.error("Could not load challenges"))
       .finally(() => setLoading(false));
-  }, []);
+  }, [signedIn]);
 
   useEffect(() => {
     load(page);
@@ -301,16 +319,18 @@ export function ChallengesHomePage({ hideAdaptivePitch = false }: { hideAdaptive
   }, []);
 
   async function onStart(challengeId: string) {
-    if (!session?.username) {
-      toast.error("Sign in to enter a challenge");
-      nav("/auth");
-      return;
-    }
     setStarting(challengeId);
     try {
       reset();
+      let label: string;
+      if (signedIn && session?.username) {
+        label = session.username;
+      } else {
+        getOrCreateGuestId();
+        label = "Guest";
+      }
       const res = await startChallenge(challengeId);
-      hydratePaperStart(res, session.username, "challenge");
+      hydratePaperStart(res, label, "challenge");
       nav("/test");
     } catch (err: unknown) {
       const msg =
@@ -324,12 +344,13 @@ export function ChallengesHomePage({ hideAdaptivePitch = false }: { hideAdaptive
   }
 
   async function onContinue(challengeId: string) {
-    if (!session?.username) return;
+    if (!signedIn) getOrCreateGuestId();
     setStarting(challengeId);
     try {
       reset();
       const res = await resumeChallenge(challengeId);
-      hydratePaperStart(res, session.username, "challenge");
+      const label = signedIn && session?.username ? session.username : "Guest";
+      hydratePaperStart(res, label, "challenge");
       nav("/test");
     } catch (err: unknown) {
       const msg =
@@ -343,21 +364,29 @@ export function ChallengesHomePage({ hideAdaptivePitch = false }: { hideAdaptive
   }
 
   return (
-    <div className="page">
+    <div className="page challenges-home">
       <div className="content-inner">
-        <div style={{ marginBottom: "1.5rem" }}>
-          <h1 style={{ margin: "0 0 0.5rem" }}>Challenges</h1>
-          <p className="text-measure" style={{ margin: 0, color: "var(--muted)" }}>
-            Timed contests announced weekly.
+        <ChallengeHeroCta
+          signedIn={signedIn}
+          featured={featuredChallenge}
+          starting={starting === featuredChallenge?.challenge_id}
+          onStartFeatured={() => {
+            if (featuredChallenge) void onStart(featuredChallenge.challenge_id);
+          }}
+        />
+
+        <div id="challenges-list" className="challenges-home__list-head">
+          <h2 className="challenges-home__list-title">All challenges</h2>
+          <p className="challenges-home__list-lead text-measure">
+            Timed contests announced weekly. Open challenges appear first.
           </p>
           {signedIn ? (
-            <p style={{ margin: "0.75rem 0 0", fontSize: "0.9rem" }}>
+            <p className="challenges-home__list-link">
               <Link to="/performance">View your performance dashboard →</Link>
             </p>
           ) : null}
         </div>
 
-        {hideAdaptivePitch ? null : <AdaptiveTestPitch signedIn={signedIn} />}
 
         {loading ? (
           <p style={{ color: "var(--muted)" }}>Loading challenges…</p>

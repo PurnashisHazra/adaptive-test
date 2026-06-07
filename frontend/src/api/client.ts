@@ -23,6 +23,7 @@ import type {
   Challenge,
   ChallengeCatalogPage,
   ChallengeParticipantsPage,
+  ChallengeRecapResponse,
   QuestionPaper,
   StudentHistoryStats,
   StudentAttemptAccuracyImprovementResponse,
@@ -54,9 +55,18 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("auth_token");
+  config.headers = config.headers ?? {};
   if (token) {
-    config.headers = config.headers ?? {};
     config.headers.Authorization = `Bearer ${token}`;
+  } else {
+    try {
+      const guestId = localStorage.getItem("adaptest_guest_id");
+      if (guestId?.startsWith("guest_")) {
+        config.headers["X-Guest-Id"] = guestId;
+      }
+    } catch {
+      /* ignore */
+    }
   }
   return config;
 });
@@ -480,9 +490,9 @@ export async function listPaperAssignments(paperId: string) {
   return data;
 }
 
-export async function listChallengeCatalog(page = 1, pageSize = 3) {
+export async function listChallengeCatalog(page = 1, pageSize = 3, guestId?: string) {
   const { data } = await api.get<ChallengeCatalogPage>("/challenges/catalog", {
-    params: { page, page_size: pageSize },
+    params: { page, page_size: pageSize, ...(guestId ? { guest_id: guestId } : {}) },
   });
   return data;
 }
@@ -494,8 +504,16 @@ export async function listChallengeParticipants(challengeId: string, page = 1, p
   return data;
 }
 
-export async function startChallenge(challengeId: string) {
-  const { data } = await api.post<TestStartResponse>(`/challenges/${challengeId}/start`);
+export async function startChallenge(challengeId: string, displayName?: string) {
+  const body = displayName?.trim() ? { display_name: displayName.trim() } : {};
+  const { data } = await api.post<TestStartResponse>(`/challenges/${challengeId}/start`, body);
+  return data;
+}
+
+export async function getChallengeRecap(challengeAttemptId: string) {
+  const { data } = await api.get<ChallengeRecapResponse>(
+    `/challenges/attempts/${encodeURIComponent(challengeAttemptId)}/recap`,
+  );
   return data;
 }
 

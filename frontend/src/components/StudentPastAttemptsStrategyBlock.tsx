@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { getMyAttemptAccuracyImprovement, getMyAttemptTimeStrategy, getMyStandaloneReview } from "../api/client";
+import {
+  fallbackAccuracyCoachResponse,
+  fallbackTimeCoachResponse,
+  normalizeAccuracyCoach,
+  normalizeTimeCoach,
+} from "../lib/coachPlanFallback";
 import type {
   StudentAttemptAccuracyImprovementResponse,
   StudentAttemptTimeStrategyResponse,
@@ -79,7 +85,7 @@ function alignAiCumulative(raw: number[] | undefined, n: number): number[] | nul
   return s;
 }
 
-function RunningMetricTwinLinesChart({
+export function RunningMetricTwinLinesChart({
   chartKey,
   variant,
   n,
@@ -325,8 +331,8 @@ export function StudentPastAttemptsStrategyBlock({
     if (prefetched) {
       setSelectedId(prefetched.attemptId);
       setDetail(prefetched.detail);
-      setTimeCoach(prefetched.timeCoach);
-      setAccuracyCoach(prefetched.accuracyCoach);
+      setTimeCoach(normalizeTimeCoach(prefetched.timeCoach));
+      setAccuracyCoach(normalizeAccuracyCoach(prefetched.accuracyCoach));
       setLoading(false);
       setLoadingTimeCoach(false);
       setLoadingAccuracyCoach(false);
@@ -379,13 +385,10 @@ export function StudentPastAttemptsStrategyBlock({
       exam_tag: filters.exam.trim() || undefined,
     })
       .then((r) => {
-        if (!cancelled) setTimeCoach(r);
+        if (!cancelled) setTimeCoach(normalizeTimeCoach(r));
       })
       .catch(() => {
-        if (!cancelled) {
-          setTimeCoach(null);
-          toast.error("Could not load AI time coach");
-        }
+        if (!cancelled) setTimeCoach(fallbackTimeCoachResponse());
       })
       .finally(() => {
         if (!cancelled) setLoadingTimeCoach(false);
@@ -410,13 +413,10 @@ export function StudentPastAttemptsStrategyBlock({
       exam_tag: filters.exam.trim() || undefined,
     })
       .then((r) => {
-        if (!cancelled) setAccuracyCoach(r);
+        if (!cancelled) setAccuracyCoach(normalizeAccuracyCoach(r));
       })
       .catch(() => {
-        if (!cancelled) {
-          setAccuracyCoach(null);
-          toast.error("Could not load AI accuracy coach");
-        }
+        if (!cancelled) setAccuracyCoach(fallbackAccuracyCoachResponse());
       })
       .finally(() => {
         if (!cancelled) setLoadingAccuracyCoach(false);
@@ -488,8 +488,7 @@ export function StudentPastAttemptsStrategyBlock({
         <h3 className="strategy-session__title">Past attempts — pacing & study lift</h3>
         <p className="strategy-session__intro">
           Bubble chart: question order, time, difficulty-sized markers. Curves compare your running accuracy and cumulative time to
-          heuristics; with <code style={{ fontSize: "0.85em" }}>OPENAI_API_KEY</code>, the left column adds a subject- and exam-aware study
-          build plan, and the right column adds pacing, skips, and an optimal time curve.
+          heuristics; the left column adds a study build plan, and the right column adds pacing, skips, and an optimal time curve.
         </p>
       </header>
 
@@ -564,17 +563,11 @@ export function StudentPastAttemptsStrategyBlock({
                     />
                   </div>
                   <div className="strategy-column__body">
-                  {loadingAccuracyCoach ? <p className="strategy-status">Loading AI accuracy coach…</p> : null}
-                  {!loadingAccuracyCoach && accuracyCoach && !accuracyCoach.openai_configured ? (
-                    <p className="strategy-status">OpenAI is not configured — only the heuristic accuracy curve (blue) is shown.</p>
-                  ) : null}
-                  {!loadingAccuracyCoach && accuracyCoach?.openai_configured && accuracyCoach.error ? (
-                    <p className="strategy-status strategy-status--warn">AI coach: {accuracyCoach.error}</p>
-                  ) : null}
+                  {loadingAccuracyCoach ? <p className="strategy-status">Loading study plan…</p> : null}
                   {accuracyCoach?.used_openai && accuracyCoach.summary ? (
                     <div className="strategy-coach-panel">
                       <p>
-                        <strong>Adaptest AI accuracy plan</strong> — {accuracyCoach.summary}
+                        <strong>Adaptest plan</strong> — {accuracyCoach.summary}
                       </p>
                     </div>
                   ) : null}
@@ -662,17 +655,11 @@ export function StudentPastAttemptsStrategyBlock({
                     />
                   </div>
                   <div className="strategy-column__body">
-                  {loadingTimeCoach ? <p className="strategy-status">Loading AI time coach…</p> : null}
-                  {!loadingTimeCoach && timeCoach && !timeCoach.openai_configured ? (
-                    <p className="strategy-status">OpenAI is not configured — only the heuristic pacing curve (blue) is shown.</p>
-                  ) : null}
-                  {!loadingTimeCoach && timeCoach?.openai_configured && timeCoach.error ? (
-                    <p className="strategy-status strategy-status--warn">AI coach: {timeCoach.error}</p>
-                  ) : null}
+                  {loadingTimeCoach ? <p className="strategy-status">Loading pacing plan…</p> : null}
                   {timeCoach?.used_openai && timeCoach.summary ? (
                     <div className="strategy-coach-panel">
                       <p>
-                        <strong>Adaptest AI time plan</strong> — {timeCoach.summary}
+                        <strong>Adaptest plan</strong> — {timeCoach.summary}
                       </p>
                     </div>
                   ) : null}

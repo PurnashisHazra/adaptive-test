@@ -1,4 +1,5 @@
 import type { AdminStudentReportPdfBundle } from "../api/types";
+import { normalizeAccuracyCoach, normalizeTimeCoach } from "../lib/coachPlanFallback";
 import { formatNowIST } from "../lib/istTime";
 import { StudentLearningTrendCharts } from "./StudentLearningTrendCharts";
 import { StudentOverallRadar2D, StudentOverallStrategyPanel } from "./StudentOverallRadar2D";
@@ -40,8 +41,8 @@ export function AdminStudentAnalyticsPrintView({ bundle }: { bundle: AdminStuden
       ? {
           attemptId: report.latest_attempt.attempt_id,
           detail: report.latest_attempt_detail,
-          timeCoach: bundle.time_strategy ?? null,
-          accuracyCoach: bundle.accuracy_improvement ?? null,
+          timeCoach: normalizeTimeCoach(bundle.time_strategy ?? null),
+          accuracyCoach: normalizeAccuracyCoach(bundle.accuracy_improvement ?? null),
         }
       : null;
 

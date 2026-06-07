@@ -1,7 +1,6 @@
 import { useEffect } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
-import { AdaptiveTestPitch } from "../components/AdaptiveTestPitch";
 import { Seo } from "../components/Seo";
 import { SeoFooter } from "../components/SeoFooter";
 import { ChallengesHomePage } from "./ChallengesHomePage";
@@ -25,19 +24,7 @@ function MarketingLanding() {
   return (
     <>
       <Seo seo={SEO_HOME} jsonLd={faqPageJsonLd(HOME_FAQS)} />
-      <div className="page">
-        <div className="content-inner">
-          <header className="seo-home-hero">
-            <h1 className="seo-home-hero__h1">CAT mock test &amp; SSC mock test — adaptive, online, free to start</h1>
-            <p className="seo-home-hero__lead">
-              AdapTest is built for competitive exam aspirants in India: live challenges, full-length papers, and
-              AI-driven mocks that adjust after every answer.{" "}
-              <Link to="/cat-mock-test">CAT mocks</Link>, <Link to="/ssc-mock-test">SSC mocks</Link>, and{" "}
-              <Link to="/bank-exam-mock-test">bank exam practice</Link> in one place.
-            </p>
-          </header>
-          <AdaptiveTestPitch signedIn={false} />
-        </div>
+      <div className="page marketing-home">
         <ChallengesHomePage hideAdaptivePitch />
         <div className="content-inner seo-home-faq">
           <h2 className="seo-landing__h2">Mock tests FAQ</h2>

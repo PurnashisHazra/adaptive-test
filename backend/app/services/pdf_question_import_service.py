@@ -4,9 +4,9 @@ from io import BytesIO
 from typing import Any, Dict, List, Optional
 
 from pypdf import PdfReader
-from urllib import request
 
 from app.core.config import get_settings
+from app.services.llm_client import LlmChatError, ai_any_configured, chat_completion, strip_markdown_fence
 from app.models.domain import Difficulty, QuestionType
 from app.schemas.question import EXAM_TAGS, PdfImportPreviewItem, PdfImportPreviewResponse
 
@@ -29,8 +29,7 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
 
 
 def _openai_extract_questions(paper_text: str, subject: str, topic: str) -> Optional[List[Dict[str, Any]]]:
-    settings = get_settings()
-    if not settings.openai_api_key:
+    if not ai_any_configured():
         return None
     schema_hint = (
         '{"questions":['
@@ -41,86 +40,54 @@ def _openai_extract_questions(paper_text: str, subject: str, topic: str) -> Opti
         '"explanation":null,"difficulty":"EASY|MEDIUM|HARD|EXPERT","subject":"string","topic":"string"}'
         "]}"
     )
-    body = {
-        "model": settings.openai_model,
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You are an expert at parsing exam question papers from noisy PDF-extracted text. "
-                    "You MUST return a single JSON object (no markdown) with exactly one key: \"questions\", "
-                    "whose value is an array of question objects. Each object must match the shape the user describes "
-                    "and be valid for import into a test bank."
-                ),
-            },
-            {
-                "role": "user",
-                "content": (
-                    "Parse the following question-paper text and build the \"questions\" array.\n\n"
-                    "CRITICAL — READING COMPREHENSION:\n"
-                    "If several items share one reading passage, you MUST include the COMPLETE passage verbatim "
-                    "inside question_text for EVERY one of those items (repeat the passage each time). "
-                    "Do not use phrases like 'see passage above' or 'refer to the text above' without including the passage.\n\n"
-                    "CRITICAL — SHARED DIRECTIONS / INSTRUCTIONS FOR A RANGE:\n"
-                    "If the paper gives directions that apply to a numbered range (e.g. 'Directions for Questions 10 to 15: ...' "
-                    "or 'Questions 21–25 are based on ...'), you MUST prepend (or clearly include) that full direction text "
-                    "in question_text for EACH question that falls in that range.\n\n"
-                    "GENERAL:\n"
-                    "- Each question_text must be fully self-contained for a student who sees only that item.\n"
-                    "- question_type: use mcq_single for standard 4-option MCQ; true_false for True/False; tita for short typed answers.\n"
-                    "- For mcq_single: provide option_a..option_d and correct_answer a|b|c|d (empty if unknown).\n"
-                    "- For true_false: use option_a/option_b as labels if given, else 'True'/'False'; correct_answer true or false.\n"
-                    "- For tita: leave option fields empty strings; put the expected answer in correct_answer.\n"
-                    "- Split multi-part items (e.g. (a)(b) with different answers) into separate array elements.\n"
-                    "- Use only content supported by the document; do not invent facts.\n"
-                    f"- Default subject for items: {subject!r}, default topic: {topic!r} unless the paper clearly assigns others.\n\n"
-                    f"Output shape (JSON object): {schema_hint}\n\n"
-                    f"TEXT:\n{paper_text}"
-                ),
-            },
-        ],
-        "temperature": 0.15,
-        "response_format": {"type": "json_object"},
-    }
-    req = request.Request(
-        settings.openai_api_url,
-        data=json.dumps(body).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {settings.openai_api_key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
+    system = (
+        "You are an expert at parsing exam question papers from noisy PDF-extracted text. "
+        'You MUST return a single JSON object (no markdown) with exactly one key: "questions", '
+        "whose value is an array of question objects. Each object must match the shape the user describes "
+        "and be valid for import into a test bank."
+    )
+    user = (
+        "Parse the following question-paper text and build the \"questions\" array.\n\n"
+        "CRITICAL — READING COMPREHENSION:\n"
+        "If several items share one reading passage, you MUST include the COMPLETE passage verbatim "
+        "inside question_text for EVERY one of those items (repeat the passage each time). "
+        "Do not use phrases like 'see passage above' or 'refer to the text above' without including the passage.\n\n"
+        "CRITICAL — SHARED DIRECTIONS / INSTRUCTIONS FOR A RANGE:\n"
+        "If the paper gives directions that apply to a numbered range (e.g. 'Directions for Questions 10 to 15: ...' "
+        "or 'Questions 21–25 are based on ...'), you MUST prepend (or clearly include) that full direction text "
+        "in question_text for EACH question that falls in that range.\n\n"
+        "GENERAL:\n"
+        "- Each question_text must be fully self-contained for a student who sees only that item.\n"
+        "- question_type: use mcq_single for standard 4-option MCQ; true_false for True/False; tita for short typed answers.\n"
+        "- For mcq_single: provide option_a..option_d and correct_answer a|b|c|d (empty if unknown).\n"
+        "- For true_false: use option_a/option_b as labels if given, else 'True'/'False'; correct_answer true or false.\n"
+        "- For tita: leave option fields empty strings; put the expected answer in correct_answer.\n"
+        "- Split multi-part items (e.g. (a)(b) with different answers) into separate array elements.\n"
+        "- Use only content supported by the document; do not invent facts.\n"
+        f"- Default subject for items: {subject!r}, default topic: {topic!r} unless the paper clearly assigns others.\n\n"
+        f"Output shape (JSON object): {schema_hint}\n\n"
+        f"TEXT:\n{paper_text}"
     )
     try:
-        with request.urlopen(req, timeout=180) as resp:
-            raw = resp.read().decode("utf-8")
-    except Exception as exc:
-        logger.warning("OpenAI PDF extract failed: %s", exc)
-        return None
-    try:
-        data = json.loads(raw)
-        content = data["choices"][0]["message"]["content"]
-        cleaned = _strip_markdown_fence(content)
+        result = chat_completion(
+            system=system,
+            user=user,
+            temperature=0.15,
+            json_mode=True,
+            timeout=180,
+        )
+        cleaned = strip_markdown_fence(result.content)
         payload = json.loads(cleaned)
+    except LlmChatError as exc:
+        logger.warning("AI PDF extract failed: %s", exc.message)
+        return None
     except Exception as exc:
-        logger.warning("OpenAI PDF extract parse failed: %s", exc)
+        logger.warning("AI PDF extract parse failed: %s", exc)
         return None
     items = payload.get("questions") if isinstance(payload, dict) else None
     if not isinstance(items, list):
         return None
     return [x for x in items if isinstance(x, dict)]
-
-
-def _strip_markdown_fence(text: str) -> str:
-    t = text.strip()
-    if t.startswith("```"):
-        lines = t.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
-        return "\n".join(lines).strip()
-    return t
 
 
 def _normalize_question_type(raw: Any) -> str:
@@ -200,11 +167,11 @@ class PdfQuestionImportService:
         sub = (subject or "General").strip() or "General"
         top = (topic or "General").strip() or "General"
         settings = get_settings()
-        if not (settings.openai_api_key or "").strip():
+        if not settings.ai_configured:
             return PdfImportPreviewResponse(
                 drafts=[],
                 parse_mode="openai_required",
-                message="PDF import requires OPENAI_API_KEY (and a text-extractable PDF). Set the key in backend environment / .env.",
+                message="PDF import requires OPENAI_API_KEY or GEMINI_API_KEY (and a text-extractable PDF). Set a key in backend environment / .env.",
                 truncated=False,
             )
         try:

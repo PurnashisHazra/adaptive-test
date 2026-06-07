@@ -55,33 +55,46 @@ function aggregateByDifficulty(questions: StudentQuestionReview[]): DifficultySt
 
 const BAR_MAX_PX = 132;
 
-export function PaperReviewDifficultyChart({ paper }: { paper: StudentPaperDetail }) {
+export function PaperReviewDifficultyChart({
+  paper,
+  questions,
+  embedded = false,
+}: {
+  paper?: StudentPaperDetail;
+  questions?: StudentQuestionReview[];
+  embedded?: boolean;
+}) {
   const stats = useMemo(() => {
-    if (paper.difficulty_stats?.length) {
+    if (paper?.difficulty_stats?.length) {
       return statsFromServer(paper.difficulty_stats);
     }
-    const allQuestions = paper.sections.flatMap((s) => s.questions);
-    return aggregateByDifficulty(allQuestions);
-  }, [paper]);
+    const fromPaper = paper?.sections.flatMap((s) => s.questions) ?? [];
+    const qs = questions?.length ? questions : fromPaper;
+    return aggregateByDifficulty(qs);
+  }, [paper, questions]);
   const hasDifficultyData = stats.some((s) => s.total > 0);
   const maxAvgTime = useMemo(() => {
     const avgs = stats.map((s) => s.avgTime).filter((t): t is number => t != null && t > 0);
     return avgs.length ? Math.max(...avgs) : 0;
   }, [stats]);
 
+  const wrapStyle = embedded ? { marginTop: "1.25rem" } : { marginTop: "1.5rem" };
+  const Wrap = embedded ? "section" : "div";
+  const wrapClass = embedded ? undefined : "card";
+
   if (!hasDifficultyData) {
     return (
-      <div className="card" style={{ marginTop: "1.5rem" }}>
+      <Wrap className={wrapClass} style={wrapStyle}>
         <h2 style={{ fontSize: "1.05rem", marginTop: 0, marginBottom: "0.5rem" }}>Performance by difficulty</h2>
         <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.95rem" }}>
           No difficulty labels are stored for these answers (older attempts may be missing this data).
         </p>
-      </div>
+      </Wrap>
     );
   }
 
   return (
-    <div className="card" style={{ marginTop: "1.5rem" }}>
+    <Wrap className={wrapClass} style={wrapStyle}>
       <h2 style={{ fontSize: "1.05rem", marginTop: 0, marginBottom: "0.35rem" }}>Performance by difficulty</h2>
       <p style={{ margin: "0 0 1rem", color: "var(--muted)", fontSize: "0.9rem" }}>
         Green bars: correct rate. Blue bars: average time on question (tallest = longest average among these four).
@@ -170,6 +183,6 @@ export function PaperReviewDifficultyChart({ paper }: { paper: StudentPaperDetai
           Avg. time
         </span>
       </div>
-    </div>
+    </Wrap>
   );
 }

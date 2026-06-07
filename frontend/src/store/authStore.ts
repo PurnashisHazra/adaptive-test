@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { AuthResponse, AuthUser, Role } from "../api/types";
 import { claimAdminCode, getAuthMe, login, signup } from "../api/client";
+import { clearGuestSession } from "../lib/guestSession";
 
 export interface AuthSession {
   username: string;
@@ -85,6 +86,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ token: null, session: null, role: null, needsAdminCode: false, isHydrated: true });
       return;
     }
+    clearGuestSession();
     const decoded = decodeToken(token);
     if (!decoded) {
       localStorage.removeItem(LS_TOKEN);
@@ -112,6 +114,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   loginUser: async ({ username, password }) => {
     try {
       const res: AuthResponse = await login({ username, password });
+      clearGuestSession();
       localStorage.setItem(LS_TOKEN, res.token);
       applyAuth(set, res.token, res.user);
       return { ok: true };
@@ -125,6 +128,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const digits = mobile.replace(/\D/g, "");
       const res: AuthResponse = await signup({ username, password, mobile: digits || undefined });
+      clearGuestSession();
       localStorage.setItem(LS_TOKEN, res.token);
       applyAuth(set, res.token, res.user);
       return { ok: true };
@@ -147,6 +151,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: () => {
+    clearGuestSession();
     localStorage.removeItem(LS_TOKEN);
     set({ token: null, session: null, role: null, needsAdminCode: false, isHydrated: true });
   },

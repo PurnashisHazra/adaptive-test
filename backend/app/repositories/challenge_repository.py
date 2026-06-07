@@ -55,6 +55,10 @@ class ChallengeRepository:
         cur = self._challenges.find({}).sort("created_at", -1).skip(skip).limit(limit)
         return [d async for d in cur]
 
+    async def list_all_challenges(self) -> List[Dict[str, Any]]:
+        cur = self._challenges.find({})
+        return [d async for d in cur]
+
     async def list_assigned_challenge_ids(self, student_username: str) -> List[str]:
         cur = self._assign.find(
             {"student_username": student_username.strip()},

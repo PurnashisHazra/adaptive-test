@@ -41,6 +41,10 @@ from app.schemas.student_analytics import (
 )
 from app.services.attempt_accuracy_improvement_openai import request_openai_accuracy_improvement
 from app.services.attempt_time_strategy_openai import request_openai_time_strategy
+from app.services.coach_plan_fallback import (
+    build_fallback_accuracy_improvement,
+    build_fallback_time_strategy,
+)
 from app.utils.ids import oid_str
 
 
@@ -381,6 +385,7 @@ class StudentAnalyticsService:
                         explanation=None,
                         time_spent_seconds=a.get("time_spent_seconds"),
                         difficulty_when_served=diff_served,
+                        topic_when_served=str(a.get("topic_when_served") or "").strip() or None,
                         answer_attempt_id=answer_attempt_id,
                     )
                 )
@@ -410,6 +415,7 @@ class StudentAnalyticsService:
                     explanation=qdoc.get("explanation"),
                     time_spent_seconds=a.get("time_spent_seconds"),
                     difficulty_when_served=diff_served,
+                    topic_when_served=str(qdoc.get("topic") or a.get("topic_when_served") or "").strip() or None,
                     answer_attempt_id=answer_attempt_id,
                 )
             )
@@ -1061,6 +1067,25 @@ class StudentAnalyticsService:
             strategy_to_desired_state=strategy[:4],
         )
 
+    @staticmethod
+    def _coach_snapshot_from_attempt(
+        att: Optional[Dict[str, Any]],
+        field: str,
+        model_cls: type,
+    ) -> Optional[Any]:
+        if not att:
+            return None
+        raw = att.get(field)
+        if not isinstance(raw, dict) or not raw:
+            return None
+        try:
+            parsed = model_cls.model_validate(raw)
+        except Exception:
+            return None
+        if parsed.used_openai and not parsed.error:
+            return parsed
+        return None
+
     async def get_coach_plan(
         self,
         username: str,
@@ -1093,7 +1118,17 @@ class StudentAnalyticsService:
         topic: Optional[str] = None,
         exam_tag: Optional[str] = None,
     ) -> StudentAttemptTimeStrategyResponse:
-        """LLM time coach: attempt facts + dashboard strategy → per-question pacing + optimal cumulative time curve."""
+        """Time coach for one attempt: return saved AI plan, else generate (OpenAI/Gemini), else Adaptest heuristic plan."""
+        att = await self._attempts.get(attempt_id)
+        if not att or not self._owns_test_attempt(att, username):
+            raise ValueError("Attempt not found")
+
+        cached = self._coach_snapshot_from_attempt(
+            att, "coach_time_strategy_snapshot", StudentAttemptTimeStrategyResponse
+        )
+        if cached:
+            return cached
+
         detail = await self.standalone_detail(username, attempt_id)
         overall = await self.overall_analytics(
             username,
@@ -1101,16 +1136,23 @@ class StudentAnalyticsService:
             topic=str(topic).strip() if topic else None,
             exam_tag=str(exam_tag).strip().upper() if exam_tag else None,
         )
+        if not detail.questions:
+            return build_fallback_time_strategy(detail, overall)
+
         result = await asyncio.to_thread(request_openai_time_strategy, detail, overall)
         if result.used_openai and not result.error:
+            snap = result.model_dump()
+            await self._attempts.update(attempt_id, {"coach_time_strategy_snapshot": snap})
             await self._coach_plans.upsert_merge(
                 username,
                 subject,
                 topic,
                 exam_tag,
-                time_plan=result.model_dump(),
+                time_plan=snap,
             )
-        return result
+            return result
+
+        return build_fallback_time_strategy(detail, overall)
 
     async def openai_accuracy_improvement(
         self,
@@ -1121,7 +1163,17 @@ class StudentAnalyticsService:
         topic: Optional[str] = None,
         exam_tag: Optional[str] = None,
     ) -> StudentAttemptAccuracyImprovementResponse:
-        """LLM study coach: what to build (concepts, tricks, formulae, deep knowledge) for this attempt + lenses."""
+        """Accuracy coach for one attempt: saved AI plan, else generate, else Adaptest heuristic plan."""
+        att = await self._attempts.get(attempt_id)
+        if not att or not self._owns_test_attempt(att, username):
+            raise ValueError("Attempt not found")
+
+        cached = self._coach_snapshot_from_attempt(
+            att, "coach_accuracy_improvement_snapshot", StudentAttemptAccuracyImprovementResponse
+        )
+        if cached:
+            return cached
+
         detail = await self.standalone_detail(username, attempt_id)
         overall = await self.overall_analytics(
             username,
@@ -1129,22 +1181,37 @@ class StudentAnalyticsService:
             topic=str(topic).strip() if topic else None,
             exam_tag=str(exam_tag).strip().upper() if exam_tag else None,
         )
+        subj_f = str(subject).strip() if subject else None
+        topic_f = str(topic).strip() if topic else None
+        exam_f = str(exam_tag).strip().upper() if exam_tag else None
+
+        if not detail.questions:
+            return build_fallback_accuracy_improvement(
+                detail, overall, subject_filter=subj_f, topic_filter=topic_f, exam_tag_filter=exam_f
+            )
+
         result = await asyncio.to_thread(
             partial(
                 request_openai_accuracy_improvement,
                 detail,
                 overall,
-                subject_filter=str(subject).strip() if subject else None,
-                topic_filter=str(topic).strip() if topic else None,
-                exam_tag_filter=str(exam_tag).strip().upper() if exam_tag else None,
+                subject_filter=subj_f,
+                topic_filter=topic_f,
+                exam_tag_filter=exam_f,
             )
         )
         if result.used_openai and not result.error:
+            snap = result.model_dump()
+            await self._attempts.update(attempt_id, {"coach_accuracy_improvement_snapshot": snap})
             await self._coach_plans.upsert_merge(
                 username,
                 subject,
                 topic,
                 exam_tag,
-                accuracy_plan=result.model_dump(),
+                accuracy_plan=snap,
             )
-        return result
+            return result
+
+        return build_fallback_accuracy_improvement(
+            detail, overall, subject_filter=subj_f, topic_filter=topic_f, exam_tag_filter=exam_f
+        )
