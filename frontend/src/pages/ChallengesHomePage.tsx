@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { AdaptiveTestPitch } from "../components/AdaptiveTestPitch";
 import { ChallengeHeroCta } from "../components/ChallengeHeroCta";
 import { ChallengeParticipants } from "../components/ChallengeParticipants";
 import { CohortPercentileBanner } from "../components/CohortPercentileBanner";
@@ -267,7 +266,7 @@ function ChallengeCard({
   );
 }
 
-export function ChallengesHomePage({ hideAdaptivePitch = false }: { hideAdaptivePitch?: boolean }) {
+export function ChallengesHomePage() {
   const nav = useNavigate();
   const role = useAuthStore((s) => s.role);
   const session = useAuthStore((s) => s.session);

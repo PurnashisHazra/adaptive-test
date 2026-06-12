@@ -25,7 +25,7 @@ function MarketingLanding() {
     <>
       <Seo seo={SEO_HOME} jsonLd={faqPageJsonLd(HOME_FAQS)} />
       <div className="page marketing-home">
-        <ChallengesHomePage hideAdaptivePitch />
+        <ChallengesHomePage />
         <div className="content-inner seo-home-faq">
           <h2 className="seo-landing__h2">Mock tests FAQ</h2>
           <dl className="seo-landing__faq-list">
