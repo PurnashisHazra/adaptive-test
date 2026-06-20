@@ -1,44 +1,102 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { CohortPercentileBanner } from "./CohortPercentileBanner";
-import { ChallengeGuestSignup } from "./ChallengeGuestSignup";
+import { ChallengeGuestEmailGate } from "./ChallengeGuestEmailGate";
 import { ChallengeRecapAnalytics } from "./ChallengeRecapAnalytics";
 import { getChallengeRecap } from "../api/client";
 import type { ChallengeRecapResponse } from "../api/types";
-import { getGuestId, getOrCreateGuestId } from "../lib/guestSession";
-import { useAuthStore } from "../store/authStore";
+import { isGuestEmailRequiredError } from "../lib/guestEmailGate";
+import { getOrCreateGuestId } from "../lib/guestSession";
+
+type PanelPhase = "loading" | "email" | "ready" | "error";
+
+function AccountCreatedModal({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="radar-modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="account-created-heading"
+      onClick={onClose}
+    >
+      <div
+        className="card radar-modal-panel"
+        style={{ maxWidth: 400, textAlign: "center", padding: "1.5rem" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 id="account-created-heading" style={{ marginTop: 0, fontSize: "1.35rem" }}>
+          Account Created!
+        </h2>
+        <p style={{ color: "var(--muted)", margin: "0 0 1.25rem", lineHeight: 1.55 }}>
+          Analytics will be saved.
+        </p>
+        <button type="button" className="btn btn-primary" onClick={onClose}>
+          Continue
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export function ChallengeResultPanel({ challengeAttemptId }: { challengeAttemptId: string }) {
-  const role = useAuthStore((s) => s.role);
   const [recap, setRecap] = useState<ChallengeRecapResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [phase, setPhase] = useState<PanelPhase>("loading");
+  const [showAccountCreatedModal, setShowAccountCreatedModal] = useState(false);
 
-  const showSignup = role !== "student" && Boolean(getGuestId());
-
-  useEffect(() => {
+  const loadRecap = useCallback(async () => {
     if (!challengeAttemptId?.trim()) {
-      setError(true);
-      setLoading(false);
+      setPhase("error");
       return;
     }
-    setLoading(true);
-    setError(false);
+    setPhase("loading");
     getOrCreateGuestId();
-    getChallengeRecap(challengeAttemptId)
-      .then(setRecap)
-      .catch(() => setError(true))
-      .finally(() => setLoading(false));
+    try {
+      const data = await getChallengeRecap(challengeAttemptId);
+      setRecap(data);
+      setPhase("ready");
+    } catch (err: unknown) {
+      if (isGuestEmailRequiredError(err)) {
+        setRecap(null);
+        setPhase("email");
+        return;
+      }
+      setRecap(null);
+      setPhase("error");
+    }
   }, [challengeAttemptId]);
 
-  if (loading) {
-    return <p style={{ color: "var(--muted)", textAlign: "center" }}>Loading your challenge analytics…</p>;
+  useEffect(() => {
+    void loadRecap();
+  }, [loadRecap]);
+
+  if (phase === "email") {
+    return (
+      <ChallengeGuestEmailGate
+        challengeAttemptId={challengeAttemptId}
+        onUnlocked={({ accountCreated }) => {
+          if (accountCreated) setShowAccountCreatedModal(true);
+          void loadRecap();
+        }}
+      />
+    );
   }
 
-  if (error || !recap) {
+  if (phase === "loading") {
+    return <p style={{ color: "var(--muted)", textAlign: "center" }}>Loading your challenge results…</p>;
+  }
+
+  if (phase === "error" || !recap) {
     return (
       <p style={{ color: "var(--muted)", textAlign: "center" }}>
-        Could not load challenge analytics.{" "}
+        Could not load challenge results.{" "}
         <Link to="/">Back to challenges</Link>
       </p>
     );
@@ -48,6 +106,8 @@ export function ChallengeResultPanel({ challengeAttemptId }: { challengeAttemptI
 
   return (
     <>
+      {showAccountCreatedModal ? <AccountCreatedModal onClose={() => setShowAccountCreatedModal(false)} /> : null}
+
       <div className="card" style={{ textAlign: "center" }}>
         <h1 style={{ fontSize: "1.75rem", marginBottom: "0.5rem" }}>{paper.title}</h1>
         <p style={{ color: "var(--muted)" }}>{paper.student_name}</p>
@@ -92,8 +152,6 @@ export function ChallengeResultPanel({ challengeAttemptId }: { challengeAttemptI
           ))}
         </div>
       </div>
-
-      {showSignup ? <ChallengeGuestSignup /> : null}
     </>
   );
 }

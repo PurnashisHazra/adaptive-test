@@ -5,13 +5,16 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_challenge_service
 from app.api.deps_challenge_actor import get_challenge_actor, get_optional_challenge_actor
 from app.schemas.attempt import TestStartResponse
+from app.schemas.auth import AuthResponse
 from app.schemas.challenge import (
     ChallengeCatalogPage,
+    ChallengeGuestSignupBody,
     ChallengeGuestStartBody,
     ChallengeParticipantsPage,
     ChallengeRecapResponse,
 )
 from app.services.challenge_service import ChallengeService
+from app.utils.guest import GUEST_EMAIL_REQUIRED
 
 router = APIRouter(prefix="/challenges", tags=["challenges"])
 
@@ -100,6 +103,28 @@ async def timeout_challenge_section(
         raise HTTPException(status_code=code, detail=msg) from e
 
 
+@router.post("/attempts/{challenge_attempt_id}/guest-signup", response_model=AuthResponse)
+async def submit_challenge_guest_signup(
+    challenge_attempt_id: str,
+    body: ChallengeGuestSignupBody,
+    actor: tuple = Depends(get_challenge_actor),
+    svc: ChallengeService = Depends(get_challenge_service),
+) -> AuthResponse:
+    username, _is_guest = actor
+    try:
+        return await svc.submit_guest_signup(
+            challenge_attempt_id,
+            username,
+            body.email,
+            body.password,
+        )
+    except ValueError as e:
+        msg = str(e)
+        if msg == "Not found":
+            raise HTTPException(status_code=404, detail=msg) from e
+        raise HTTPException(status_code=400, detail=msg) from e
+
+
 @router.get("/attempts/{challenge_attempt_id}/recap", response_model=ChallengeRecapResponse)
 async def get_challenge_recap(
     challenge_attempt_id: str,
@@ -111,5 +136,7 @@ async def get_challenge_recap(
         return await svc.get_challenge_recap(challenge_attempt_id, username)
     except ValueError as e:
         msg = str(e)
+        if msg == GUEST_EMAIL_REQUIRED:
+            raise HTTPException(status_code=403, detail=msg) from e
         code = 404 if msg == "Not found" else 400
         raise HTTPException(status_code=code, detail=msg) from e

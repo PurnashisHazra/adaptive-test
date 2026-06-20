@@ -22,6 +22,7 @@ interface AuthState {
   refreshMe: () => Promise<void>;
   loginUser: (args: { username: string; password: string }) => Promise<{ ok: boolean; error?: string }>;
   signupUser: (args: { username: string; password: string; mobile: string }) => Promise<{ ok: boolean; error?: string }>;
+  setAuthFromResponse: (res: AuthResponse) => void;
   claimAdminCodeUser: (admin_code: string) => Promise<{ ok: boolean; error?: string }>;
   logout: () => void;
 }
@@ -128,14 +129,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const digits = mobile.replace(/\D/g, "");
       const res: AuthResponse = await signup({ username, password, mobile: digits || undefined });
-      clearGuestSession();
-      localStorage.setItem(LS_TOKEN, res.token);
-      applyAuth(set, res.token, res.user);
+      get().setAuthFromResponse(res);
       return { ok: true };
     } catch (err: unknown) {
       const msg = err && typeof err === "object" && "response" in err ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail : undefined;
       return { ok: false, error: typeof msg === "string" ? msg : "Signup failed" };
     }
+  },
+
+  setAuthFromResponse: (res: AuthResponse) => {
+    clearGuestSession();
+    localStorage.setItem(LS_TOKEN, res.token);
+    applyAuth(set, res.token, res.user);
   },
 
   claimAdminCodeUser: async (admin_code) => {

@@ -21,7 +21,9 @@ from app.schemas.challenge import (
     ChallengeUpdate,
 )
 from app.utils.cohort_percentile import percentile_among_ranked_attempts
-from app.utils.guest import is_guest_username
+from app.utils.guest import GUEST_EMAIL_REQUIRED, is_guest_username
+from app.schemas.auth import AuthResponse, SignupRequest
+from app.services.auth_service import AuthService
 from app.services.public_profile_service import PublicProfileService
 from app.schemas.challenge import ChallengeKnowledgeGapItem, ChallengeRecapResponse
 from app.schemas.student_analytics import StudentPerformanceInsights, StudentQuestionReview
@@ -704,6 +706,10 @@ class ChallengeService:
             str(challenge_attempt["student_username"]),
             challenge_ended=ch_status == "ended",
         )
+        if is_guest_username(str(challenge_attempt.get("student_username", ""))) and not str(
+            challenge_attempt.get("guest_email") or ""
+        ).strip():
+            cohort = {"cohort_percentile": None, "cohort_size": 0, "percentile_is_final": False}
         return PaperResultSummary(
             paper_attempt_id=ca_id,
             paper_id=cid,
@@ -1051,6 +1057,54 @@ class ChallengeService:
             total_pages=total_pages,
         )
 
+    async def submit_guest_signup(
+        self,
+        challenge_attempt_id: str,
+        guest_username: str,
+        email: str,
+        password: str,
+    ) -> AuthResponse:
+        ca = await self._challenges.get_challenge_attempt(challenge_attempt_id)
+        if not ca:
+            raise ValueError("Not found")
+        await self._assert_attempt_owner(ca, guest_username)
+        if not is_guest_username(guest_username):
+            raise ValueError("Not a guest attempt")
+        if ca.get("status") not in ("completed", "ended_early"):
+            raise ValueError("Challenge attempt is not finished yet")
+
+        normalized = (email or "").strip().lower()
+        if not normalized or "@" not in normalized or len(normalized) > 320:
+            raise ValueError("Invalid email address")
+        if len((password or "").strip()) < 8:
+            raise ValueError("Password must be at least 8 characters")
+
+        auth = AuthService()
+        auth_res = await auth.signup(
+            SignupRequest(username=normalized, password=password.strip()),
+        )
+
+        display = normalized.split("@")[0][:120] or normalized[:120]
+        patch: Dict[str, Any] = {
+            "student_username": normalized,
+            "guest_email": normalized,
+            "guest_email_at": utc_now(),
+            "display_name": display,
+            "migrated_from_guest": guest_username.strip(),
+        }
+        await self._challenges.update_challenge_attempt(challenge_attempt_id, patch)
+
+        for attempt_id in list(ca.get("section_attempt_ids") or []):
+            aid = str(attempt_id).strip()
+            if not aid:
+                continue
+            await self._tests._attempts.update(
+                aid,
+                {"student_username": normalized, "student_name": display},
+            )
+
+        return auth_res
+
     async def get_challenge_recap(self, challenge_attempt_id: str, student_username: str) -> ChallengeRecapResponse:
         ca = await self._challenges.get_challenge_attempt(challenge_attempt_id)
         if not ca:
@@ -1059,6 +1113,9 @@ class ChallengeService:
 
         if ca.get("status") not in ("completed", "ended_early"):
             raise ValueError("Challenge attempt is not finished yet")
+
+        if is_guest_username(student_username) and not str(ca.get("guest_email") or "").strip():
+            raise ValueError(GUEST_EMAIL_REQUIRED)
 
         challenge = await self._challenges.get_challenge(str(ca["challenge_id"]))
         if not challenge:

@@ -517,6 +517,14 @@ export async function getChallengeRecap(challengeAttemptId: string) {
   return data;
 }
 
+export async function submitChallengeGuestSignup(challengeAttemptId: string, email: string, password: string) {
+  const { data } = await api.post<AuthResponse>(
+    `/challenges/attempts/${encodeURIComponent(challengeAttemptId)}/guest-signup`,
+    { email, password },
+  );
+  return data;
+}
+
 export async function resumeChallenge(challengeId: string) {
   const { data } = await api.post<TestStartResponse>(`/challenges/${challengeId}/resume`);
   return data;

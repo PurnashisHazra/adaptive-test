@@ -1,5 +1,6 @@
 const GUEST_ID_KEY = "adaptest_guest_id";
 const GUEST_NAME_KEY = "adaptest_guest_display_name";
+const GUEST_EMAIL_KEY = "adaptest_guest_email";
 
 function randomSuffix(): string {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -45,10 +46,27 @@ export function setGuestDisplayName(name: string): void {
   }
 }
 
+export function getGuestEmail(): string {
+  try {
+    return localStorage.getItem(GUEST_EMAIL_KEY)?.trim() || "";
+  } catch {
+    return "";
+  }
+}
+
+export function setGuestEmail(email: string): void {
+  try {
+    localStorage.setItem(GUEST_EMAIL_KEY, email.trim().toLowerCase().slice(0, 320));
+  } catch {
+    /* ignore */
+  }
+}
+
 export function clearGuestSession(): void {
   try {
     localStorage.removeItem(GUEST_ID_KEY);
     localStorage.removeItem(GUEST_NAME_KEY);
+    localStorage.removeItem(GUEST_EMAIL_KEY);
   } catch {
     /* ignore */
   }
