@@ -6,6 +6,7 @@ import { SeoFooter } from "../components/SeoFooter";
 import { ChallengesHomePage } from "./ChallengesHomePage";
 import { SEO_HOME } from "../seo/pages";
 import { faqPageJsonLd } from "../seo/jsonLd";
+import { LandingPage } from "./LandingPage";
 
 const HOME_FAQS = [
   {
@@ -72,5 +73,5 @@ export function HomePage() {
     return <ChallengesHomePage />;
   }
 
-  return <MarketingLanding />;
+  return <LandingPage />;
 }
