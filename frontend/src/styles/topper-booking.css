@@ -1,0 +1,190 @@
+.topper-booking-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(10, 17, 40, 0.45);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.topper-booking-modal {
+  width: min(480px, 100%);
+  max-height: min(92vh, 720px);
+  overflow: auto;
+  background: #fff;
+  border-radius: 20px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.18);
+  padding: 1.5rem;
+}
+
+.topper-booking-modal h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #0a1128;
+}
+
+.topper-booking-modal p.topper-booking-sub {
+  margin: 0 0 1.25rem;
+  color: #64748b;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.topper-booking-steps {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 1.25rem;
+}
+
+.topper-booking-step {
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: #e5e7eb;
+}
+
+.topper-booking-step--active {
+  background: #4f75ff;
+}
+
+.topper-booking-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.85rem;
+}
+
+.topper-booking-field label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #0a1128;
+}
+
+.topper-booking-field input,
+.topper-booking-field textarea {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+  color: #0a1128;
+}
+
+.topper-booking-field textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.topper-booking-actions {
+  display: flex;
+  gap: 0.65rem;
+  margin-top: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.topper-booking-qr-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.85rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.topper-booking-qr {
+  width: min(240px, 100%);
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+}
+
+.topper-booking-timer {
+  font-size: 1.5rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #4f75ff;
+}
+
+.topper-booking-timer--expired {
+  color: #64748b;
+}
+
+.topper-booking-status-box {
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  font-size: 0.92rem;
+  color: #475569;
+  line-height: 1.55;
+}
+
+.topper-booking-status-box--success {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.25);
+  color: #166534;
+}
+
+.topper-booking-status-box--review {
+  background: rgba(79, 117, 255, 0.08);
+  border-color: rgba(79, 117, 255, 0.2);
+  color: #1e3a8a;
+}
+
+.topper-booking-amount {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0a1128;
+}
+
+.topper-booking-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  border: none;
+  background: transparent;
+  font-size: 1.25rem;
+  cursor: pointer;
+  color: #64748b;
+  line-height: 1;
+}
+
+.topper-booking-modal-wrap {
+  position: relative;
+}
+
+.topper-booking-auth-tabs {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0.25rem;
+  margin-bottom: 1rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  border: 1px solid #e5e7eb;
+}
+
+.topper-booking-auth-tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  border-radius: 999px;
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.topper-booking-auth-tab--active {
+  background: #fff;
+  color: #0a1128;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+.topper-booking-auth-tab:hover:not(.topper-booking-auth-tab--active) {
+  color: #0a1128;
+}
