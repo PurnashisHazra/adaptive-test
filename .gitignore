@@ -49,6 +49,7 @@ Thumbs.db
 tmp/
 temp/
 .cache/
+backend/data/leader_connect_cvs/
 
 # Optional local tooling
 *.local

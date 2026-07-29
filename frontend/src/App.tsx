@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
 import { HomePage } from "./pages/HomePage";
+import { ChallengesHomePage } from "./pages/ChallengesHomePage";
 import { StudentDashboardPage } from "./pages/StudentDashboardPage";
 import { StudentTakeTestPage } from "./pages/StudentTakeTestPage";
 import { TestInstructionsPage } from "./pages/TestInstructionsPage";
@@ -20,6 +21,8 @@ import { QuestionPaperFormPage } from "./pages/admin/QuestionPaperFormPage";
 import { ChallengesPage } from "./pages/admin/ChallengesPage";
 import { ChallengeFormPage } from "./pages/admin/ChallengeFormPage";
 import { QuestionReportsPage } from "./pages/admin/QuestionReportsPage";
+import { AdminMentorshipBookingsPage } from "./pages/admin/AdminMentorshipBookingsPage";
+import { AdminLeaderConnectPage } from "./pages/admin/AdminLeaderConnectPage";
 import { AdminStudentControlsPage } from "./pages/admin/AdminStudentControlsPage";
 import { AdminStudentReportsPage } from "./pages/admin/AdminStudentReportsPage";
 import { AuthPage } from "./pages/AuthPage";
@@ -43,6 +46,7 @@ export default function App() {
     <Routes>
       <Route element={<AppShell />}>
         <Route path="/" element={<HomePage />} />
+        <Route path="/challenges" element={<ChallengesHomePage />} />
         <Route path="/mock-tests" element={<MockTestsHubPage />} />
         <Route path="/cat-mock-test" element={<CatMockTestPage />} />
         <Route path="/ssc-mock-test" element={<SscMockTestPage />} />
@@ -149,6 +153,8 @@ export default function App() {
           <Route path="settings" element={<SettingsPage />} />
           <Route path="attempts" element={<AttemptsPage />} />
           <Route path="students" element={<AdminStudentControlsPage />} />
+          <Route path="mentorship-bookings" element={<AdminMentorshipBookingsPage />} />
+          <Route path="leader-connect" element={<AdminLeaderConnectPage />} />
           <Route path="student-reports" element={<AdminStudentReportsPage />} />
           <Route path="question-papers" element={<QuestionPapersPage />} />
           <Route path="question-papers/new" element={<QuestionPaperFormPage />} />

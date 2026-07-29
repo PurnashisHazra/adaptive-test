@@ -2,8 +2,6 @@ import { useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
 import { Seo } from "../components/Seo";
-import { SeoFooter } from "../components/SeoFooter";
-import { ChallengesHomePage } from "./ChallengesHomePage";
 import { SEO_HOME } from "../seo/pages";
 import { faqPageJsonLd } from "../seo/jsonLd";
 import { LandingPage } from "./LandingPage";
@@ -20,29 +18,6 @@ const HOME_FAQS = [
       "Sign in free, then use Home for live challenges or visit our CAT mock test and SSC mock test pages to learn how adaptive practice works.",
   },
 ];
-
-function MarketingLanding() {
-  return (
-    <>
-      <Seo seo={SEO_HOME} jsonLd={faqPageJsonLd(HOME_FAQS)} />
-      <div className="page marketing-home">
-        <ChallengesHomePage />
-        <div className="content-inner seo-home-faq">
-          <h2 className="seo-landing__h2">Mock tests FAQ</h2>
-          <dl className="seo-landing__faq-list">
-            {HOME_FAQS.map((f) => (
-              <div key={f.question} className="seo-landing__faq-item">
-                <dt>{f.question}</dt>
-                <dd>{f.answer}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-        <SeoFooter />
-      </div>
-    </>
-  );
-}
 
 export function HomePage() {
   const role = useAuthStore((s) => s.role);
@@ -69,9 +44,10 @@ export function HomePage() {
     return <Navigate to="/admin" replace />;
   }
 
-  if (role === "student") {
-    return <ChallengesHomePage />;
-  }
-
-  return <LandingPage />;
+  return (
+    <>
+      <Seo seo={SEO_HOME} jsonLd={faqPageJsonLd(HOME_FAQS)} />
+      <LandingPage />
+    </>
+  );
 }

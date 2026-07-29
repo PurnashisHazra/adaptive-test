@@ -39,6 +39,11 @@ import type {
   StudentProfileAdminView,
   PracticeAttemptRequestAdminItem,
   PracticeAttemptRequestOut,
+  MentorshipBookingAdminItem,
+  MentorshipBookingOut,
+  MentorshipBookingSignupResponse,
+  LeaderConnectRequestAdminItem,
+  LeaderConnectRequestOut,
   StudentProfileListItem,
   StudentProfileUpdatePayload,
   StudentSessionControls,
@@ -653,6 +658,87 @@ export async function denyAdminPracticeAttemptRequest(requestId: string) {
     `/admin/students/practice-attempt-requests/${encodeURIComponent(requestId)}/deny`,
   );
   return data;
+}
+
+export async function createMentorshipBooking(body: {
+  session_date: string;
+  session_time: string;
+  pre_meet_question: string;
+}) {
+  const { data } = await api.post<MentorshipBookingOut>("/mentorship/bookings", body);
+  return data;
+}
+
+export async function createMentorshipBookingWithSignup(body: {
+  session_date: string;
+  session_time: string;
+  pre_meet_question: string;
+  username: string;
+  password: string;
+  mobile: string;
+}) {
+  const { data } = await api.post<MentorshipBookingSignupResponse>("/mentorship/bookings/with-signup", body);
+  return data;
+}
+
+export async function getMentorshipBooking(bookingId: string) {
+  const { data } = await api.get<MentorshipBookingOut>(`/mentorship/bookings/${encodeURIComponent(bookingId)}`);
+  return data;
+}
+
+export async function listAdminMentorshipBookingsPending() {
+  const { data } = await api.get<MentorshipBookingAdminItem[]>("/admin/mentorship-bookings/pending");
+  return data;
+}
+
+export async function approveAdminMentorshipBooking(bookingId: string) {
+  const { data } = await api.post<MentorshipBookingOut>(
+    `/admin/mentorship-bookings/${encodeURIComponent(bookingId)}/approve`,
+  );
+  return data;
+}
+
+export async function rejectAdminMentorshipBooking(bookingId: string) {
+  const { data } = await api.post<MentorshipBookingOut>(
+    `/admin/mentorship-bookings/${encodeURIComponent(bookingId)}/reject`,
+  );
+  return data;
+}
+
+export async function submitLeaderConnectRequest(form: FormData) {
+  const { data } = await api.post<LeaderConnectRequestOut>("/leader-connect/requests", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data;
+}
+
+export async function listAdminLeaderConnectRequests() {
+  const { data } = await api.get<LeaderConnectRequestAdminItem[]>("/admin/leader-connect/requests");
+  return data;
+}
+
+export async function markAdminLeaderConnectReviewed(requestId: string) {
+  const { data } = await api.post<LeaderConnectRequestOut>(
+    `/admin/leader-connect/requests/${encodeURIComponent(requestId)}/mark-reviewed`,
+  );
+  return data;
+}
+
+export async function downloadLeaderConnectCv(requestId: string, filename: string): Promise<void> {
+  const token = localStorage.getItem("auth_token");
+  const res = await fetch(`/api/admin/leader-connect/requests/${encodeURIComponent(requestId)}/cv`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    throw new Error("Download failed");
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename || "cv";
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export async function listAttempts(params?: { student_name?: string; limit?: number }) {

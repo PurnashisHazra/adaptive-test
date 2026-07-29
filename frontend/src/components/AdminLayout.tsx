@@ -8,6 +8,8 @@ const items: { to: string; end?: boolean; label: string }[] = [
   { to: "/admin/questions", label: "Questions" },
   { to: "/admin/question-papers", label: "Papers" },
   { to: "/admin/challenges", label: "Challenges" },
+  { to: "/admin/mentorship-bookings", label: "Mentorship payments" },
+  { to: "/admin/leader-connect", label: "Leader connect" },
   { to: "/admin/students", label: "Student controls" },
   { to: "/admin/student-reports", label: "Student reports" },
   { to: "/admin/upload", label: "Bulk upload" },

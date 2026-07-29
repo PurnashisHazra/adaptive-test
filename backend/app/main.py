@@ -6,6 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routers import (
     admin_challenges,
+    admin_leader_connect,
+    admin_mentorship_bookings,
     admin_question_papers,
     admin_students,
     admin_users,
@@ -18,6 +20,8 @@ from app.api.routers import (
     public_provisioning,
     public_question_papers,
     challenges,
+    leader_connect,
+    mentorship_bookings,
     question_papers,
     question_reports,
     questions,
@@ -36,6 +40,8 @@ from app.repositories.challenge_repository import ChallengeRepository
 from app.repositories.paper_repository import PaperRepository
 from app.repositories.question_report_repository import QuestionReportRepository
 from app.repositories.student_coach_plan_repository import StudentCoachPlanRepository
+from app.repositories.leader_connect_repository import LeaderConnectRepository
+from app.repositories.mentorship_booking_repository import MentorshipBookingRepository
 from app.repositories.practice_attempt_request_repository import PracticeAttemptRequestRepository
 from app.repositories.student_profile_repository import StudentProfileRepository
 from app.repositories.student_public_profile_repository import StudentPublicProfileRepository
@@ -57,6 +63,8 @@ async def lifespan(app: FastAPI):
         await StudentCoachPlanRepository().ensure_indexes()
         await StudentProfileRepository().ensure_indexes()
         await PracticeAttemptRequestRepository().ensure_indexes()
+        await MentorshipBookingRepository().ensure_indexes()
+        await LeaderConnectRepository().ensure_indexes()
         await StudentPublicProfileRepository().ensure_indexes()
     except Exception as exc:
         # Keep API available even if MongoDB is temporarily unreachable.
@@ -96,7 +104,11 @@ def create_app() -> FastAPI:
     app.include_router(student_me.router, prefix="/api")
     app.include_router(admin_question_papers.router, prefix="/api")
     app.include_router(admin_challenges.router, prefix="/api")
+    app.include_router(admin_mentorship_bookings.router, prefix="/api")
+    app.include_router(admin_leader_connect.router, prefix="/api")
     app.include_router(challenges.router, prefix="/api")
+    app.include_router(mentorship_bookings.router, prefix="/api")
+    app.include_router(leader_connect.router, prefix="/api")
     app.include_router(public_profiles.router, prefix="/api")
     app.include_router(public_question_papers.router, prefix="/api")
     app.include_router(public_provisioning.router, prefix="/api")

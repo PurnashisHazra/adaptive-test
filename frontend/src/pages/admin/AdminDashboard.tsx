@@ -5,6 +5,8 @@ const tiles = [
   { to: "/admin/questions", title: "Question bank", desc: "Create, edit, filter, and delete items." },
   { to: "/admin/question-papers", title: "Question papers", desc: "Multi-section papers, marking, assign to students." },
   { to: "/admin/challenges", title: "Challenges", desc: "Scheduled contests with launch/end windows and platform-wide access." },
+  { to: "/admin/mentorship-bookings", title: "Mentorship payments", desc: "Approve ₹100 topper session UPI payments." },
+  { to: "/admin/leader-connect", title: "Leader connect", desc: "Review alumni connect requests from the landing page." },
   { to: "/admin/students", title: "Student controls", desc: "Papers, practice limits, exam types, and access blocks." },
   { to: "/admin/student-reports", title: "Student report cards", desc: "List students and open strategy report cards as PDF." },
   { to: "/admin/upload", title: "Bulk upload", desc: "Import CSV or JSON with validation." },

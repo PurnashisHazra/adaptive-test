@@ -860,6 +860,68 @@ export interface PracticeAttemptRequestAdminItem {
   practice_attempts_allowance?: number | null;
 }
 
+export type MentorshipBookingStatus = "pending_payment" | "under_review" | "confirmed" | "rejected";
+export type MentorshipDisplayPhase = "pay_now" | "under_review" | "confirmed" | "rejected";
+
+export interface MentorshipBookingOut {
+  id: string;
+  student_username: string;
+  session_date: string;
+  session_time: string;
+  pre_meet_question: string;
+  amount_inr: number;
+  status: MentorshipBookingStatus;
+  display_phase: MentorshipDisplayPhase;
+  payment_deadline_at: string;
+  created_at: string;
+  confirmed_at?: string | null;
+  seconds_remaining?: number | null;
+}
+
+export interface MentorshipBookingSignupResponse {
+  booking: MentorshipBookingOut;
+  auth?: AuthResponse | null;
+}
+
+export interface MentorshipBookingAdminItem {
+  id: string;
+  student_username: string;
+  session_date: string;
+  session_time: string;
+  pre_meet_question: string;
+  amount_inr: number;
+  status: MentorshipBookingStatus;
+  payment_deadline_at: string;
+  created_at: string;
+}
+
+export type LeaderConnectStatus = "pending" | "reviewed";
+
+export interface LeaderConnectRequestOut {
+  id: string;
+  company_clicked: string;
+  main_topic: string;
+  company_interested_in: string;
+  mobile: string;
+  cv_filename?: string | null;
+  student_username?: string | null;
+  status: LeaderConnectStatus;
+  created_at: string;
+}
+
+export interface LeaderConnectRequestAdminItem {
+  id: string;
+  company_clicked: string;
+  main_topic: string;
+  company_interested_in: string;
+  mobile: string;
+  cv_filename?: string | null;
+  cv_download_url?: string | null;
+  student_username?: string | null;
+  status: LeaderConnectStatus;
+  created_at: string;
+}
+
 export type StrategyFollowStatus = "on_track" | "partial" | "needs_focus" | "insufficient_data";
 export type LiveCoachStatus = "active" | "plan_ready" | "inactive";
 
