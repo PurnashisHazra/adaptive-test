@@ -42,8 +42,14 @@ import type {
   MentorshipBookingAdminItem,
   MentorshipBookingOut,
   MentorshipBookingSignupResponse,
+  ExamShowcasePaper,
+  PaperUnlockAdminItem,
+  PaperUnlockOut,
   LeaderConnectRequestAdminItem,
   LeaderConnectRequestOut,
+  ConsultationRequestAdminItem,
+  ConsultationRequestOut,
+  ConsultationRequestSignupResponse,
   StudentProfileListItem,
   StudentProfileUpdatePayload,
   StudentSessionControls,
@@ -705,6 +711,42 @@ export async function rejectAdminMentorshipBooking(bookingId: string) {
   return data;
 }
 
+export async function listExamShowcasePapers(category: string) {
+  const { data } = await api.get<ExamShowcasePaper[]>(
+    `/public/exam-showcase/${encodeURIComponent(category)}`,
+  );
+  return data;
+}
+
+export async function createPaperUnlock(body: { paper_id: string }) {
+  const { data } = await api.post<PaperUnlockOut>("/paper-unlocks", body);
+  return data;
+}
+
+export async function getPaperUnlock(purchaseId: string) {
+  const { data } = await api.get<PaperUnlockOut>(`/paper-unlocks/${encodeURIComponent(purchaseId)}`);
+  return data;
+}
+
+export async function listAdminPaperUnlocksPending() {
+  const { data } = await api.get<PaperUnlockAdminItem[]>("/admin/paper-unlocks/pending");
+  return data;
+}
+
+export async function approveAdminPaperUnlock(purchaseId: string) {
+  const { data } = await api.post<PaperUnlockOut>(
+    `/admin/paper-unlocks/${encodeURIComponent(purchaseId)}/approve`,
+  );
+  return data;
+}
+
+export async function rejectAdminPaperUnlock(purchaseId: string) {
+  const { data } = await api.post<PaperUnlockOut>(
+    `/admin/paper-unlocks/${encodeURIComponent(purchaseId)}/reject`,
+  );
+  return data;
+}
+
 export async function submitLeaderConnectRequest(form: FormData) {
   const { data } = await api.post<LeaderConnectRequestOut>("/leader-connect/requests", form, {
     headers: { "Content-Type": "multipart/form-data" },
@@ -739,6 +781,35 @@ export async function downloadLeaderConnectCv(requestId: string, filename: strin
   a.download = filename || "cv";
   a.click();
   URL.revokeObjectURL(url);
+}
+
+export async function createConsultationRequest(body: { mobile: string }) {
+  const { data } = await api.post<ConsultationRequestOut>("/consultation/requests", body);
+  return data;
+}
+
+export async function createConsultationWithSignup(body: {
+  username: string;
+  password: string;
+  mobile: string;
+}) {
+  const { data } = await api.post<ConsultationRequestSignupResponse>(
+    "/consultation/requests/with-signup",
+    body,
+  );
+  return data;
+}
+
+export async function listAdminConsultationRequests() {
+  const { data } = await api.get<ConsultationRequestAdminItem[]>("/admin/consultation-requests");
+  return data;
+}
+
+export async function markAdminConsultationReviewed(requestId: string) {
+  const { data } = await api.post<ConsultationRequestOut>(
+    `/admin/consultation-requests/${encodeURIComponent(requestId)}/mark-reviewed`,
+  );
+  return data;
 }
 
 export async function listAttempts(params?: { student_name?: string; limit?: number }) {

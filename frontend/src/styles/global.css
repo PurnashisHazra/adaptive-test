@@ -13,8 +13,8 @@
   --shadow: 0 1px 3px rgba(15, 23, 42, 0.08), 0 8px 24px rgba(15, 23, 42, 0.06);
   --font: "DM Sans", system-ui, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, monospace;
-  --layout-page-width: 80%;
-  --layout-page-max: 1600px;
+  --layout-page-width: 100%;
+  --layout-page-max: 1200px;
 }
 
 *,
@@ -286,7 +286,7 @@ main {
   margin-top: 1.25rem;
 }
 
-@media (min-width: 960px) {
+@media (min-width: 1025px) {
   .admin-student-reports {
     grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
   }
@@ -959,7 +959,7 @@ table.data th {
   display: flex;
 }
 
-@media (max-width: 1020px) {
+@media (max-width: 1024px) {
   .test-exam-body {
     grid-template-columns: 1fr;
   }
@@ -1746,7 +1746,7 @@ table.data th {
   padding-top: 0.35rem;
 }
 
-@media (max-width: 820px) {
+@media (max-width: 1024px) {
   .challenge-hero-cta__inner {
     grid-template-columns: 1fr;
   }
@@ -1794,7 +1794,7 @@ table.data th {
 
 .challenges-home .content-inner,
 .marketing-home .content-inner {
-  max-width: 980px;
+  max-width: var(--max-width, 1200px);
 }
 
 .challenges-home__list-head {
@@ -2375,7 +2375,7 @@ table.data th {
   margin-top: 0;
 }
 
-@media (max-width: 1023px) {
+@media (max-width: 1024px) {
   .strategy-column {
     min-height: 0;
     max-height: none;

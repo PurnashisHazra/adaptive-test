@@ -6,8 +6,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routers import (
     admin_challenges,
+    admin_consultation_requests,
     admin_leader_connect,
     admin_mentorship_bookings,
+    admin_paper_unlocks,
     admin_question_papers,
     admin_students,
     admin_users,
@@ -20,6 +22,8 @@ from app.api.routers import (
     public_provisioning,
     public_question_papers,
     challenges,
+    consultation_requests,
+    paper_unlocks,
     leader_connect,
     mentorship_bookings,
     question_papers,
@@ -40,12 +44,14 @@ from app.repositories.challenge_repository import ChallengeRepository
 from app.repositories.paper_repository import PaperRepository
 from app.repositories.question_report_repository import QuestionReportRepository
 from app.repositories.student_coach_plan_repository import StudentCoachPlanRepository
+from app.repositories.paper_unlock_repository import PaperUnlockRepository
+from app.repositories.consultation_request_repository import ConsultationRequestRepository
 from app.repositories.leader_connect_repository import LeaderConnectRepository
 from app.repositories.mentorship_booking_repository import MentorshipBookingRepository
 from app.repositories.practice_attempt_request_repository import PracticeAttemptRequestRepository
 from app.repositories.student_profile_repository import StudentProfileRepository
 from app.repositories.student_public_profile_repository import StudentPublicProfileRepository
-from app.repositories.user_repository import UserRepository
+from app.services.landing_showcase_service import LandingShowcaseService
 
 logger = logging.getLogger(__name__)
 
@@ -64,8 +70,11 @@ async def lifespan(app: FastAPI):
         await StudentProfileRepository().ensure_indexes()
         await PracticeAttemptRequestRepository().ensure_indexes()
         await MentorshipBookingRepository().ensure_indexes()
+        await PaperUnlockRepository().ensure_indexes()
         await LeaderConnectRepository().ensure_indexes()
+        await ConsultationRequestRepository().ensure_indexes()
         await StudentPublicProfileRepository().ensure_indexes()
+        await LandingShowcaseService().ensure_showcase_papers()
     except Exception as exc:
         # Keep API available even if MongoDB is temporarily unreachable.
         logger.exception("MongoDB initialization failed; continuing startup without DB indexes: %s", exc)
@@ -105,10 +114,14 @@ def create_app() -> FastAPI:
     app.include_router(admin_question_papers.router, prefix="/api")
     app.include_router(admin_challenges.router, prefix="/api")
     app.include_router(admin_mentorship_bookings.router, prefix="/api")
+    app.include_router(admin_paper_unlocks.router, prefix="/api")
     app.include_router(admin_leader_connect.router, prefix="/api")
+    app.include_router(admin_consultation_requests.router, prefix="/api")
     app.include_router(challenges.router, prefix="/api")
     app.include_router(mentorship_bookings.router, prefix="/api")
+    app.include_router(paper_unlocks.router, prefix="/api")
     app.include_router(leader_connect.router, prefix="/api")
+    app.include_router(consultation_requests.router, prefix="/api")
     app.include_router(public_profiles.router, prefix="/api")
     app.include_router(public_question_papers.router, prefix="/api")
     app.include_router(public_provisioning.router, prefix="/api")

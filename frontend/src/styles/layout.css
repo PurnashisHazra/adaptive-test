@@ -1,0 +1,106 @@
+/**
+ * Layout — containers, grids, page shells (mobile-first).
+ */
+
+.container {
+  width: 100%;
+  max-width: var(--max-width);
+  margin-inline: auto;
+  padding-inline: var(--container-padding);
+  box-sizing: border-box;
+}
+
+.app-shell {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.app-shell-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+/* Override global .page to use responsive container */
+.page {
+  width: 100%;
+  max-width: var(--max-width) !important;
+  min-width: 0;
+  margin-inline: auto;
+  padding: var(--space-md) var(--container-padding) var(--space-xl);
+  box-sizing: border-box;
+}
+
+.page > div,
+.page > section,
+.page > form {
+  width: 100%;
+  max-width: 100% !important;
+  box-sizing: border-box;
+}
+
+.grid-auto-fit {
+  display: grid;
+  gap: var(--space-sm);
+  grid-template-columns: 1fr;
+}
+
+.grid-2-responsive {
+  display: grid;
+  gap: var(--space-sm);
+  grid-template-columns: 1fr;
+}
+
+.grid-3-responsive {
+  display: grid;
+  gap: var(--space-sm);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 481px) {
+  .grid-auto-fit {
+    gap: var(--space-md);
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+
+  .grid-2-responsive {
+    gap: var(--space-md);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1025px) {
+  .grid-auto-fit {
+    gap: var(--space-lg);
+  }
+
+  .grid-2-responsive {
+    gap: var(--space-lg);
+  }
+
+  .grid-3-responsive {
+    gap: var(--space-lg);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .grid-4-responsive {
+    display: grid;
+    gap: var(--space-lg);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.landing-main {
+  max-width: 100%;
+  box-sizing: border-box;
+}

@@ -14,7 +14,7 @@ import {
   timeoutChallengeSection,
   timeoutPaperSection,
 } from "../api/client";
-import type { PaperNextSection, StudentCoachPlanBundle } from "../api/types";
+import type { PaperNextSection, PaperResultSummary, StudentCoachPlanBundle } from "../api/types";
 import { computeCoachLiveAdvice } from "../lib/coachHints";
 import { QuestionNumpad } from "../components/QuestionNumpad";
 import { useTestSession } from "../store/testSession";
@@ -433,6 +433,55 @@ export function TestSessionPage() {
   }
 
   const isTita = currentQuestion.question_type === "tita";
+  const isLastQuestion = currentIndex >= totalQuestions;
+  const primaryActionLabel =
+    submitting ? "Checking…" : paperMeta && isLastQuestion ? "Submit paper" : "Save & next";
+
+  async function navigateToStructuredResult(summary?: PaperResultSummary | null) {
+    if (summary) {
+      setLastPaperSummary(summary);
+    } else if (paperAttemptId) {
+      setLastPaperSummary({
+        paper_attempt_id: paperAttemptId,
+        paper_id: paperMeta?.paper_id ?? "",
+        title: paperMeta?.paper_title ?? paperMeta?.section_title ?? "Test",
+        student_name: studentName,
+        total_marks: 0,
+        max_marks: 0,
+        percentage: 0,
+        sections: [],
+        started_at: startedAt ?? new Date().toISOString(),
+        completed_at: new Date().toISOString(),
+        ended_early: false,
+      });
+    }
+    nav("/result");
+  }
+
+  async function finalizeStructuredSessionAfterSubmit() {
+    if (!paperAttemptId) {
+      toast.error("Could not finish — session id missing");
+      return;
+    }
+    try {
+      const summary =
+        structuredKind === "challenge"
+          ? (await endChallengeAttempt(paperAttemptId)).paper_summary
+          : await endPaperAttempt(paperAttemptId);
+      await navigateToStructuredResult(summary);
+    } catch (err: unknown) {
+      const detail =
+        err && typeof err === "object" && "response" in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
+      const msg = typeof detail === "string" ? detail : "";
+      if (/not in progress|already completed|not finished/i.test(msg)) {
+        await navigateToStructuredResult(null);
+        return;
+      }
+      toast.error(msg || "Could not finish test");
+    }
+  }
 
   async function onSubmit() {
     if (isTita) {
@@ -482,6 +531,12 @@ export function TestSessionPage() {
         nav("/result");
         return;
       }
+
+      if (paperMeta && paperAttemptId && !res.next_question && (isLastQuestion || res.completed)) {
+        await finalizeStructuredSessionAfterSubmit();
+        return;
+      }
+
       if (!res.next_question) {
         toast.error("Unexpected response from server");
         return;
@@ -770,7 +825,7 @@ export function TestSessionPage() {
                   submitting || !canSubmit || loadingIndex != null || sectionTimingOut || (isTita ? !selected?.trim() : selected == null)
                 }
               >
-                {submitting ? "Checking…" : "Save & next"}
+                {primaryActionLabel}
               </button>
               <div className="test-exam-question-actions__row">
                 <button
@@ -875,7 +930,7 @@ export function TestSessionPage() {
               submitting || !canSubmit || loadingIndex != null || sectionTimingOut || (isTita ? !selected?.trim() : selected == null)
             }
           >
-            {submitting ? "Checking…" : "Save & next"}
+            {primaryActionLabel}
           </button>
         </div>
       </footer>

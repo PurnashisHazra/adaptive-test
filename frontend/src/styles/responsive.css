@@ -1,33 +1,26 @@
-/* Mobile & tablet: portrait and landscape */
-
-html {
-  overflow-x: clip;
-  -webkit-text-size-adjust: 100%;
-}
+/**
+ * Page-specific responsive overrides (mobile-first where added).
+ * Core tokens: base.css | layout: layout.css | components: components.css
+ */
 
 #root {
   max-width: 100%;
   min-height: 100%;
-}
-
-img,
-svg,
-video {
-  max-width: 100%;
-  height: auto;
+  overflow-x: clip;
 }
 
 .content-inner {
   width: 100%;
-  max-width: 880px;
+  max-width: min(880px, 100%);
   margin-inline: auto;
+  padding-inline: var(--container-padding);
+  box-sizing: border-box;
 }
 
 .text-measure {
   max-width: min(40rem, 100%);
 }
 
-/* App shell */
 .app-shell-header {
   flex-shrink: 0;
   border-bottom: 1px solid var(--border);
@@ -42,15 +35,18 @@ video {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: var(--space-sm);
   flex-wrap: wrap;
-  padding-top: 0.85rem;
-  padding-bottom: 0.85rem;
+  padding: var(--space-sm) var(--container-padding);
+  box-sizing: border-box;
+  max-width: var(--max-width);
+  margin-inline: auto;
+  width: 100%;
 }
 
 .app-shell-brand {
   font-weight: 700;
-  font-size: 1.05rem;
+  font-size: clamp(1rem, 2.5vw, 1.05rem);
   color: #0f172a;
   text-decoration: none;
   flex-shrink: 0;
@@ -58,19 +54,10 @@ video {
 
 .app-shell-nav {
   display: flex;
-  gap: 0.35rem;
+  gap: var(--tap-gap);
   align-items: center;
   flex-wrap: wrap;
   max-width: 100%;
-}
-
-.app-shell-main {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
 }
 
 .app-shell-main--admin {
@@ -78,17 +65,17 @@ video {
 }
 
 .app-shell-footer {
-  padding: 1.25rem clamp(0.75rem, 3vw, 1.5rem);
+  padding: var(--space-md) var(--container-padding);
   text-align: center;
   color: #94a3b8;
-  font-size: 0.85rem;
+  font-size: var(--text-caption);
 }
 
 /* Challenge cards */
 .challenge-card__row {
   display: flex;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: var(--space-sm);
   flex-wrap: wrap;
   align-items: flex-start;
 }
@@ -105,12 +92,11 @@ video {
 
 .challenge-card__actions {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--tap-gap);
   flex-wrap: wrap;
   justify-content: flex-end;
 }
 
-/* Tables without an explicit wrap still scroll inside panels */
 .table-wrap,
 .review-sessions-table-wrap,
 .admin-panel-body {
@@ -123,12 +109,8 @@ table.super-admin-table,
   min-width: min(100%, 32rem);
 }
 
-@media (max-width: 900px) {
-  :root {
-    --layout-page-width: 100%;
-  }
-
-  /* Inline max-widths on pages become full-width on small screens */
+/* Inline max-width overrides on small screens */
+@media (max-width: 1024px) {
   .page p[style*="maxWidth"],
   .page p[style*="max-width"],
   .page form[style*="maxWidth"],
@@ -150,10 +132,6 @@ table.super-admin-table,
     box-sizing: border-box;
   }
 
-  .page {
-    padding: 1.15rem clamp(0.75rem, 3vw, 1.25rem) 2.5rem;
-  }
-
   .app-shell-header-inner,
   .app-shell-header-inner--layout {
     width: 100%;
@@ -167,32 +145,16 @@ table.super-admin-table,
     flex-wrap: nowrap;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
-    padding-bottom: 0.15rem;
+    padding-bottom: 2px;
   }
 
   .app-shell-nav .btn-ghost {
     flex-shrink: 0;
-  }
-
-  .card {
-    padding: 1.1rem;
+    min-height: var(--tap-min);
   }
 
   .admin-analytics-print__summary-grid {
     grid-template-columns: 1fr;
-  }
-
-  .test-exam-body {
-    grid-template-columns: 1fr !important;
-  }
-
-  .test-exam-sidebar {
-    border-left: none !important;
-    border-top: 1px solid #e2e8f0;
-  }
-
-  .test-exam-main {
-    border-right: none;
   }
 
   .test-exam-tab {
@@ -219,52 +181,28 @@ table.super-admin-table,
   .challenge-card__actions {
     justify-content: stretch;
   }
-
-  .challenge-card__actions .btn,
-  .challenge-card__actions a.btn {
-    flex: 1 1 auto;
-    min-width: min(100%, 10rem);
-  }
 }
 
-/* Admin: sidebar becomes top nav on narrow screens */
-@media (max-width: 768px) {
-  .admin-root {
-    flex-direction: column;
-    overflow: visible;
-    min-height: 0;
+@media (max-width: 480px) {
+  .test-exam-page {
+    padding-bottom: var(--space-xl);
   }
 
-  .admin-sidebar {
-    width: 100%;
-    flex-shrink: 0;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-    box-shadow: none;
+  .test-exam-passage,
+  .test-exam-question {
+    padding: var(--space-sm);
   }
 
-  .admin-nav {
-    flex-direction: row;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    gap: 0.25rem;
-    padding: 0 0.65rem 0.65rem;
-    scrollbar-width: thin;
+  table.data th,
+  table.data td,
+  .review-sessions-table th,
+  .review-sessions-table td {
+    padding: var(--space-xs) calc(var(--space-xs) + 2px);
+    font-size: var(--text-caption);
   }
 
-  .admin-nav-link {
-    flex-shrink: 0;
-    white-space: nowrap;
-  }
-
-  .admin-stage {
-    min-height: 0;
-    flex: 1;
-  }
-
-  .admin-panel {
-    padding: 0 0.65rem 0.5rem;
+  .adaptive-pitch {
+    padding: var(--space-sm);
   }
 
   .admin-panel-header {
@@ -290,18 +228,6 @@ table.super-admin-table,
     width: 100%;
   }
 
-  .radar-modal-backdrop {
-    padding: 0.5rem;
-    align-items: flex-end;
-  }
-
-  .radar-modal-panel {
-    width: 100%;
-    max-width: 100%;
-    max-height: min(92vh, 100dvh);
-    border-radius: var(--radius) var(--radius) 0 0;
-  }
-
   .strategy-session__toolbar {
     flex-direction: column;
     align-items: stretch;
@@ -313,56 +239,24 @@ table.super-admin-table,
   }
 }
 
-@media (max-width: 480px) {
-  h1 {
-    font-size: clamp(1.25rem, 5vw, 1.75rem);
-  }
-
-  .btn {
-    min-height: 44px;
-  }
-
-  .test-exam-page {
-    padding-bottom: 3rem;
-  }
-
-  .test-exam-passage,
-  .test-exam-question {
-    padding: 0.85rem;
-  }
-
-  table.data th,
-  table.data td,
-  .review-sessions-table th,
-  .review-sessions-table td {
-    padding: 0.55rem 0.6rem;
-    font-size: 0.82rem;
-  }
-
-  .adaptive-pitch {
-    padding: 1rem 0.85rem 1.15rem;
-  }
-}
-
-/* Landscape phones & short viewports */
 @media (max-height: 520px) and (orientation: landscape) {
   .page {
-    padding-top: 0.65rem;
-    padding-bottom: 1.25rem;
+    padding-top: calc(var(--space-xs) + 4px);
+    padding-bottom: var(--space-md);
   }
 
   .app-shell-header-inner--layout {
-    padding-top: 0.45rem;
-    padding-bottom: 0.45rem;
+    padding-top: 6px;
+    padding-bottom: 6px;
   }
 
   .admin-sidebar-brand {
-    padding: 0.5rem 1rem 0.35rem;
+    padding: var(--space-xs) var(--space-sm) 6px;
   }
 
   .admin-nav-link {
-    padding: 0.35rem 0.55rem;
-    font-size: 0.85rem;
+    padding: 6px var(--space-xs);
+    font-size: var(--text-caption);
   }
 
   .test-exam-passage {
@@ -383,8 +277,7 @@ table.super-admin-table,
   }
 }
 
-/* Slightly wider landscape tablets */
-@media (max-height: 700px) and (min-width: 600px) and (orientation: landscape) {
+@media (max-height: 700px) and (min-width: 481px) and (orientation: landscape) {
   .test-exam-body {
     grid-template-columns: minmax(0, 1.15fr) minmax(200px, 260px) !important;
   }
@@ -400,5 +293,31 @@ table.super-admin-table,
 
   .test-exam-question {
     max-height: 50vh;
+  }
+}
+
+@media (min-width: 481px) and (max-width: 1024px) {
+  .radar-modal-backdrop {
+    padding: var(--space-sm);
+    align-items: center;
+  }
+
+  .radar-modal-panel {
+    width: min(80vw, 600px);
+    max-width: 600px;
+  }
+}
+
+@media (max-width: 480px) {
+  .radar-modal-backdrop {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .radar-modal-panel {
+    width: 100%;
+    max-width: 100%;
+    max-height: min(90vh, 90dvh);
+    border-radius: var(--card-radius) var(--card-radius) 0 0;
   }
 }

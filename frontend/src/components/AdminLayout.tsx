@@ -9,6 +9,8 @@ const items: { to: string; end?: boolean; label: string }[] = [
   { to: "/admin/question-papers", label: "Papers" },
   { to: "/admin/challenges", label: "Challenges" },
   { to: "/admin/mentorship-bookings", label: "Mentorship payments" },
+  { to: "/admin/paper-unlocks", label: "Paper unlocks" },
+  { to: "/admin/consultation-requests", label: "Consultations" },
   { to: "/admin/leader-connect", label: "Leader connect" },
   { to: "/admin/students", label: "Student controls" },
   { to: "/admin/student-reports", label: "Student reports" },

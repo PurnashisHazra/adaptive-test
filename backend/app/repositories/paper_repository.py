@@ -22,6 +22,7 @@ class PaperRepository:
 
     async def ensure_indexes(self) -> None:
         await self._papers.create_index([("created_at", -1)])
+        await self._papers.create_index([("showcase_category", 1), ("showcase_slot", 1)])
         await self._assign.create_index([("paper_id", 1), ("student_username", 1)], unique=True)
         await self._attempts.create_index([("paper_id", 1), ("student_username", 1)], unique=True)
 
@@ -88,6 +89,19 @@ class PaperRepository:
         if not t:
             return []
         cur = self._papers.find({"title": {"$regex": f"^{re.escape(t)}$", "$options": "i"}}).sort("updated_at", -1)
+        return [d async for d in cur]
+
+    async def find_showcase_paper(self, category: str, slot: int) -> Optional[Dict[str, Any]]:
+        return await self._papers.find_one(
+            {"showcase_category": category.strip().lower(), "showcase_slot": int(slot)}
+        )
+
+    async def list_showcase_by_category(self, category: str) -> List[Dict[str, Any]]:
+        cur = (
+            self._papers.find({"showcase_category": category.strip().lower()})
+            .sort("showcase_slot", 1)
+            .limit(10)
+        )
         return [d async for d in cur]
 
     async def upsert_assignment(self, paper_id: str, student_username: str) -> None:

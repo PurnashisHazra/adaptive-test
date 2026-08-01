@@ -895,6 +895,40 @@ export interface MentorshipBookingAdminItem {
   created_at: string;
 }
 
+export interface ExamShowcasePaper {
+  id: string | null;
+  title: string;
+  section_count: number;
+  category: string;
+  locked: boolean;
+  purchasable: boolean;
+}
+
+export interface PaperUnlockOut {
+  id: string;
+  student_username: string;
+  paper_id: string;
+  paper_title: string;
+  amount_inr: number;
+  status: MentorshipBookingStatus;
+  display_phase: MentorshipDisplayPhase;
+  payment_deadline_at: string;
+  created_at: string;
+  confirmed_at?: string | null;
+  seconds_remaining?: number | null;
+}
+
+export interface PaperUnlockAdminItem {
+  id: string;
+  student_username: string;
+  paper_id: string;
+  paper_title: string;
+  amount_inr: number;
+  status: MentorshipBookingStatus;
+  payment_deadline_at: string;
+  created_at: string;
+}
+
 export type LeaderConnectStatus = "pending" | "reviewed";
 
 export interface LeaderConnectRequestOut {
@@ -919,6 +953,29 @@ export interface LeaderConnectRequestAdminItem {
   cv_download_url?: string | null;
   student_username?: string | null;
   status: LeaderConnectStatus;
+  created_at: string;
+}
+
+export type ConsultationRequestStatus = "pending" | "reviewed";
+
+export interface ConsultationRequestOut {
+  id: string;
+  student_username: string;
+  mobile: string;
+  status: ConsultationRequestStatus;
+  created_at: string;
+}
+
+export interface ConsultationRequestSignupResponse {
+  request: ConsultationRequestOut;
+  auth: AuthResponse;
+}
+
+export interface ConsultationRequestAdminItem {
+  id: string;
+  student_username: string;
+  mobile: string;
+  status: ConsultationRequestStatus;
   created_at: string;
 }
 

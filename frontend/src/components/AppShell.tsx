@@ -15,7 +15,7 @@ export function AppShell() {
   }
 
   return (
-    <div style={{ minHeight: "100%", display: "flex", flexDirection: "column", background: "#fff" }}>
+    <div className="app-shell">
       <SiteNavbar />
       <main className={`app-shell-main${isAdminSection ? " app-shell-main--admin" : ""}`}>
         <Outlet />

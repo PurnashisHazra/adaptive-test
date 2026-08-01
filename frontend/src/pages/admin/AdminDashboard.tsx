@@ -6,6 +6,8 @@ const tiles = [
   { to: "/admin/question-papers", title: "Question papers", desc: "Multi-section papers, marking, assign to students." },
   { to: "/admin/challenges", title: "Challenges", desc: "Scheduled contests with launch/end windows and platform-wide access." },
   { to: "/admin/mentorship-bookings", title: "Mentorship payments", desc: "Approve ₹100 topper session UPI payments." },
+  { to: "/admin/paper-unlocks", title: "Paper unlock payments", desc: "Approve ₹100 mock-test unlocks from the landing page." },
+  { to: "/admin/consultation-requests", title: "Free consultations", desc: "Career consultation signup requests from the landing page." },
   { to: "/admin/leader-connect", title: "Leader connect", desc: "Review alumni connect requests from the landing page." },
   { to: "/admin/students", title: "Student controls", desc: "Papers, practice limits, exam types, and access blocks." },
   { to: "/admin/student-reports", title: "Student report cards", desc: "List students and open strategy report cards as PDF." },

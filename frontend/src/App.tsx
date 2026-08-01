@@ -22,7 +22,9 @@ import { ChallengesPage } from "./pages/admin/ChallengesPage";
 import { ChallengeFormPage } from "./pages/admin/ChallengeFormPage";
 import { QuestionReportsPage } from "./pages/admin/QuestionReportsPage";
 import { AdminMentorshipBookingsPage } from "./pages/admin/AdminMentorshipBookingsPage";
+import { AdminPaperUnlocksPage } from "./pages/admin/AdminPaperUnlocksPage";
 import { AdminLeaderConnectPage } from "./pages/admin/AdminLeaderConnectPage";
+import { AdminConsultationRequestsPage } from "./pages/admin/AdminConsultationRequestsPage";
 import { AdminStudentControlsPage } from "./pages/admin/AdminStudentControlsPage";
 import { AdminStudentReportsPage } from "./pages/admin/AdminStudentReportsPage";
 import { AuthPage } from "./pages/AuthPage";
@@ -154,7 +156,9 @@ export default function App() {
           <Route path="attempts" element={<AttemptsPage />} />
           <Route path="students" element={<AdminStudentControlsPage />} />
           <Route path="mentorship-bookings" element={<AdminMentorshipBookingsPage />} />
+          <Route path="paper-unlocks" element={<AdminPaperUnlocksPage />} />
           <Route path="leader-connect" element={<AdminLeaderConnectPage />} />
+          <Route path="consultation-requests" element={<AdminConsultationRequestsPage />} />
           <Route path="student-reports" element={<AdminStudentReportsPage />} />
           <Route path="question-papers" element={<QuestionPapersPage />} />
           <Route path="question-papers/new" element={<QuestionPaperFormPage />} />

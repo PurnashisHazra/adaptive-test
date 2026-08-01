@@ -1,8 +1,13 @@
 import { Link } from "react-router-dom";
-import { useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import toast from "react-hot-toast";
+import { listExamShowcasePapers } from "../api/client";
+import type { ExamShowcasePaper } from "../api/types";
 import { useAuthStore } from "../store/authStore";
 import { TopperBookingModal } from "../components/TopperBookingModal";
+import { FreeConsultationModal } from "../components/FreeConsultationModal";
 import { LeaderConnectModal } from "../components/LeaderConnectModal";
+import { PaperUnlockModal } from "../components/PaperUnlockModal";
 import { PRIMARY_LEADER_COMPANIES, STACKED_LEADER_COMPANIES } from "../data/leaderCompanies";
 import "../styles/landing.css";
 
@@ -126,6 +131,15 @@ function BriefcaseIcon() {
   );
 }
 
+function LockIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </svg>
+  );
+}
+
 function ArrowIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
@@ -192,10 +206,45 @@ export function LandingPage() {
   const signedIn = role === "student";
   const startHref = signedIn ? "/challenges" : "/auth";
   const [showBooking, setShowBooking] = useState(false);
+  const [showConsultation, setShowConsultation] = useState(false);
   const [leaderConnectCompany, setLeaderConnectCompany] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<ExamCategoryId>("mba");
+  const [showcasePapers, setShowcasePapers] = useState<ExamShowcasePaper[]>([]);
+  const [showcaseLoading, setShowcaseLoading] = useState(false);
+  const [unlockPaper, setUnlockPaper] = useState<{ id: string; title: string } | null>(null);
 
   const category = EXAM_CATEGORIES.find((c) => c.id === activeCategory) ?? EXAM_CATEGORIES[0];
+
+  const loadShowcase = useCallback(async (catId: ExamCategoryId) => {
+    setShowcaseLoading(true);
+    try {
+      setShowcasePapers(await listExamShowcasePapers(catId));
+    } catch {
+      setShowcasePapers([]);
+    } finally {
+      setShowcaseLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadShowcase(activeCategory);
+  }, [activeCategory, loadShowcase, role]);
+
+  function onPaperClick(paper: ExamShowcasePaper) {
+    if (!paper.locked) return;
+    if (!paper.id) {
+      toast.error("Could not load this paper. Please refresh the page.");
+      return;
+    }
+    setUnlockPaper({ id: paper.id, title: paper.title });
+  }
+
+  function scrollToCategory(catId: ExamCategoryId) {
+    setActiveCategory(catId);
+    window.setTimeout(() => {
+      document.getElementById(`exam-panel-${catId}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+  }
 
   return (
     <div className="landing">
@@ -203,6 +252,18 @@ export function LandingPage() {
         <section className="landing-hero">
           <div>
             <span className="landing-kicker">ADAPTIVE INTELLIGENCE • SMARTER PRACTICE</span>
+            <div className="landing-category-quick-nav" role="navigation" aria-label="Jump to exam category">
+              {EXAM_CATEGORIES.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`landing-category-quick-btn${activeCategory === item.id ? " landing-category-quick-btn--active" : ""}`}
+                  onClick={() => scrollToCategory(item.id)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
             <h1 className="landing-headline">
               Practice
               <span className="landing-headline-outline">Smarter.</span>
@@ -271,7 +332,7 @@ export function LandingPage() {
                   <button
                     type="button"
                     className="landing-card-btn landing-card-btn--primary"
-                    onClick={() => setShowBooking(true)}
+                    onClick={() => setShowConsultation(true)}
                   >
                     Free Consultation
                     <ArrowIcon />
@@ -305,74 +366,79 @@ export function LandingPage() {
 
             <article className="landing-card landing-card--light landing-card--leaders">
               <span className="landing-card-badge landing-card-badge--light">INDUSTRY INSIGHTS</span>
-              <div className="landing-card-body landing-card-body--stack">
+
+              <div className="landing-card-leaders-intro">
                 <div className="landing-card-icon landing-card-icon--light">
                   <BriefcaseIcon />
                 </div>
-                <div>
+                <div className="landing-card-leaders-copy">
                   <h2 className="landing-card-title">Listen from current business leaders</h2>
-                  <p className="landing-card-text">
+                  <p className="landing-card-text landing-card-text--flush">
                     Connect with ex-students now at Apple, NVIDIA, Visa, AmEx, McKinsey, and other global firms.
                   </p>
+                </div>
+              </div>
 
-                  <div className="landing-leader-logos" aria-label="Featured companies">
-                    {PRIMARY_LEADER_COMPANIES.map((co) => (
+              <div className="landing-leader-showcase">
+                <div className="landing-leader-logos" aria-label="Featured companies">
+                  {PRIMARY_LEADER_COMPANIES.map((co) => (
+                    <button
+                      key={co.id}
+                      type="button"
+                      className={[
+                        "landing-leader-logo-btn",
+                        co.logoSurface === "dark" ? "landing-leader-logo-btn--logo-dark" : "",
+                        co.logoSurface === "brand-navy" ? "landing-leader-logo-btn--logo-compact" : "",
+                        co.logoSurface === "brand-amex" ? "landing-leader-logo-btn--logo-compact" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                      title={`Connect via ${co.name}`}
+                      aria-label={co.name}
+                      onClick={() => setLeaderConnectCompany(co.name)}
+                    >
+                      <span className="landing-leader-logo-shell">
+                        <img src={co.logo} alt="" className="landing-leader-logo" />
+                      </span>
+                      <span className="landing-leader-logo-name">{co.shortName ?? co.name}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="landing-leader-stack-wrap">
+                  <div className="landing-leader-stack" aria-label="More companies">
+                    {STACKED_LEADER_COMPANIES.map((co, index) => (
                       <button
                         key={co.id}
                         type="button"
                         className={[
-                          "landing-leader-logo-btn",
-                          co.logoSurface === "dark" ? "landing-leader-logo-btn--dark" : "",
-                          co.logoSurface === "brand-navy" ? "landing-leader-logo-btn--mckinsey" : "",
-                          co.logoSurface === "brand-amex" ? "landing-leader-logo-btn--amex" : "",
+                          "landing-leader-stack-btn",
+                          co.id === "meta" ? "landing-leader-stack-btn--meta" : "",
                         ]
                           .filter(Boolean)
                           .join(" ")}
+                        style={{ zIndex: STACKED_LEADER_COMPANIES.length - index }}
                         title={`Connect via ${co.name}`}
-                        aria-label={co.name}
                         onClick={() => setLeaderConnectCompany(co.name)}
                       >
-                        <img src={co.logo} alt="" className="landing-leader-logo" />
-                        <span className="landing-leader-logo-name">{co.shortName ?? co.name}</span>
+                        <img src={co.logo} alt="" className="landing-leader-stack-logo" />
                       </button>
                     ))}
                   </div>
-
-                  <div className="landing-leader-stack-wrap">
-                    <div className="landing-leader-stack" aria-label="More companies">
-                      {STACKED_LEADER_COMPANIES.map((co, index) => (
-                        <button
-                          key={co.id}
-                          type="button"
-                          className={[
-                            "landing-leader-stack-btn",
-                            co.id === "meta" ? "landing-leader-stack-btn--meta" : "",
-                          ]
-                            .filter(Boolean)
-                            .join(" ")}
-                          style={{ zIndex: STACKED_LEADER_COMPANIES.length - index }}
-                          title={`Connect via ${co.name}`}
-                          onClick={() => setLeaderConnectCompany(co.name)}
-                        >
-                          <img src={co.logo} alt="" className="landing-leader-stack-logo" />
-                        </button>
-                      ))}
-                    </div>
-                    <div className="landing-leader-stack-copy">
-                      <span className="landing-leader-stack-caption">Google · Meta · Goldman · BCG · Amazon</span>
-                      <span className="landing-leader-stack-sub">+ more global firms</span>
-                    </div>
+                  <div className="landing-leader-stack-copy">
+                    <span className="landing-leader-stack-caption">Google · Meta · Goldman · BCG · Amazon</span>
+                    <span className="landing-leader-stack-sub">+ more global firms</span>
                   </div>
-
-                  <button
-                    type="button"
-                    className="landing-card-btn landing-card-btn--primary"
-                    onClick={() => setLeaderConnectCompany("McKinsey")}
-                  >
-                    Connect with Alumni
-                    <ArrowIcon />
-                  </button>
                 </div>
+
+                <button
+                  type="button"
+                  className="landing-card-btn landing-card-btn--primary landing-card-btn--leaders"
+                  onClick={() => setLeaderConnectCompany("McKinsey")}
+                >
+                  Connect with Alumni
+                  <ArrowIcon />
+                </button>
               </div>
             </article>
           </div>
@@ -411,6 +477,62 @@ export function LandingPage() {
             <p className="landing-exam-panel-exams">
               <strong>Covers:</strong> {category.exams}
             </p>
+
+            <div className="landing-exam-papers">
+              <h4 className="landing-exam-papers-heading">Featured mock tests</h4>
+              <p className="landing-exam-papers-lead">Unlock full-length papers for ₹100 · pay via UPI</p>
+              {showcaseLoading ? (
+                <p className="landing-exam-papers-loading">Loading papers…</p>
+              ) : (
+                <div className="landing-exam-papers-grid">
+                  {showcasePapers.map((paper) =>
+                    paper.locked ? (
+                      <button
+                        key={`${paper.category}-${paper.title}`}
+                        type="button"
+                        className="landing-exam-paper-card landing-exam-paper-card--locked"
+                        onClick={() => onPaperClick(paper)}
+                      >
+                        <span className="landing-exam-paper-icon" aria-hidden>
+                          <LockIcon />
+                        </span>
+                        <span className="landing-exam-paper-body">
+                          <span className="landing-exam-paper-title">{paper.title}</span>
+                          <span className="landing-exam-paper-meta">
+                            {paper.section_count > 0
+                              ? `${paper.section_count} section${paper.section_count === 1 ? "" : "s"}`
+                              : "Full mock"}
+                            {" · Locked · ₹100"}
+                          </span>
+                        </span>
+                        <span className="landing-exam-paper-cta">Unlock</span>
+                      </button>
+                    ) : (
+                      <Link
+                        key={`${paper.category}-${paper.title}`}
+                        to="/papers"
+                        className="landing-exam-paper-card landing-exam-paper-card--unlocked"
+                      >
+                        <span className="landing-exam-paper-icon" aria-hidden>
+                          ✓
+                        </span>
+                        <span className="landing-exam-paper-body">
+                          <span className="landing-exam-paper-title">{paper.title}</span>
+                          <span className="landing-exam-paper-meta">
+                            {paper.section_count > 0
+                              ? `${paper.section_count} section${paper.section_count === 1 ? "" : "s"}`
+                              : "Full mock"}
+                            {" · Unlocked"}
+                          </span>
+                        </span>
+                        <span className="landing-exam-paper-cta landing-exam-paper-cta--open">Open</span>
+                      </Link>
+                    ),
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="landing-exam-panel-actions">
               <Link to={category.href} className="landing-btn-primary landing-btn-lg">
                 Start {category.label} prep
@@ -424,8 +546,17 @@ export function LandingPage() {
         </section>
       </main>
       {showBooking ? <TopperBookingModal onClose={() => setShowBooking(false)} /> : null}
+      {showConsultation ? <FreeConsultationModal onClose={() => setShowConsultation(false)} /> : null}
       {leaderConnectCompany ? (
         <LeaderConnectModal company={leaderConnectCompany} onClose={() => setLeaderConnectCompany(null)} />
+      ) : null}
+      {unlockPaper ? (
+        <PaperUnlockModal
+          paperId={unlockPaper.id}
+          paperTitle={unlockPaper.title}
+          onClose={() => setUnlockPaper(null)}
+          onUnlocked={() => void loadShowcase(activeCategory)}
+        />
       ) : null}
     </div>
   );

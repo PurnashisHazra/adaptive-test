@@ -1,0 +1,105 @@
+/**
+ * Responsive foundation — mobile-first tokens & typography.
+ * Breakpoints: mobile ≤480px | tablet 481–1024px | desktop ≥1025px
+ */
+
+:root {
+  /* Breakpoints (reference only — use in media queries) */
+  --bp-mobile-max: 480px;
+  --bp-tablet-min: 481px;
+  --bp-tablet-max: 1024px;
+  --bp-desktop-min: 1025px;
+
+  /* 8px spacing grid */
+  --space-xs: 8px;
+  --space-sm: 16px;
+  --space-md: 24px;
+  --space-lg: 32px;
+  --space-xl: 64px;
+
+  /* Layout — mobile defaults */
+  --container-padding: 16px;
+  --max-width: 1200px;
+  --layout-page-width: 100%;
+
+  /* Fluid typography */
+  --text-h1: clamp(28px, 5vw, 52px);
+  --text-h2: clamp(22px, 4vw, 40px);
+  --text-h3: clamp(18px, 3vw, 28px);
+  --text-body: clamp(14px, 1.8vw, 18px);
+  --text-caption: clamp(11px, 1.2vw, 13px);
+  --leading-body: 1.5;
+  --leading-heading: 1.2;
+
+  /* Touch */
+  --tap-min: 44px;
+  --tap-gap: 8px;
+
+  /* Nav drawer */
+  --drawer-width: min(85vw, 320px);
+  --drawer-z: 999;
+  --overlay-bg: rgba(0, 0, 0, 0.5);
+
+  /* Cards */
+  --card-padding: 16px;
+  --card-radius: 12px;
+}
+
+@media (min-width: 481px) {
+  :root {
+    --container-padding: 32px;
+    --card-padding: 24px;
+  }
+}
+
+@media (min-width: 1025px) {
+  :root {
+    --container-padding: 64px;
+    --card-padding: 32px;
+    --layout-page-width: min(100%, var(--max-width));
+  }
+}
+
+html {
+  overflow-x: clip;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+  font-weight: 400;
+}
+
+h1 {
+  font-size: var(--text-h1);
+  line-height: var(--leading-heading);
+  font-weight: 700;
+}
+
+h2 {
+  font-size: var(--text-h2);
+  line-height: var(--leading-heading);
+  font-weight: 700;
+}
+
+h3 {
+  font-size: var(--text-h3);
+  line-height: var(--leading-heading);
+  font-weight: 600;
+}
+
+img,
+svg,
+video {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+@media (hover: none) {
+  a:hover,
+  button:hover {
+    text-decoration: inherit;
+  }
+}
