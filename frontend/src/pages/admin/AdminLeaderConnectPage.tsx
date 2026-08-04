@@ -62,7 +62,7 @@ export function AdminLeaderConnectPage() {
 
   return (
     <AdminPanel title="Leader connect requests">
-      <p style={{ color: "var(--muted)", marginTop: 0, maxWidth: 720 }}>
+      <p className="app-page-lead">
         Students request 1-on-1 conversations with ex-students at top companies from the landing page. Review details,
         download CVs, and mark requests once you have followed up.
       </p>

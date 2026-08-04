@@ -1,9 +1,12 @@
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
 from app.models.domain import Difficulty
+
+if TYPE_CHECKING:
+    from app.schemas.reading_passage import ReadingPassageView
 
 
 class AnswerRecord(BaseModel):
@@ -59,6 +62,11 @@ class QuestionPayload(BaseModel):
     difficulty: Optional[str] = Field(
         default=None,
         description="Difficulty tier when served (EASY/MEDIUM/HARD/EXPERT), for in-session pacing hints.",
+    )
+    passage: Optional["ReadingPassageView"] = None
+    sub_question_index: Optional[int] = Field(
+        default=None,
+        description="1-based index within an RC set when this question belongs to a passage.",
     )
 
 
@@ -200,7 +208,9 @@ class AppConfigPublic(BaseModel):
 
 # Resolve forward refs
 from app.schemas.paper import PaperResultSummary, PaperSessionMeta  # noqa: E402
+from app.schemas.reading_passage import ReadingPassageView  # noqa: E402
 
 TestStartResponse.model_rebuild()
 PaperNextSection.model_rebuild()
 SubmitAnswerResponse.model_rebuild()
+QuestionPayload.model_rebuild()

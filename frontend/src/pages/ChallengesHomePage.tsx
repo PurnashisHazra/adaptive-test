@@ -363,7 +363,7 @@ export function ChallengesHomePage() {
   }
 
   return (
-    <div className="page challenges-home">
+    <div className="page app-page challenges-home">
       <div className="content-inner">
         <ChallengeHeroCta
           signedIn={signedIn}
@@ -393,7 +393,7 @@ export function ChallengesHomePage() {
           <p className="empty">No challenges published yet.</p>
         ) : (
           <>
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            <div className="app-page-stack app-page-stack--lg">
               {items.map((c) => (
                 <ChallengeCard
                   key={c.challenge_id}

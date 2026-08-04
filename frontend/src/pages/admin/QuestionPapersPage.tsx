@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
+import { AdminFilterShell } from "../../components/AdminFilterShell";
 import { AdminPanel } from "../../components/AdminPanel";
 import { listQuestionPapers } from "../../api/client";
 import type { QuestionPaper } from "../../api/types";
@@ -26,25 +27,23 @@ export function QuestionPapersPage() {
   return (
     <AdminPanel
       title="Question papers"
+      lead="Multi-section papers with per-section subject, topic, question count, and time. Assign to students who have accounts."
       actions={
         <Link to="/admin/question-papers/new" className="btn btn-primary">
           New paper
         </Link>
       }
       filters={
-        <div className="card" style={{ padding: "1rem", margin: 0 }}>
+        <AdminFilterShell>
           <div className="admin-filter-grid" style={{ maxWidth: 400 }}>
             <div>
               <label className="label">Filter by title</label>
               <input className="input" value={titleQ} onChange={(e) => setTitleQ(e.target.value)} placeholder="Search papers…" />
             </div>
           </div>
-        </div>
+          </AdminFilterShell>
       }
     >
-      <p style={{ color: "var(--muted)", maxWidth: 640, marginTop: 0 }}>
-        Multi-section papers with per-section subject, topic, question count, and time. Assign to students who have accounts.
-      </p>
       {loading ? (
         <p style={{ marginTop: "1rem", color: "var(--muted)" }}>Loading…</p>
       ) : (

@@ -47,7 +47,7 @@ export function MockTestsHubPage() {
   return (
     <>
       <Seo seo={SEO_MOCK_TESTS_HUB} jsonLd={faqPageJsonLd(FAQS)} />
-      <div className="page seo-landing">
+      <div className="page seo-landing app-page">
         <div className="content-inner seo-landing__inner">
           <header className="seo-landing__hero">
             <p className="seo-landing__eyebrow">Mock test library</p>

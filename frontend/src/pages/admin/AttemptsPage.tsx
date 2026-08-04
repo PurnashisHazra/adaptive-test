@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
+import { AdminFilterShell } from "../../components/AdminFilterShell";
 import { AdminPanel } from "../../components/AdminPanel";
 import { formatDateTimeIST } from "../../lib/istTime";
 import { exportAttemptsUrl, listAttempts } from "../../api/client";
@@ -66,7 +67,7 @@ export function AttemptsPage() {
         </>
       }
       filters={
-        <div className="card" style={{ padding: "1rem", margin: 0 }}>
+        <AdminFilterShell>
           <div className="admin-filter-grid">
             <div>
               <label className="label">Student (contains)</label>
@@ -93,7 +94,7 @@ export function AttemptsPage() {
           <p style={{ margin: "0.65rem 0 0", fontSize: "0.85rem", color: "var(--muted)" }}>
             Showing {filtered.length} of {rows.length} loaded (latest 200 attempts).
           </p>
-        </div>
+        </AdminFilterShell>
       }
     >
       <div className="table-wrap">

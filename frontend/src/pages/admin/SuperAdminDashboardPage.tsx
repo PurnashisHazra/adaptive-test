@@ -105,7 +105,7 @@ export function SuperAdminDashboardPage() {
 
   return (
     <AdminPanel title="Users & roles">
-      <p style={{ color: "var(--muted)", marginTop: 0, maxWidth: 720 }}>
+      <p className="app-page-lead">
         Assign roles, admin codes, and per-instructor quotas. Defaults are unlimited until you set limits below.
       </p>
 

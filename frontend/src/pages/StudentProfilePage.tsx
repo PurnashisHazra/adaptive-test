@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { getMyAccount, getMyPublicProfile, updateMyAccount, updateMyPublicProfile } from "../api/client";
 import type { PublicProfile, StudentAccount } from "../api/types";
 import { useAuthStore } from "../store/authStore";
+import { AppPage } from "../components/AppPage";
 
 function normalizeMobileInput(raw: string): string {
   return raw.replace(/\D/g, "");
@@ -133,23 +134,21 @@ export function StudentProfilePage() {
 
   if (loading) {
     return (
-      <div className="page">
+      <AppPage narrow title="Profile">
         <p style={{ color: "var(--muted)" }}>Loading profile…</p>
-      </div>
+      </AppPage>
     );
   }
 
   return (
-    <div className="page">
-      <div style={{ maxWidth: 520, margin: "0 auto" }}>
-        <h1 style={{ marginBottom: "0.35rem" }}>Profile</h1>
-        <p style={{ color: "var(--muted)", marginTop: 0 }}>
-          Private account settings and your public profile others can view on challenge leaderboards.
-        </p>
-
-        <form onSubmit={onSavePublicProfile} className="card" style={{ marginTop: "1.25rem" }}>
-          <h3 style={{ margin: "0 0 0.35rem" }}>Public profile</h3>
-          <p style={{ color: "var(--muted)", fontSize: "0.9rem", marginTop: 0, marginBottom: "1rem" }}>
+    <AppPage
+      narrow
+      title="Profile"
+      lead="Private account settings and your public profile others can view on challenge leaderboards."
+    >
+        <form onSubmit={onSavePublicProfile} className="card app-form-card">
+          <h3>Public profile</h3>
+          <p className="app-form-card__intro">
             Anyone can view this page. Your name appears on challenges you attempt.
           </p>
           {publicUrl ? (
@@ -206,13 +205,13 @@ export function StudentProfilePage() {
           </button>
         </form>
 
-        <div className="card" style={{ marginTop: "1rem" }}>
-          <p style={{ margin: "0 0 0.75rem", fontSize: "0.9rem", color: "var(--muted)" }}>Login username</p>
+        <div className="card app-form-card">
+          <p className="app-card-subtitle">Login username</p>
           <p style={{ margin: 0, fontWeight: 600 }}>{account?.username}</p>
         </div>
 
-        <form onSubmit={onSaveMobile} className="card" style={{ marginTop: "1rem" }}>
-          <h3 style={{ margin: "0 0 0.75rem" }}>Mobile number</h3>
+        <form onSubmit={onSaveMobile} className="card app-form-card">
+          <h3>Mobile number</h3>
           <div style={{ marginBottom: "1rem" }}>
             <label className="label" htmlFor="profile-mobile">
               Mobile
@@ -234,19 +233,19 @@ export function StudentProfilePage() {
           </button>
         </form>
 
-        <div className="card" style={{ marginTop: "1rem" }}>
-          <h3 style={{ margin: "0 0 0.75rem" }}>Instructor admin code</h3>
+        <div className="card app-form-card">
+          <h3>Instructor admin code</h3>
           {account?.assigned_admin_code ? (
             <p style={{ margin: 0 }}>
               Linked to instructor code: <strong>{account.assigned_admin_code}</strong>
             </p>
           ) : (
             <>
-              <p style={{ color: "var(--muted)", fontSize: "0.95rem", marginTop: 0 }}>
+              <p className="app-form-card__intro">
                 Optional — link your instructor to unlock practice tests and assigned papers. Challenges, Analytics,
                 and Performance do not require a code.
               </p>
-              <form onSubmit={onLinkAdminCode} style={{ marginTop: "1rem" }}>
+              <form onSubmit={onLinkAdminCode}>
                 <div style={{ marginBottom: "1rem" }}>
                   <label className="label" htmlFor="profile-admin-code">
                     Admin code
@@ -273,7 +272,6 @@ export function StudentProfilePage() {
             </p>
           ) : null}
         </div>
-      </div>
-    </div>
+    </AppPage>
   );
 }

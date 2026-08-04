@@ -33,7 +33,7 @@ export function MarketingExamLanding({
   return (
     <>
       <Seo seo={seo} jsonLd={jsonLd} />
-      <article className="page seo-landing">
+      <article className="page seo-landing app-page">
         <div className="content-inner seo-landing__inner">
           <nav className="seo-landing__breadcrumb" aria-label="Breadcrumb">
             <Link to="/">Home</Link>

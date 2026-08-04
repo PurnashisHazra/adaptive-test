@@ -69,7 +69,7 @@ export function AdminMentorshipBookingsPage() {
 
   return (
     <AdminPanel title="Mentorship payments">
-      <p style={{ color: "var(--muted)", marginTop: 0, maxWidth: 640 }}>
+      <p className="app-page-lead">
         Approve UPI payments for topper mentorship sessions (₹100). Students see a live status update when you approve.
       </p>
 

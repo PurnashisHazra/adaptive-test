@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { listAssignedPapers, resumePaper, startPaper } from "../api/client";
 import type { AssignedPaperItem } from "../api/types";
+import { AppPage } from "../components/AppPage";
 import { useAuthStore } from "../store/authStore";
 import { useTestSession } from "../store/testSession";
 
@@ -21,13 +22,10 @@ function PaperRow({
   const canContinue = Boolean(p.has_started && !p.completed && p.paper_attempt_id);
 
   return (
-    <div
-      className="card"
-      style={{ margin: 0, display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}
-    >
+    <div className="card app-row-card">
       <div>
-        <h3 style={{ margin: "0 0 0.35rem" }}>{p.title}</h3>
-        <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--muted)" }}>
+        <h3 className="app-row-card__title">{p.title}</h3>
+        <p className="app-row-card__meta">
           {p.section_count} section{p.section_count === 1 ? "" : "s"} · +{p.marks_per_correct} / −{p.marks_per_incorrect} per wrong
         </p>
         {p.completed ? (
@@ -141,29 +139,28 @@ export function PapersPage() {
   }
 
   return (
-    <div className="page">
-      <h1>Question papers</h1>
-      <p style={{ color: "var(--muted)" }}>
-        Papers assigned to you by an instructor. Once you start a paper, you cannot restart it — use Continue to pick up where you left off, or end the paper from the test screen.
-      </p>
-      <p style={{ marginTop: "0.75rem" }}>
-        <Link to="/take-test">Take a standalone adaptive test</Link> instead.
-      </p>
+    <AppPage
+      title="Question papers"
+      lead="Papers assigned to you by an instructor. Once you start a paper, you cannot restart it — use Continue to pick up where you left off, or end the paper from the test screen."
+    >
+      <nav className="app-page-nav">
+        <Link to="/take-test" className="app-page-nav__link">
+          Take a standalone adaptive test instead →
+        </Link>
+      </nav>
       {loading ? (
-        <p style={{ marginTop: "1.5rem", color: "var(--muted)" }}>Loading…</p>
+        <p style={{ color: "var(--muted)" }}>Loading…</p>
       ) : items.length === 0 ? (
-        <div className="card" style={{ marginTop: "1.5rem" }}>
+        <div className="card">
           <p style={{ margin: 0, color: "var(--muted)" }}>No question papers assigned yet.</p>
         </div>
       ) : (
         <>
           {pending.length > 0 ? (
-            <section style={{ marginTop: "1.5rem" }}>
-              <h2 style={{ fontSize: "1.1rem", marginBottom: "0.5rem" }}>Pending tasks</h2>
-              <p style={{ color: "var(--muted)", fontSize: "0.9rem", marginTop: 0, marginBottom: "0.75rem" }}>
-                Assigned papers you have not finished yet.
-              </p>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            <section className="app-page-section">
+              <h2 className="app-page-section__title">Pending tasks</h2>
+              <p className="app-page-section__lead">Assigned papers you have not finished yet.</p>
+              <div className="app-page-stack">
                 {pending.map((p) => (
                   <PaperRow key={p.paper_id} p={p} starting={starting} onStart={onStart} onContinue={onContinue} />
                 ))}
@@ -171,9 +168,9 @@ export function PapersPage() {
             </section>
           ) : null}
           {completed.length > 0 ? (
-            <section style={{ marginTop: pending.length > 0 ? "2rem" : "1.5rem" }}>
-              <h2 style={{ fontSize: "1.1rem", marginBottom: "0.75rem" }}>Completed</h2>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            <section className="app-page-section">
+              <h2 className="app-page-section__title">Completed</h2>
+              <div className="app-page-stack">
                 {completed.map((p) => (
                   <PaperRow key={p.paper_id} p={p} starting={starting} onStart={onStart} onContinue={onContinue} />
                 ))}
@@ -182,6 +179,6 @@ export function PapersPage() {
           ) : null}
         </>
       )}
-    </div>
+    </AppPage>
   );
 }

@@ -3,6 +3,7 @@ import { AdminPanel } from "../../components/AdminPanel";
 
 const tiles = [
   { to: "/admin/questions", title: "Question bank", desc: "Create, edit, filter, and delete items." },
+  { to: "/admin/rc-sets", title: "RC sets", desc: "Reading passages with linked sub-questions for verbal sections." },
   { to: "/admin/question-papers", title: "Question papers", desc: "Multi-section papers, marking, assign to students." },
   { to: "/admin/challenges", title: "Challenges", desc: "Scheduled contests with launch/end windows and platform-wide access." },
   { to: "/admin/mentorship-bookings", title: "Mentorship payments", desc: "Approve ₹100 topper session UPI payments." },
@@ -20,22 +21,15 @@ const tiles = [
 
 export function AdminDashboard() {
   return (
-    <AdminPanel title="Overview">
-      <p style={{ color: "var(--muted)", maxWidth: 640, marginTop: 0 }}>
-        Manage content and monitor learning signals. Use the sidebar to switch areas; each screen has filters where it helps narrow the data.
-      </p>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-          gap: "1rem",
-          marginTop: "1.25rem",
-        }}
-      >
+    <AdminPanel
+      title="Overview"
+      lead="Manage content and monitor learning signals. Use the sidebar to switch areas; each screen has filters where it helps narrow the data."
+    >
+      <div className="app-tile-grid">
         {tiles.map((t) => (
-          <Link key={t.to} to={t.to} className="card" style={{ textDecoration: "none", color: "inherit" }}>
-            <h3 style={{ marginBottom: "0.35rem" }}>{t.title}</h3>
-            <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.95rem" }}>{t.desc}</p>
+          <Link key={t.to} to={t.to} className="card">
+            <h3>{t.title}</h3>
+            <p>{t.desc}</p>
           </Link>
         ))}
       </div>

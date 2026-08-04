@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
+import { AdminFilterShell } from "../../components/AdminFilterShell";
 import { AdminPanel } from "../../components/AdminPanel";
 import { listChallenges } from "../../api/client";
 import type { Challenge } from "../../api/types";
@@ -27,39 +28,39 @@ export function ChallengesPage() {
   return (
     <AdminPanel
       title="Challenges"
+      lead="Timed contests announced weekly."
       actions={
         <Link to="/admin/challenges/new" className="btn btn-primary">
           New challenge
         </Link>
       }
       filters={
-        <div className="card" style={{ padding: "1rem", margin: 0 }}>
+        <AdminFilterShell>
           <div className="admin-filter-grid" style={{ maxWidth: 400 }}>
             <div>
               <label className="label">Filter by title</label>
               <input className="input" value={titleQ} onChange={(e) => setTitleQ(e.target.value)} placeholder="Search challenges…" />
             </div>
           </div>
-        </div>
+          </AdminFilterShell>
       }
     >
-      <p style={{ color: "var(--muted)", maxWidth: 640, marginTop: 0 }}>
-        Timed contests announced weekly.
-      </p>
       {loading ? (
-        <p style={{ marginTop: "1rem", color: "var(--muted)" }}>Loading…</p>
+        <p style={{ color: "var(--muted)" }}>Loading…</p>
       ) : (
-        <div style={{ marginTop: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+        <div className="app-page-stack app-page-stack--lg">
           {filtered.map((p) => (
-            <Link key={p.id} to={`/admin/challenges/${p.id}`} className="card" style={{ textDecoration: "none", color: "inherit" }}>
-              <h3 style={{ margin: "0 0 0.35rem" }}>{p.title}</h3>
-              <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--muted)" }}>
-                {p.level} · {p.is_adaptive ? "Adaptive" : "Fixed"} · {p.sections.length} section{p.sections.length === 1 ? "" : "s"}
-              </p>
-              <p style={{ margin: "0.35rem 0 0", fontSize: "0.85rem", color: "var(--muted)" }}>
-                {formatDateTimeIST(p.launch_at)} → {formatDateTimeIST(p.end_at)}
-                {p.open_to_all ? " · Open to all" : ""}
-              </p>
+            <Link key={p.id} to={`/admin/challenges/${p.id}`} className="card app-row-card" style={{ textDecoration: "none", color: "inherit", flexDirection: "column", alignItems: "stretch" }}>
+              <div>
+                <h3 className="app-row-card__title">{p.title}</h3>
+                <p className="app-row-card__meta">
+                  {p.level} · {p.is_adaptive ? "Adaptive" : "Fixed"} · {p.sections.length} section{p.sections.length === 1 ? "" : "s"}
+                </p>
+                <p className="app-row-card__meta" style={{ marginTop: "0.35rem" }}>
+                  {formatDateTimeIST(p.launch_at)} → {formatDateTimeIST(p.end_at)}
+                  {p.open_to_all ? " · Open to all" : ""}
+                </p>
+              </div>
             </Link>
           ))}
           {filtered.length === 0 ? <p className="empty">{items.length === 0 ? "No challenges yet." : "No challenges match this filter."}</p> : null}

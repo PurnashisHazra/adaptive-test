@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { useAuthStore } from "../store/authStore";
 import { Seo } from "../components/Seo";
 import { SEO_AUTH } from "../seo/pages";
+import { AppPage } from "../components/AppPage";
 import type { Role } from "../api/types";
 
 function redirectForRole(role: Role, studentPath: string): string {
@@ -76,48 +77,54 @@ export function AuthPage() {
   }
 
   return (
-    <div className="page">
+    <AppPage
+      narrow
+      title={mode === "login" ? "Login" : "Sign up"}
+      lead={
+        session ? (
+          <>
+            Logged in as <strong>{session.username}</strong> ({session.role})
+          </>
+        ) : (
+          "Access challenges, adaptive practice, and your performance dashboard."
+        )
+      }
+      filters={
+        <div className="app-page-tabs">
+          <button type="button" className={mode === "login" ? "btn btn-primary" : "btn btn-ghost"} onClick={() => setMode("login")}>
+            Login
+          </button>
+          <button type="button" className={mode === "signup" ? "btn btn-primary" : "btn btn-ghost"} onClick={() => setMode("signup")}>
+            Sign up
+          </button>
+        </div>
+      }
+    >
       <Seo seo={SEO_AUTH} />
-      <h1>{mode === "login" ? "Login" : "Sign up"}</h1>
-      {session && (
-        <p style={{ color: "var(--muted)", marginTop: "-0.5rem" }}>
-          Logged in as <strong>{session.username}</strong> ({session.role})
-        </p>
-      )}
-
-      <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem", flexWrap: "wrap" }}>
-        <button type="button" className={mode === "login" ? "btn btn-primary" : "btn btn-ghost"} onClick={() => setMode("login")}>
-          Login
-        </button>
-        <button type="button" className={mode === "signup" ? "btn btn-primary" : "btn btn-ghost"} onClick={() => setMode("signup")}>
-          Sign up
-        </button>
-      </div>
-
       {mode === "login" ? (
-        <form onSubmit={onLogin} className="card" style={{ marginTop: "1.25rem" }}>
-          <div style={{ marginBottom: "1rem" }}>
+        <form onSubmit={onLogin} className="card app-form-card">
+          <div>
             <label className="label">Username</label>
             <input className="input" value={username} onChange={(e) => setUsername(e.target.value)} required />
           </div>
-          <div style={{ marginBottom: "1rem" }}>
+          <div>
             <label className="label">Password</label>
             <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
           </div>
           <button type="submit" className="btn btn-primary" disabled={submitting} style={{ width: "100%" }}>
             {submitting ? "Signing in…" : "Sign in"}
           </button>
-          <p style={{ color: "var(--muted)", fontSize: "0.85rem", marginTop: "0.75rem" }}>
+          <p className="app-card-subtitle" style={{ marginBottom: 0, marginTop: "0.75rem" }}>
             Add or update your instructor admin code anytime under <strong>Profile</strong>.
           </p>
         </form>
       ) : (
-        <form onSubmit={onSignup} className="card" style={{ marginTop: "1.25rem" }}>
-          <div style={{ marginBottom: "1rem" }}>
+        <form onSubmit={onSignup} className="card app-form-card">
+          <div>
             <label className="label">Username</label>
             <input className="input" value={username} onChange={(e) => setUsername(e.target.value)} required />
           </div>
-          <div style={{ marginBottom: "1rem" }}>
+          <div>
             <label className="label">Mobile number</label>
             <input
               className="input"
@@ -131,18 +138,18 @@ export function AuthPage() {
               required
             />
           </div>
-          <div style={{ marginBottom: "1rem" }}>
+          <div>
             <label className="label">Password</label>
             <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
           </div>
           <button type="submit" className="btn btn-primary" disabled={submitting} style={{ width: "100%" }}>
             {submitting ? "Creating…" : "Create student account"}
           </button>
-          <p style={{ color: "var(--muted)", fontSize: "0.85rem", marginTop: "0.75rem" }}>
+          <p className="app-card-subtitle" style={{ marginBottom: 0, marginTop: "0.75rem" }}>
             Admin code is optional at signup. Link your instructor later from Profile when you have their code.
           </p>
         </form>
       )}
-    </div>
+    </AppPage>
   );
 }

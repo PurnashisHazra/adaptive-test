@@ -1,0 +1,315 @@
+/**
+ * App pages — student / public flows (mirrors admin-panel chrome).
+ * Landing (/) and test exam layouts use separate systems.
+ */
+
+.app-page-header,
+.admin-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border);
+}
+
+.app-page-header h1,
+.admin-panel-header h1 {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.app-page-lead,
+.admin-panel .app-page-lead {
+  margin: 0.35rem 0 0;
+  max-width: 40rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.app-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.admin-panel-filters .card {
+  margin-top: 0;
+}
+
+.app-page-body,
+.admin-panel-body {
+  padding-top: var(--space-md);
+}
+
+.app-page--narrow .app-page-body {
+  max-width: 32.5rem;
+  margin-inline: auto;
+  width: 100%;
+}
+
+.app-page--medium .app-page-body {
+  max-width: 40rem;
+  margin-inline: auto;
+  width: 100%;
+}
+
+.app-page-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-bottom: var(--space-md);
+}
+
+.app-page-nav__link {
+  font-size: 0.92rem;
+  color: var(--accent, #2563eb);
+  text-decoration: none;
+}
+
+.app-page-nav__link:hover {
+  text-decoration: underline;
+}
+
+.app-page-section {
+  margin-top: var(--space-md);
+}
+
+.app-page-section:first-child {
+  margin-top: 0;
+}
+
+.app-page-section__title {
+  margin: 0 0 0.35rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.app-page-section__lead {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  max-width: 40rem;
+}
+
+.app-page-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.app-page-stack--lg {
+  gap: 1rem;
+}
+
+.app-stat-grid {
+  display: grid;
+  gap: var(--space-sm);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: var(--space-md);
+}
+
+@media (min-width: 720px) {
+  .app-stat-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-md);
+  }
+}
+
+.app-stat-card__value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.app-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.app-tile-grid .card {
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.app-tile-grid .card:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+}
+
+.app-tile-grid h3 {
+  margin-bottom: 0.35rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.app-tile-grid p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.app-row-card {
+  margin: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.app-row-card__title {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.app-row-card__meta {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.app-form-card {
+  margin-top: var(--space-md);
+}
+
+.app-form-card .label + .input,
+.app-form-card .label + textarea,
+.app-form-card .label + select {
+  margin-top: 0;
+}
+
+.app-form-card > * + * {
+  margin-top: 1rem;
+}
+
+.app-form-card h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.app-form-card .app-form-card__intro {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.app-page-tabs {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: var(--space-sm);
+}
+
+.app-alert {
+  margin-top: var(--space-md);
+  line-height: 1.55;
+}
+
+.app-alert--danger {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.app-alert--warn {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.app-alert p {
+  margin: 0;
+}
+
+.app-card-subtitle {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.app-page-back {
+  margin: 0 0 var(--space-sm);
+  font-size: 0.92rem;
+}
+
+.app-page-back a {
+  color: var(--accent, #2563eb);
+  text-decoration: none;
+}
+
+.app-page-back a:hover {
+  text-decoration: underline;
+}
+
+/* Align challenges list sections with app page typography */
+.challenges-home.app-page .challenges-home__list-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0 0 0.35rem;
+}
+
+.challenges-home.app-page .challenges-home__list-lead {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.challenges-home.app-page .challenges-home__list-head {
+  margin-top: var(--space-lg);
+  margin-bottom: var(--space-md);
+}
+
+.challenges-home.app-page .challenges-home__list-link {
+  margin-top: 0.5rem;
+  font-size: 0.92rem;
+}
+
+.challenges-home.app-page .challenges-home__list-link a {
+  color: var(--accent, #2563eb);
+}
+
+.review-progress-section {
+  margin-top: var(--space-md);
+}
+
+.review-sessions-section {
+  margin-top: var(--space-lg);
+}
+
+.review-sessions-section__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.review-sessions-section__head h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.review-sessions-section__meta {
+  font-size: 0.85rem;
+  color: var(--muted);
+}

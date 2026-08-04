@@ -29,7 +29,7 @@ export function QuestionReportsPage() {
 
   return (
     <AdminPanel title="Reports & queries">
-      <p style={{ color: "var(--muted)", marginTop: 0, maxWidth: 720 }}>
+      <p className="app-page-lead">
         Students can flag a question during a test. Each row is a report with optional note; open the question in the bank to edit or retire it.
       </p>
       <div className="table-wrap" style={{ marginTop: "1rem" }}>

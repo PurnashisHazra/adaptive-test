@@ -22,6 +22,7 @@ from app.schemas.attempt import (
 from app.services.ai_question_generator import AIQuestionGenerator
 from app.services.adaptive_engine import get_next_difficulty, get_next_question_id
 from app.services.explanation_hint_openai import request_openai_explanation_hint
+from app.services.rc_set_service import RcSetService
 from app.utils.ids import oid_str
 
 
@@ -29,11 +30,12 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _to_student_payload(doc: Dict[str, Any]) -> QuestionPayload:
+def _base_student_payload(doc: Dict[str, Any]) -> QuestionPayload:
     raw_img = doc.get("image_url")
     img = str(raw_img).strip() if raw_img else None
     raw_diff = doc.get("difficulty")
     diff = str(raw_diff).strip().upper() if raw_diff is not None else None
+    sub_idx = doc.get("sub_question_index")
     return QuestionPayload(
         id=oid_str(doc["_id"]),
         question_text=doc["question_text"],
@@ -43,7 +45,18 @@ def _to_student_payload(doc: Dict[str, Any]) -> QuestionPayload:
         topic=doc.get("topic", "General"),
         image_url=img or None,
         difficulty=diff or None,
+        sub_question_index=int(sub_idx) if sub_idx is not None else None,
     )
+
+
+async def _to_student_payload(doc: Dict[str, Any], rc_svc: Optional[RcSetService] = None) -> QuestionPayload:
+    payload = _base_student_payload(doc)
+    passage = await (rc_svc or RcSetService()).passage_view_for_question(doc)
+    if passage:
+        payload.passage = passage
+        if passage.image_url and not payload.image_url:
+            payload.image_url = passage.image_url
+    return payload
 
 
 def _attempt_filters_from_doc(doc: Dict[str, Any]) -> AttemptSessionFilters:
@@ -130,6 +143,7 @@ class TestService:
         self._questions = QuestionRepository()
         self._config = ConfigRepository()
         self._ai_generator = AIQuestionGenerator()
+        self._rc_sets = RcSetService()
 
     async def start_test(
         self,
@@ -226,7 +240,7 @@ class TestService:
         assert qdoc is not None
         return TestStartResponse(
             attempt_id=aid,
-            question=_to_student_payload(qdoc),
+            question=await _to_student_payload(qdoc, self._rc_sets),
             question_index=1,
             total_questions=total_questions,
             time_limit_seconds=time_limit_seconds,
@@ -400,7 +414,7 @@ class TestService:
             is_correct=is_correct,
             explanation=qdoc.get("explanation"),
             completed=False,
-            next_question=_to_student_payload(nq),
+            next_question=await _to_student_payload(nq, self._rc_sets),
             question_index=new_answered + 1,
             summary=None,
             marked_for_review=mf,
@@ -500,7 +514,7 @@ class TestService:
         can_submit = question_index == answered + 1
         mf = [int(x) for x in (att.get("marked_for_review") or [])]
         return QuestionAtIndexResponse(
-            question=_to_student_payload(qdoc),
+            question=await _to_student_payload(qdoc, self._rc_sets),
             question_index=question_index,
             chosen_answer=chosen_answer,
             can_submit=can_submit,

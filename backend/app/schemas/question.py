@@ -191,3 +191,35 @@ class PdfImportCommitRequest(BaseModel):
     """Edited rows from PDF preview; same shape as {@link PdfImportPreviewItem}."""
 
     questions: List[PdfImportPreviewItem] = Field(..., min_length=1)
+
+
+class DifficultyMix(BaseModel):
+    easy: int = 0
+    medium: int = 0
+    hard: int = 0
+    expert: int = 0
+    total: int = 0
+
+    @classmethod
+    def from_counts(cls, counts: Dict[str, int]) -> "DifficultyMix":
+        easy = int(counts.get("EASY", 0))
+        medium = int(counts.get("MEDIUM", 0))
+        hard = int(counts.get("HARD", 0))
+        expert = int(counts.get("EXPERT", 0))
+        return cls(easy=easy, medium=medium, hard=hard, expert=expert, total=easy + medium + hard + expert)
+
+
+class QuestionBankFolderSubject(BaseModel):
+    subject: str
+    mix: DifficultyMix
+
+
+class QuestionBankFolderExam(BaseModel):
+    exam_tag: str
+    mix: DifficultyMix
+    subjects: List[QuestionBankFolderSubject] = Field(default_factory=list)
+
+
+class QuestionBankFolderTree(BaseModel):
+    exams: List[QuestionBankFolderExam] = Field(default_factory=list)
+    grand_total: int = 0

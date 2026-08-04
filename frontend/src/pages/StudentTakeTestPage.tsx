@@ -5,6 +5,7 @@ import { getConfig, getMySessionControls, getTestTopics, requestMorePracticeAtte
 import type { StudentSessionControls } from "../api/types";
 import { useAuthStore } from "../store/authStore";
 import { useTestSession } from "../store/testSession";
+import { AppPage } from "../components/AppPage";
 
 export function StudentTakeTestPage() {
   const nav = useNavigate();
@@ -148,42 +149,35 @@ export function StudentTakeTestPage() {
 
   if (loadingControls) {
     return (
-      <div className="page">
-        <h1>Begin your session</h1>
-        <p style={{ color: "var(--muted)" }}>Loading your settings…</p>
-      </div>
+      <AppPage title="Begin your session" lead="Loading your settings…">
+        <p style={{ color: "var(--muted)" }}>Loading…</p>
+      </AppPage>
     );
   }
 
   if (controls?.blocked) {
     return (
-      <div className="page">
-        <h1>Begin your session</h1>
-        <div className="card" style={{ marginTop: "1.5rem", borderColor: "#fecaca", background: "#fef2f2" }}>
-          <p style={{ margin: 0, color: "#991b1b", lineHeight: 1.55 }}>
-            {controls.block_reason ?? "Your account has been blocked from AdapTest. Contact your instructor."}
-          </p>
+      <AppPage title="Begin your session">
+        <div className="card app-alert app-alert--danger">
+          <p>{controls.block_reason ?? "Your account has been blocked from AdapTest. Contact your instructor."}</p>
         </div>
-      </div>
+      </AppPage>
     );
   }
 
   return (
-    <div className="page">
-      <h1>Begin your session</h1>
-      <p style={{ color: "var(--muted)" }}>
-        Signed in as <strong>{authUsername}</strong>
-        {attemptsHint ? (
-          <>
-            {" "}
-            · <span>{attemptsHint}</span>
-          </>
-        ) : null}
-      </p>
-
+    <AppPage
+      title="Begin your session"
+      lead={
+        <>
+          Signed in as <strong>{authUsername}</strong>
+          {attemptsHint ? <> · {attemptsHint}</> : null}
+        </>
+      }
+    >
       {!controls?.can_start_practice_test ? (
-        <div className="card" style={{ marginTop: "1rem", borderColor: "#fde68a", background: "#fffbeb" }}>
-          <p style={{ margin: 0, color: "#92400e", lineHeight: 1.55 }}>
+        <div className="card app-alert app-alert--warn">
+          <p>
             {controls?.block_reason ?? "You cannot start another practice test."}{" "}
             <Link to="/papers">View assigned question papers</Link> if you have any.
           </p>
@@ -206,7 +200,7 @@ export function StudentTakeTestPage() {
         </div>
       ) : null}
 
-      <form onSubmit={onStart} className="card" style={{ marginTop: "1.5rem" }}>
+      <form onSubmit={onStart} className="card app-form-card">
         <div style={{ marginBottom: "1rem" }}>
           <label className="label">Display name</label>
           <input
@@ -288,6 +282,6 @@ export function StudentTakeTestPage() {
           {loading ? "Starting…" : "Start adaptive test"}
         </button>
       </form>
-    </div>
+    </AppPage>
   );
 }

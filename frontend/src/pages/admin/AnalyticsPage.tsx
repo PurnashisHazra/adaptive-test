@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
+import { AdminFilterShell } from "../../components/AdminFilterShell";
 import { AdminPanel } from "../../components/AdminPanel";
 import { formatDateTimeIST } from "../../lib/istTime";
 import { AttemptBubbleChart } from "../../components/AttemptBubbleChart";
@@ -66,7 +67,7 @@ export function AnalyticsPage() {
     <AdminPanel
       title="Analytics"
       filters={
-        <div className="card" style={{ padding: "1rem", margin: 0 }}>
+        <AdminFilterShell>
           <div className="admin-filter-grid">
             <div>
               <label className="label">Attempts — student contains</label>
@@ -81,7 +82,7 @@ export function AnalyticsPage() {
               <input className="input" value={tableQ} onChange={(e) => setTableQ(e.target.value)} placeholder="Missed, performers, recent…" />
             </div>
           </div>
-        </div>
+          </AdminFilterShell>
       }
     >
       <div

@@ -79,7 +79,7 @@ export function SettingsPage() {
         </button>
       }
     >
-      <p style={{ color: "var(--muted)", maxWidth: 780, marginTop: 0 }}>
+      <p className="app-page-lead">
         Configure branching difficulty transitions. For each current difficulty, set the next difficulty for both outcomes: correct or wrong.
       </p>
 

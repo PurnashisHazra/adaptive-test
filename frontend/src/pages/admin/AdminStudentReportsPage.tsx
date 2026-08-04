@@ -125,7 +125,7 @@ export function AdminStudentReportsPage() {
         </div>
       ) : null}
 
-      <p style={{ color: "var(--muted)", maxWidth: 720, marginTop: 0 }}>
+      <p className="app-page-lead">
         Students linked to your admin code appear below. View PDF opens the same analytics dashboard students see — learning
         curves, radar, strategy panels, donut charts, and pacing curves.
       </p>

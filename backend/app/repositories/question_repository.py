@@ -23,6 +23,7 @@ class QuestionRepository:
         await self._col.create_index([("subject", 1), ("topic", 1), ("difficulty", 1)])
         await self._col.create_index([("question_text", "text")])
         await self._col.create_index([("question_text_norm", 1)])
+        await self._col.create_index([("passage_id", 1), ("sub_question_index", 1)])
 
     def _doc_to_admin(self, doc: Dict[str, Any]) -> Dict[str, Any]:
         return {
@@ -38,6 +39,8 @@ class QuestionRepository:
             "topic": doc.get("topic", "General"),
             "tags": doc.get("tags", []),
             "is_ai_generated": bool(doc.get("is_ai_generated", False)),
+            "passage_id": doc.get("passage_id"),
+            "sub_question_index": doc.get("sub_question_index"),
             "created_at": doc["created_at"],
             "updated_at": doc["updated_at"],
         }
@@ -71,6 +74,14 @@ class QuestionRepository:
     async def get_by_id(self, qid: str) -> Optional[Dict[str, Any]]:
         doc = await self._col.find_one({"_id": ObjectId(qid)})
         return doc
+
+    async def list_by_passage_id(self, passage_id: str) -> List[Dict[str, Any]]:
+        cur = self._col.find({"passage_id": passage_id}).sort("sub_question_index", 1)
+        return [d async for d in cur]
+
+    async def delete_by_passage_id(self, passage_id: str) -> int:
+        res = await self._col.delete_many({"passage_id": passage_id})
+        return int(res.deleted_count)
 
     async def list_by_ids(self, question_ids: List[str]) -> Dict[str, Dict[str, Any]]:
         oids: List[ObjectId] = []
@@ -221,3 +232,28 @@ class QuestionRepository:
         vals = await self._col.distinct("tags", {})
         cleaned = [str(v).strip().upper() for v in vals if str(v).strip()]
         return sorted(set(cleaned))
+
+    async def aggregate_folder_tree(self, extra_filter: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Group questions by exam tag (unwound from tags[]) and subject with difficulty counts."""
+        pipeline: List[Dict[str, Any]] = []
+        if extra_filter:
+            pipeline.append({"$match": extra_filter})
+        pipeline.extend(
+            [
+                {"$unwind": "$tags"},
+                {
+                    "$group": {
+                        "_id": {
+                            "exam_tag": "$tags",
+                            "subject": "$subject",
+                            "difficulty": "$difficulty",
+                        },
+                        "count": {"$sum": 1},
+                    }
+                },
+            ]
+        )
+        rows: List[Dict[str, Any]] = []
+        async for doc in self._col.aggregate(pipeline):
+            rows.append(doc)
+        return rows

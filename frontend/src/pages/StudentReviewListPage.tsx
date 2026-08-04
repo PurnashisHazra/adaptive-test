@@ -6,6 +6,7 @@ import { getMyLearningTrends, listMyAnalyticsSessions } from "../api/client";
 import { AttemptDrilldownModal } from "../components/AttemptDrilldownModal";
 import { StudentLearningTrendCharts } from "../components/StudentLearningTrendCharts";
 import type { StudentLearningTrendsResponse, StudentSessionSummary, StudentSessionType } from "../api/types";
+import { AppPage } from "../components/AppPage";
 
 const SESSIONS_PAGE_SIZE = 15;
 
@@ -89,15 +90,16 @@ export function StudentReviewListPage() {
         : "No tests or papers yet. Complete a session to review it here.";
 
   return (
-    <div className="page">
+    <AppPage
+      title="Paper review"
+      lead="Open any session to see each question, your result, time on the question, peer accuracy and average time, how your speed ranks against others, and explanations when available."
+    >
       <AttemptDrilldownModal attemptId={drillAttemptId} open={drillAttemptId != null} onClose={() => setDrillAttemptId(null)} />
-      <h1>Paper review</h1>
-      <p style={{ color: "var(--muted)", maxWidth: 560 }}>
-        Open any session to see each question, your result, time on the question, peer accuracy and average time, how your speed ranks against others, and explanations when available.
-      </p>
-      <p style={{ marginTop: "0.5rem" }}>
-        <Link to="/history">Back to my results summary</Link>
-      </p>
+      <nav className="app-page-nav">
+        <Link to="/history" className="app-page-nav__link">
+          ← Back to my results summary
+        </Link>
+      </nav>
 
       <section className="review-progress-section" aria-label="Learning trends">
         {trendsLoading ? (
@@ -108,10 +110,10 @@ export function StudentReviewListPage() {
       </section>
 
       <section className="review-sessions-section" aria-label="Tests and papers to review">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "0.5rem", marginBottom: "1rem" }}>
-          <h2 style={{ fontSize: "1.1rem", margin: 0 }}>Your papers & tests</h2>
+        <div className="review-sessions-section__head">
+          <h2>Your papers & tests</h2>
           {!sessionsLoading && total > 0 ? (
-            <span style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+            <span className="review-sessions-section__meta">
               {total} session{total === 1 ? "" : "s"}
               {sessionTypeFilter ? ` · ${sessionTypeFilter === "paper" ? "papers" : "standalone"}` : ""}
             </span>
@@ -211,6 +213,6 @@ export function StudentReviewListPage() {
           </>
         )}
       </section>
-    </div>
+    </AppPage>
   );
 }

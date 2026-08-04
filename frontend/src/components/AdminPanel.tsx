@@ -2,19 +2,21 @@ import type { ReactNode } from "react";
 
 type Props = {
   title: string;
+  lead?: ReactNode;
   actions?: ReactNode;
   filters?: ReactNode;
   children: ReactNode;
 };
 
-export function AdminPanel({ title, actions, filters, children }: Props) {
+export function AdminPanel({ title, lead, actions, filters, children }: Props) {
   return (
     <div className="admin-panel">
       <header className="admin-panel-header">
-        <h1 style={{ margin: 0, fontSize: "1.35rem" }}>{title}</h1>
-        {actions ? (
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>{actions}</div>
-        ) : null}
+        <div className="admin-panel-header__text">
+          <h1>{title}</h1>
+          {lead ? <p className="app-page-lead">{lead}</p> : null}
+        </div>
+        {actions ? <div className="admin-panel-actions">{actions}</div> : null}
       </header>
       {filters ? <div className="admin-panel-filters">{filters}</div> : null}
       <div className="admin-panel-body">{children}</div>

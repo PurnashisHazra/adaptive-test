@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getPublicStudentProfile } from "../api/client";
 import type { PublicProfile } from "../api/types";
+import { AppPage } from "../components/AppPage";
 
 export function PublicStudentProfilePage() {
   const { slug } = useParams<{ slug: string }>();
@@ -23,41 +24,38 @@ export function PublicStudentProfilePage() {
 
   if (loading) {
     return (
-      <div className="page">
+      <AppPage narrow title="Public profile">
         <p style={{ color: "var(--muted)" }}>Loading profile…</p>
-      </div>
+      </AppPage>
     );
   }
 
   if (notFound || !profile) {
     return (
-      <div className="page">
-        <div className="card" style={{ maxWidth: 480, margin: "0 auto", textAlign: "center" }}>
-          <h2 style={{ margin: "0 0 0.5rem" }}>Profile not found</h2>
+      <AppPage narrow title="Profile not found">
+        <div className="card" style={{ textAlign: "center" }}>
           <p style={{ color: "var(--muted)" }}>
             <Link to="/">Back to challenges</Link>
           </p>
         </div>
-      </div>
+      </AppPage>
     );
   }
 
   return (
-    <div className="page">
-      <div style={{ maxWidth: 520, margin: "0 auto" }}>
-        <p style={{ margin: "0 0 1rem" }}>
-          <Link to="/">← Challenges</Link>
-        </p>
-        <div className="card">
-          <h1 style={{ margin: "0 0 0.5rem" }}>{profile.display_name}</h1>
-          <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.9rem" }}>@{profile.profile_slug}</p>
-          {profile.bio ? (
-            <p style={{ margin: "1.25rem 0 0", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{profile.bio}</p>
-          ) : (
-            <p style={{ margin: "1.25rem 0 0", color: "var(--muted)" }}>No bio yet.</p>
-          )}
-        </div>
+    <AppPage narrow title={profile.display_name} lead={`@${profile.profile_slug}`}>
+      <nav className="app-page-nav">
+        <Link to="/" className="app-page-nav__link">
+          ← Challenges
+        </Link>
+      </nav>
+      <div className="card">
+        {profile.bio ? (
+          <p style={{ margin: 0, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{profile.bio}</p>
+        ) : (
+          <p style={{ margin: 0, color: "var(--muted)" }}>No bio yet.</p>
+        )}
       </div>
-    </div>
+    </AppPage>
   );
 }

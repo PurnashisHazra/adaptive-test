@@ -161,7 +161,7 @@ export function BulkUploadPage() {
         </Link>
       }
     >
-      <p style={{ color: "var(--muted)", marginTop: 0 }}>
+      <p className="app-page-lead">
         Upload a CSV with headers matching the template, a JSON file with a top-level questions array, or a question-paper PDF
         to extract structured drafts (MCQ / True-False / TITA).
       </p>

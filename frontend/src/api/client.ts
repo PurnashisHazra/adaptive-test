@@ -19,6 +19,7 @@ import type {
   Paginated,
   PaperResultSummary,
   QuestionAdmin,
+  QuestionBankFolderTree,
   QuestionCreatePayload,
   Challenge,
   ChallengeCatalogPage,
@@ -50,6 +51,9 @@ import type {
   ConsultationRequestAdminItem,
   ConsultationRequestOut,
   ConsultationRequestSignupResponse,
+  RcSetCreatePayload,
+  RcSetDetail,
+  RcSetListItem,
   StudentProfileListItem,
   StudentProfileUpdatePayload,
   StudentSessionControls,
@@ -204,6 +208,11 @@ export async function listQuestions(
 export async function countQuestions() {
   const { data } = await api.get<{ total: number }>("/questions/count");
   return data.total;
+}
+
+export async function getQuestionFolderTree() {
+  const { data } = await api.get<QuestionBankFolderTree>("/questions/folder-tree");
+  return data;
 }
 
 export async function getQuestion(id: string) {
@@ -947,6 +956,31 @@ export async function listAdminQuestionReports(params?: { page?: number; page_si
 
 export function exportAttemptsUrl(format: "csv" | "json") {
   return `/api/attempts/export?format=${format}`;
+}
+
+export async function listRcSets() {
+  const { data } = await api.get<RcSetListItem[]>("/admin/rc-sets");
+  return data;
+}
+
+export async function getRcSet(id: string) {
+  const { data } = await api.get<RcSetDetail>(`/admin/rc-sets/${encodeURIComponent(id)}`);
+  return data;
+}
+
+export async function createRcSet(body: RcSetCreatePayload) {
+  const { data } = await api.post<RcSetDetail>("/admin/rc-sets", body);
+  return data;
+}
+
+export async function updateRcSet(id: string, body: Partial<RcSetCreatePayload>) {
+  const { data } = await api.put<RcSetDetail>(`/admin/rc-sets/${encodeURIComponent(id)}`, body);
+  return data;
+}
+
+export async function deleteRcSet(id: string) {
+  const { data } = await api.delete<{ ok: boolean }>(`/admin/rc-sets/${encodeURIComponent(id)}`);
+  return data;
 }
 
 export type { AttemptSummary };

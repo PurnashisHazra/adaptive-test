@@ -8,6 +8,8 @@ import "./styles/global.css";
 import "./styles/layout.css";
 import "./styles/utilities.css";
 import "./styles/components.css";
+import "./styles/app-page.css";
+import "./styles/admin-page.css";
 import "./styles/responsive.css";
 
 console.log("Developed by Purnashis Hazra, Github: github.com/lobrockyl");

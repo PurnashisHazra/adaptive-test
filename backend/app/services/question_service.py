@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from app.models.domain import Difficulty, QuestionType
 from app.repositories.question_repository import QuestionRepository
-from app.schemas.question import EXAM_TAGS, QuestionCreate, QuestionUpdate
+from app.schemas.question import EXAM_TAGS, QuestionCreate, QuestionUpdate, QuestionBankFolderTree, QuestionBankFolderExam, QuestionBankFolderSubject, DifficultyMix
 from app.utils.ids import oid_str
 
 
@@ -186,6 +186,52 @@ class QuestionService:
         extra = await AdminLimitsService().build_mongo_filter_for_admin(admin_username)
         has_extra = bool(extra)
         return await self._repo.list_paginated(extra_filter=extra if has_extra else None, **kwargs)
+
+    async def folder_tree_for_admin(self, admin_username: str) -> QuestionBankFolderTree:
+        from app.services.admin_limits_service import AdminLimitsService
+
+        extra = await AdminLimitsService().build_mongo_filter_for_admin(admin_username)
+        rows = await self._repo.aggregate_folder_tree(extra_filter=extra if extra else None)
+
+        exam_map: Dict[str, Dict[str, Dict[str, int]]] = {}
+        for row in rows:
+            key = row.get("_id") or {}
+            exam_raw = str(key.get("exam_tag", "")).strip().upper()
+            if not exam_raw:
+                exam_raw = "OTHER"
+            if exam_raw not in EXAM_TAGS:
+                exam_raw = "OTHER"
+            subject = str(key.get("subject", "")).strip() or "General"
+            diff = str(key.get("difficulty", "")).strip().upper()
+            if diff not in {d.value for d in Difficulty}:
+                diff = "MEDIUM"
+            count = int(row.get("count", 0))
+            exam_map.setdefault(exam_raw, {})
+            subj_counts = exam_map[exam_raw].setdefault(subject, {"EASY": 0, "MEDIUM": 0, "HARD": 0, "EXPERT": 0})
+            subj_counts[diff] = subj_counts.get(diff, 0) + count
+
+        exams_out: List[QuestionBankFolderExam] = []
+
+        def exam_sort_key(tag: str) -> tuple:
+            try:
+                return (0, EXAM_TAGS.index(tag))
+            except ValueError:
+                return (1, tag)
+
+        for exam_tag in sorted(exam_map.keys(), key=exam_sort_key):
+            subjects_raw = exam_map[exam_tag]
+            exam_diff: Dict[str, int] = {"EASY": 0, "MEDIUM": 0, "HARD": 0, "EXPERT": 0}
+            subjects_out: List[QuestionBankFolderSubject] = []
+            for subject in sorted(subjects_raw.keys(), key=lambda s: s.lower()):
+                counts = subjects_raw[subject]
+                for d in exam_diff:
+                    exam_diff[d] += int(counts.get(d, 0))
+                subjects_out.append(QuestionBankFolderSubject(subject=subject, mix=DifficultyMix.from_counts(counts)))
+            exam_mix = DifficultyMix.from_counts(exam_diff)
+            exams_out.append(QuestionBankFolderExam(exam_tag=exam_tag, mix=exam_mix, subjects=subjects_out))
+
+        grand_total = await self._repo.count(extra if extra else None)
+        return QuestionBankFolderTree(exams=exams_out, grand_total=grand_total)
 
     async def count(self) -> int:
         return await self._repo.count()

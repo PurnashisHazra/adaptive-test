@@ -49,7 +49,7 @@ export function AdminConsultationRequestsPage() {
 
   return (
     <AdminPanel title="Free consultation requests">
-      <p style={{ color: "var(--muted)", marginTop: 0, maxWidth: 720 }}>
+      <p className="app-page-lead">
         Students request a free career consultation from the landing page with signup and mobile number only. Follow up
         and mark requests once contacted.
       </p>

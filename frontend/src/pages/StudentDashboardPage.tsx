@@ -10,6 +10,7 @@ import { AttemptDrilldownModal } from "../components/AttemptDrilldownModal";
 import { StudentLearningTrendCharts } from "../components/StudentLearningTrendCharts";
 import { StudentOverallRadar2D, StudentOverallStrategyPanel } from "../components/StudentOverallRadar2D";
 import { StudentPastAttemptsStrategyBlock } from "../components/StudentPastAttemptsStrategyBlock";
+import { AppPage } from "../components/AppPage";
 
 const emptyFilters = (): StudentSessionFilters => ({ subject: "", topic: "", exam: "" });
 
@@ -77,38 +78,37 @@ export function StudentDashboardPage() {
 
   if (pageLoading) {
     return (
-      <div className="page">
+      <AppPage title="Performance" lead="Loading your analytics…">
         <p style={{ color: "var(--muted)" }}>Loading…</p>
-      </div>
+      </AppPage>
     );
   }
 
   return (
-    <div className="page">
+    <AppPage
+      title="Performance"
+      lead="Learning curves and the radar use the same subject, topic, and exam filters — only attempts that match are included."
+    >
       <AttemptDrilldownModal attemptId={drillAttemptId} open={drillAttemptId != null} onClose={() => setDrillAttemptId(null)} />
-      <h1>Performance</h1>
-      <p style={{ color: "var(--muted)", maxWidth: 640 }}>
-        Learning curves and the radar use the same subject, topic, and exam filters — only attempts that match are included.
-      </p>
-      <p style={{ marginTop: "0.5rem" }}>
-        <Link to="/" style={{ marginRight: "1rem", fontSize: "0.92rem" }}>
+      <nav className="app-page-nav">
+        <Link to="/" className="app-page-nav__link">
           ← Challenges
         </Link>
-        <Link to="/take-test" className="btn btn-primary" style={{ display: "inline-block", textDecoration: "none" }}>
+        <Link to="/take-test" className="btn btn-primary" style={{ textDecoration: "none" }}>
           Start adaptive test
         </Link>
-        <Link to="/review" style={{ marginLeft: "1rem", fontSize: "0.92rem" }}>
+        <Link to="/review" className="app-page-nav__link">
           Paper review
         </Link>
-        <Link to="/history" style={{ marginLeft: "1rem", fontSize: "0.92rem" }}>
+        <Link to="/history" className="app-page-nav__link">
           My results
         </Link>
-      </p>
+      </nav>
 
       {trends && hasTrendPoints ? (
-        <section className="review-progress-section" style={{ marginTop: "1.5rem" }} aria-label="Analytics and charts">
-          <h2 style={{ fontSize: "1.15rem", marginBottom: "0.35rem" }}>Learning curves</h2>
-          <p style={{ color: "var(--muted)", maxWidth: 640, marginTop: 0, marginBottom: "1rem", fontSize: "0.9rem" }}>
+        <section className="review-progress-section" aria-label="Analytics and charts">
+          <h2 className="app-page-section__title">Learning curves</h2>
+          <p className="app-page-section__lead">
             Filters match completed standalone tests and paper sections (including ended early), consistent with Paper review analytics.
           </p>
           <StudentAttemptFilterBar data={trends} value={filters} onChange={patchFilters} />
@@ -127,12 +127,12 @@ export function StudentDashboardPage() {
           </PerformanceAnalyticsGate>
         </section>
       ) : (
-        <div className="card" style={{ marginTop: "1.5rem" }}>
+        <div className="card">
           <p style={{ margin: 0, color: "var(--muted)" }}>
             No completed attempts with answers yet. Take a test to see learning curves and your performance radar here.
           </p>
         </div>
       )}
-    </div>
+    </AppPage>
   );
 }

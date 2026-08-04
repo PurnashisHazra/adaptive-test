@@ -20,6 +20,7 @@ from app.schemas.question import (
     PdfImportCommitRequest,
     PdfImportPreviewResponse,
     QuestionAdmin,
+    QuestionBankFolderTree,
     QuestionCreate,
     QuestionListRequest,
     QuestionUpdate,
@@ -106,6 +107,15 @@ async def list_questions_post(
 @router.get("/count")
 async def count_questions(svc: QuestionService = Depends(get_question_service)) -> dict:
     return {"total": await svc.count()}
+
+
+@router.get("/folder-tree", response_model=QuestionBankFolderTree)
+async def question_folder_tree(
+    svc: QuestionService = Depends(get_question_service),
+    claims: dict = Depends(require_admin),
+) -> QuestionBankFolderTree:
+    admin = str(claims.get("sub", ""))
+    return await svc.folder_tree_for_admin(admin)
 
 
 @router.get("/export/csv")

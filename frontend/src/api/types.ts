@@ -77,6 +77,30 @@ export interface QuestionAdmin {
   updated_at: string;
 }
 
+export interface DifficultyMix {
+  easy: number;
+  medium: number;
+  hard: number;
+  expert: number;
+  total: number;
+}
+
+export interface QuestionBankFolderSubject {
+  subject: string;
+  mix: DifficultyMix;
+}
+
+export interface QuestionBankFolderExam {
+  exam_tag: string;
+  mix: DifficultyMix;
+  subjects: QuestionBankFolderSubject[];
+}
+
+export interface QuestionBankFolderTree {
+  exams: QuestionBankFolderExam[];
+  grand_total: number;
+}
+
 export interface QuestionCreatePayload {
   question_text: string;
   question_type: QuestionType;
@@ -106,6 +130,65 @@ export interface QuestionStudent {
   image_url?: string | null;
   /** EASY | MEDIUM | HARD | EXPERT when known */
   difficulty?: string | null;
+  passage?: ReadingPassageView | null;
+  sub_question_index?: number | null;
+}
+
+export interface ReadingPassageView {
+  id: string;
+  title: string;
+  passage_text: string;
+  image_url?: string | null;
+}
+
+export interface RcSubQuestionIn {
+  id?: string | null;
+  question_text: string;
+  question_type: QuestionType;
+  options: QuestionOption[];
+  correct_answer: string;
+  explanation?: string | null;
+  difficulty: Difficulty;
+}
+
+export interface RcSubQuestionOut extends RcSubQuestionIn {
+  id: string;
+  sub_question_index: number;
+}
+
+export interface RcSetListItem {
+  id: string;
+  title: string;
+  subject: string;
+  topic: string;
+  tags: string[];
+  sub_question_count: number;
+  question_ids: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RcSetDetail {
+  id: string;
+  title: string;
+  passage_text: string;
+  image_url?: string | null;
+  subject: string;
+  topic: string;
+  tags: string[];
+  sub_questions: RcSubQuestionOut[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RcSetCreatePayload {
+  title: string;
+  passage_text: string;
+  image_url?: string | null;
+  subject: string;
+  topic: string;
+  tags: string[];
+  sub_questions: RcSubQuestionIn[];
 }
 
 export interface PaperSessionMeta {

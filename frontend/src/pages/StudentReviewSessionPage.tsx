@@ -15,6 +15,7 @@ import type {
   StudentQuestionReview,
   StudentStandaloneDetail,
 } from "../api/types";
+import { AppPage } from "../components/AppPage";
 
 function peerAccuracyLine(q: StudentQuestionReview): { main: string; note?: string } {
   const n = q.peer_answer_count ?? 0;
@@ -326,9 +327,16 @@ export function StudentReviewSessionPage() {
     return <Navigate to="/review" replace />;
   }
 
+  const pageTitle =
+    sessionType === "standalone" && standalone
+      ? standalone.title
+      : sessionType === "paper" && paper
+        ? paper.paper_title
+        : "Session review";
+
   return (
-    <div className="page">
-      <p style={{ marginBottom: "0.75rem" }}>
+    <AppPage title={pageTitle}>
+      <p className="app-page-back">
         <Link to="/review">← All sessions</Link>
       </p>
 
@@ -336,8 +344,7 @@ export function StudentReviewSessionPage() {
         <p style={{ color: "var(--muted)" }}>Loading…</p>
       ) : sessionType === "standalone" && standalone ? (
         <>
-          <h1 style={{ marginBottom: "0.35rem" }}>{standalone.title}</h1>
-          <p style={{ color: "var(--muted)", marginTop: 0 }}>
+          <p className="app-page-lead">
             {standalone.status === "completed" ? (
               <>
                 Score {standalone.score}/{standalone.total_questions}
@@ -348,13 +355,15 @@ export function StudentReviewSessionPage() {
               <>In progress — showing questions answered so far</>
             )}
           </p>
-          <p style={{ fontSize: "0.9rem", color: "var(--muted)" }}>
+          <p style={{ fontSize: "0.9rem", color: "var(--muted)", marginTop: "0.35rem" }}>
             Started {formatDateTimeIST(standalone.started_at)}
             {standalone.completed_at ? ` · Finished ${formatDateTimeIST(standalone.completed_at)}` : ""}
           </p>
           <CohortPercentileBanner data={standalone} label="Overall percentile in this practice cohort" />
           <StudentInsightsPanel insights={standalone.insights} questions={standalone.questions} />
-          <h2 style={{ fontSize: "1.05rem", marginTop: "2rem", marginBottom: "0.75rem" }}>Questions</h2>
+          <h2 className="app-page-section__title" style={{ marginTop: "2rem" }}>
+            Questions
+          </h2>
           {standalone.questions.length === 0 ? (
             <p className="empty">No answers recorded yet.</p>
           ) : (
@@ -363,8 +372,7 @@ export function StudentReviewSessionPage() {
         </>
       ) : sessionType === "paper" && paper ? (
         <>
-          <h1 style={{ marginBottom: "0.35rem" }}>{paper.paper_title}</h1>
-          <p style={{ color: "var(--muted)", marginTop: 0 }}>
+          <p className="app-page-lead">
             {paper.status === "completed" || paper.status === "ended_early" ? (
               <>
                 {paper.total_marks != null && paper.max_marks != null ? (
@@ -379,21 +387,18 @@ export function StudentReviewSessionPage() {
               <>In progress — sections below show completed parts</>
             )}
           </p>
-          <p style={{ fontSize: "0.9rem", color: "var(--muted)" }}>
+          <p style={{ fontSize: "0.9rem", color: "var(--muted)", marginTop: "0.35rem" }}>
             Started {formatDateTimeIST(paper.started_at)}
             {paper.completed_at ? ` · Finished ${formatDateTimeIST(paper.completed_at)}` : ""}
           </p>
-          <StudentInsightsPanel
-            insights={paper.insights}
-            questions={[]}
-          />
+          <StudentInsightsPanel insights={paper.insights} questions={[]} />
           <PaperCohortBanner paper={paper} />
           <PaperReviewDifficultyChart paper={paper} />
           {paper.sections.map((sec) => {
             const qCount = sec.question_count ?? sec.questions.length;
             return (
-              <section key={sec.attempt_id} style={{ marginTop: "2rem" }}>
-                <h2 style={{ fontSize: "1.1rem", marginBottom: "0.75rem" }}>
+              <section key={sec.attempt_id} className="app-page-section">
+                <h2 className="app-page-section__title">
                   {sec.section_title}{" "}
                   <span style={{ color: "var(--muted)", fontWeight: 500 }}>
                     (section {sec.section_index + 1} · {qCount} question{qCount === 1 ? "" : "s"})
@@ -419,6 +424,6 @@ export function StudentReviewSessionPage() {
       ) : (
         <p style={{ color: "var(--muted)" }}>Session not found or you do not have access.</p>
       )}
-    </div>
+    </AppPage>
   );
 }

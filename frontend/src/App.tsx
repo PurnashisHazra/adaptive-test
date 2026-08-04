@@ -25,6 +25,8 @@ import { AdminMentorshipBookingsPage } from "./pages/admin/AdminMentorshipBookin
 import { AdminPaperUnlocksPage } from "./pages/admin/AdminPaperUnlocksPage";
 import { AdminLeaderConnectPage } from "./pages/admin/AdminLeaderConnectPage";
 import { AdminConsultationRequestsPage } from "./pages/admin/AdminConsultationRequestsPage";
+import { RcSetsPage } from "./pages/admin/RcSetsPage";
+import { RcSetFormPage } from "./pages/admin/RcSetFormPage";
 import { AdminStudentControlsPage } from "./pages/admin/AdminStudentControlsPage";
 import { AdminStudentReportsPage } from "./pages/admin/AdminStudentReportsPage";
 import { AuthPage } from "./pages/AuthPage";
@@ -149,6 +151,9 @@ export default function App() {
           <Route path="questions" element={<QuestionsPage />} />
           <Route path="questions/new" element={<QuestionFormPage />} />
           <Route path="questions/:id" element={<QuestionFormPage />} />
+          <Route path="rc-sets" element={<RcSetsPage />} />
+          <Route path="rc-sets/new" element={<RcSetFormPage />} />
+          <Route path="rc-sets/:id" element={<RcSetFormPage />} />
           <Route path="upload" element={<BulkUploadPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
           <Route path="reports" element={<QuestionReportsPage />} />

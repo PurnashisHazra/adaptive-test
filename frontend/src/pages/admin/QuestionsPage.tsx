@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
   autoAssignQuestionDifficulties,
@@ -9,10 +9,13 @@ import {
   deleteQuestion,
   downloadQuestionsCsv,
   generateAiQuestionDraft,
+  getQuestionFolderTree,
   listQuestions,
 } from "../../api/client";
-import type { Difficulty, QuestionAdmin, QuestionCreatePayload, QuestionType } from "../../api/types";
+import type { Difficulty, QuestionAdmin, QuestionBankFolderTree, QuestionCreatePayload, QuestionType } from "../../api/types";
+import { AdminFilterShell } from "../../components/AdminFilterShell";
 import { AdminPanel } from "../../components/AdminPanel";
+import { QuestionBankFolderGrid, examTagLabel } from "../../components/QuestionBankFolderGrid";
 
 function useDebouncedValue<T>(value: T, delayMs: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -24,12 +27,17 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 }
 
 export function QuestionsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const examTag = (searchParams.get("exam") || "").trim().toUpperCase();
+  const subjectFolder = (searchParams.get("subject") || "").trim();
+
   const [items, setItems] = useState<QuestionAdmin[]>([]);
   const [total, setTotal] = useState(0);
   const [globalQuestionCount, setGlobalQuestionCount] = useState(0);
+  const [folderTree, setFolderTree] = useState<QuestionBankFolderTree | null>(null);
+  const [foldersLoading, setFoldersLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [subject, setSubject] = useState("");
+  const [loading, setLoading] = useState(false);
   const [topic, setTopic] = useState("");
   const [difficulty, setDifficulty] = useState<Difficulty | "">("");
   const [questionType, setQuestionType] = useState<QuestionType | "">("");
@@ -46,19 +54,38 @@ export function QuestionsPage() {
   const pageSize = 15;
   const debouncedSearch = useDebouncedValue(search.trim(), 400);
   const prevDebouncedSearch = useRef<string | null>(null);
+  const inQuestionList = Boolean(examTag && subjectFolder);
+
+  const selectedExam = useMemo(
+    () => folderTree?.exams.find((e) => e.exam_tag === examTag) ?? null,
+    [folderTree, examTag],
+  );
+
+  async function loadFolderTree() {
+    setFoldersLoading(true);
+    try {
+      setFolderTree(await getQuestionFolderTree());
+    } catch {
+      toast.error("Failed to load question folders");
+    } finally {
+      setFoldersLoading(false);
+    }
+  }
 
   async function loadWithPage(p: number) {
+    if (!inQuestionList) return;
     setLoading(true);
     try {
       const [res, allN] = await Promise.all([
         listQuestions({
           page: p,
           page_size: pageSize,
-          subject: subject || undefined,
+          subject: subjectFolder,
           topic: topic || undefined,
           difficulty: difficulty || undefined,
           question_type: questionType || undefined,
           search: debouncedSearch || undefined,
+          exam_tag: examTag,
         }),
         countQuestions(),
       ]);
@@ -73,6 +100,15 @@ export function QuestionsPage() {
   }
 
   useEffect(() => {
+    void loadFolderTree();
+  }, []);
+
+  useEffect(() => {
+    setPage(1);
+  }, [examTag, subjectFolder]);
+
+  useEffect(() => {
+    if (!inQuestionList) return;
     const searchChanged =
       prevDebouncedSearch.current !== null && prevDebouncedSearch.current !== debouncedSearch;
     prevDebouncedSearch.current = debouncedSearch;
@@ -83,10 +119,27 @@ export function QuestionsPage() {
     }
     void loadWithPage(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, debouncedSearch]);
+  }, [page, debouncedSearch, inQuestionList, examTag, subjectFolder, topic, difficulty, questionType]);
 
   async function load() {
     await loadWithPage(page);
+    await loadFolderTree();
+  }
+
+  function openExam(tag: string) {
+    setSearchParams({ exam: tag });
+  }
+
+  function openSubject(subject: string) {
+    setSearchParams({ exam: examTag, subject });
+  }
+
+  function goToRoot() {
+    setSearchParams({});
+  }
+
+  function goToExam() {
+    setSearchParams({ exam: examTag });
   }
 
   async function onDelete(id: string) {
@@ -94,7 +147,7 @@ export function QuestionsPage() {
     try {
       await deleteQuestion(id);
       toast.success("Deleted");
-      load();
+      await load();
     } catch {
       toast.error("Delete failed");
     }
@@ -123,7 +176,7 @@ export function QuestionsPage() {
       const n = await deleteAllQuestions();
       toast.success(`Removed ${n} question(s)`);
       setPage(1);
-      load();
+      await load();
     } catch {
       toast.error("Delete all failed");
     } finally {
@@ -140,7 +193,7 @@ export function QuestionsPage() {
     try {
       const draft = await generateAiQuestionDraft({
         prompt: aiPrompt.trim(),
-        subject: subject || undefined,
+        subject: subjectFolder || undefined,
         topic: topic || undefined,
       });
       setAiDraft(draft);
@@ -158,7 +211,7 @@ export function QuestionsPage() {
 
   async function onAutoAssignDifficulty() {
     if (items.length === 0) {
-      toast.error("No questions on this page. Apply filters and go to a page with questions.");
+      toast.error("No questions on this page.");
       return;
     }
     if (
@@ -201,7 +254,7 @@ export function QuestionsPage() {
       setShowAiModal(false);
       setAiDraft(null);
       setAiPrompt("");
-      load();
+      await load();
     } catch (err: unknown) {
       const msg =
         err && typeof err === "object" && "response" in err
@@ -213,9 +266,36 @@ export function QuestionsPage() {
     }
   }
 
+  const examFolders = useMemo(
+    () =>
+      (folderTree?.exams ?? []).map((exam) => ({
+        id: exam.exam_tag,
+        label: examTagLabel(exam.exam_tag),
+        subtitle: `${exam.subjects.length} subject${exam.subjects.length === 1 ? "" : "s"}`,
+        mix: exam.mix,
+      })),
+    [folderTree],
+  );
+
+  const subjectFolders = useMemo(
+    () =>
+      (selectedExam?.subjects ?? []).map((row) => ({
+        id: row.subject,
+        label: row.subject,
+        mix: row.mix,
+      })),
+    [selectedExam],
+  );
+
+  const panelTitle = inQuestionList
+    ? subjectFolder
+    : examTag
+      ? examTagLabel(examTag)
+      : "Question bank";
+
   return (
     <AdminPanel
-      title="Question bank"
+      title={panelTitle}
       actions={
         <>
           <button type="button" className="btn btn-ghost" onClick={onDownloadCsv} disabled={exportingCsv}>
@@ -224,15 +304,17 @@ export function QuestionsPage() {
           <button type="button" className="btn btn-danger" onClick={onDeleteAll} disabled={deletingAll || globalQuestionCount === 0}>
             {deletingAll ? "Deleting…" : "Delete all"}
           </button>
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={onAutoAssignDifficulty}
-            disabled={assigningDifficulty || loading || items.length === 0}
-            title="Assigns EASY/MEDIUM/HARD/EXPERT using Adaptest AI from question text and exam category tags (current page only, max 30)."
-          >
-            {assigningDifficulty ? "Assigning…" : "Auto assign difficulty"}
-          </button>
+          {inQuestionList ? (
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={onAutoAssignDifficulty}
+              disabled={assigningDifficulty || loading || items.length === 0}
+              title="Assigns EASY/MEDIUM/HARD/EXPERT using Adaptest AI from question text and exam category tags (current page only, max 30)."
+            >
+              {assigningDifficulty ? "Assigning…" : "Auto assign difficulty"}
+            </button>
+          ) : null}
           <button type="button" className="btn btn-ghost" onClick={() => setShowAiModal(true)}>
             AI-Add Question
           </button>
@@ -242,109 +324,159 @@ export function QuestionsPage() {
         </>
       }
       filters={
-        <div className="card" style={{ padding: "1rem", margin: 0 }}>
-          <div className="admin-filter-grid" style={{ marginBottom: "0.75rem" }}>
-            <div>
-              <label className="label">Search</label>
-              <input className="input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Question text, explanation, or tag" />
-              <p style={{ margin: "0.25rem 0 0", fontSize: "0.75rem", color: "var(--muted)" }}>
-                Searches question text, normalized text, explanations, tags, and MCQ option labels. Case-insensitive;
-                full-width / odd Unicode is normalized; long pastes use POST (no URL limit). Multiple words: every word
-                must appear somewhere. Updates shortly after you stop typing; use Apply filters for subject, topic,
-                type, and difficulty.
-              </p>
+        inQuestionList ? (
+          <AdminFilterShell>
+            <nav className="qb-breadcrumb" aria-label="Question bank location">
+              <button type="button" className="qb-breadcrumb__link" onClick={goToRoot}>
+                Exam categories
+              </button>
+              <span className="qb-breadcrumb__sep">/</span>
+              <button type="button" className="qb-breadcrumb__link" onClick={goToExam}>
+                {examTagLabel(examTag)}
+              </button>
+              <span className="qb-breadcrumb__sep">/</span>
+              <span className="qb-breadcrumb__current">{subjectFolder}</span>
+            </nav>
+            <div className="admin-filter-grid" style={{ marginTop: "0.85rem", marginBottom: "0.75rem" }}>
+              <div>
+                <label className="label">Search</label>
+                <input className="input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Question text, explanation, or tag" />
+              </div>
+              <div>
+                <label className="label">Topic</label>
+                <input className="input" value={topic} onChange={(e) => setTopic(e.target.value)} />
+              </div>
+              <div>
+                <label className="label">Difficulty</label>
+                <select className="input" value={difficulty} onChange={(e) => setDifficulty(e.target.value as Difficulty | "")}>
+                  <option value="">Any</option>
+                  <option value="EASY">EASY</option>
+                  <option value="MEDIUM">MEDIUM</option>
+                  <option value="HARD">HARD</option>
+                  <option value="EXPERT">EXPERT</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">Question type</label>
+                <select className="input" value={questionType} onChange={(e) => setQuestionType(e.target.value as QuestionType | "")}>
+                  <option value="">Any</option>
+                  <option value="mcq_single">MCQ</option>
+                  <option value="true_false">True / false</option>
+                  <option value="tita">TITA</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="label">Subject</label>
-              <input className="input" value={subject} onChange={(e) => setSubject(e.target.value)} />
-            </div>
-            <div>
-              <label className="label">Topic</label>
-              <input className="input" value={topic} onChange={(e) => setTopic(e.target.value)} />
-            </div>
-            <div>
-              <label className="label">Difficulty</label>
-              <select className="input" value={difficulty} onChange={(e) => setDifficulty(e.target.value as Difficulty | "")}>
-                <option value="">Any</option>
-                <option value="EASY">EASY</option>
-                <option value="MEDIUM">MEDIUM</option>
-                <option value="HARD">HARD</option>
-                <option value="EXPERT">EXPERT</option>
-              </select>
-            </div>
-            <div>
-              <label className="label">Question type</label>
-              <select className="input" value={questionType} onChange={(e) => setQuestionType(e.target.value as QuestionType | "")}>
-                <option value="">Any</option>
-                <option value="mcq_single">MCQ</option>
-                <option value="true_false">True / false</option>
-                <option value="tita">TITA</option>
-              </select>
-            </div>
-          </div>
-          <button type="button" className="btn btn-primary" onClick={() => { if (page !== 1) setPage(1); else void loadWithPage(1); }}>
-            Apply filters
-          </button>
-        </div>
+            <button type="button" className="btn btn-primary" onClick={() => { if (page !== 1) setPage(1); else void loadWithPage(1); }}>
+              Apply filters
+            </button>
+          </AdminFilterShell>
+        ) : (
+          <AdminFilterShell>
+            <nav className="qb-breadcrumb" aria-label="Question bank location">
+              {!examTag ? (
+                <span className="qb-breadcrumb__current">Exam categories</span>
+              ) : (
+                <>
+                  <button type="button" className="qb-breadcrumb__link" onClick={goToRoot}>
+                    Exam categories
+                  </button>
+                  <span className="qb-breadcrumb__sep">/</span>
+                  <span className="qb-breadcrumb__current">{examTagLabel(examTag)}</span>
+                </>
+              )}
+            </nav>
+            <p style={{ margin: "0.75rem 0 0", fontSize: "0.9rem", color: "var(--muted)" }}>
+              {foldersLoading
+                ? "Loading folder stats…"
+                : examTag
+                  ? "Open a subject folder to browse and manage questions."
+                  : `${(folderTree?.grand_total ?? 0).toLocaleString()} questions across ${examFolders.length} exam categor${examFolders.length === 1 ? "y" : "ies"}. Hover a folder for difficulty mix.`}
+            </p>
+          </AdminFilterShell>
+        )
       }
     >
-      <div className="table-wrap">
-        {loading ? (
-          <div className="empty">Loading…</div>
+      {!inQuestionList ? (
+        foldersLoading ? (
+          <div className="empty">Loading folders…</div>
+        ) : examTag ? (
+          selectedExam ? (
+            <QuestionBankFolderGrid folders={subjectFolders} onOpen={openSubject} />
+          ) : (
+            <div className="empty">
+              No questions found for {examTagLabel(examTag)}.{" "}
+              <button type="button" className="btn btn-ghost" style={{ padding: "0.2rem 0.5rem" }} onClick={goToRoot}>
+                Back
+              </button>
+            </div>
+          )
         ) : (
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Text</th>
-                <th>Type</th>
-                <th>Difficulty</th>
-                <th>Subject</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((q) => (
-                <tr key={q.id}>
-                  <td style={{ maxWidth: 360 }}>{q.question_text.slice(0, 120)}{q.question_text.length > 120 ? "…" : ""}</td>
-                  <td>{q.question_type}</td>
-                  <td>
-                    <span className="badge">{q.difficulty}</span>
-                  </td>
-                  <td>{q.subject}</td>
-                  <td style={{ whiteSpace: "nowrap" }}>
-                    <Link to={`/admin/questions/${q.id}`} className="btn btn-ghost" style={{ padding: "0.35rem 0.6rem", fontSize: "0.85rem" }}>
-                      Edit
-                    </Link>{" "}
-                    <button type="button" className="btn btn-danger" style={{ padding: "0.35rem 0.6rem", fontSize: "0.85rem" }} onClick={() => onDelete(q.id)}>
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        {!loading && items.length === 0 && <div className="empty">No questions match.</div>}
-      </div>
+          <QuestionBankFolderGrid folders={examFolders} onOpen={openExam} />
+        )
+      ) : (
+        <>
+          <div className="table-wrap">
+            {loading ? (
+              <div className="empty">Loading…</div>
+            ) : (
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Text</th>
+                    <th>Type</th>
+                    <th>Difficulty</th>
+                    <th>Topic</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((q) => (
+                    <tr key={q.id}>
+                      <td style={{ maxWidth: 360 }}>
+                        {q.question_text.slice(0, 120)}
+                        {q.question_text.length > 120 ? "…" : ""}
+                      </td>
+                      <td>{q.question_type}</td>
+                      <td>
+                        <span className="badge">{q.difficulty}</span>
+                      </td>
+                      <td>{q.topic}</td>
+                      <td style={{ whiteSpace: "nowrap" }}>
+                        <Link to={`/admin/questions/${q.id}`} className="btn btn-ghost" style={{ padding: "0.35rem 0.6rem", fontSize: "0.85rem" }}>
+                          Edit
+                        </Link>{" "}
+                        <button type="button" className="btn btn-danger" style={{ padding: "0.35rem 0.6rem", fontSize: "0.85rem" }} onClick={() => onDelete(q.id)}>
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            {!loading && items.length === 0 && <div className="empty">No questions match.</div>}
+          </div>
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
-        <span style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
-          {total} total · page {page} of {Math.max(1, Math.ceil(total / pageSize))}
-        </span>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          <button type="button" className="btn btn-ghost" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-            Previous
-          </button>
-          <button
-            type="button"
-            className="btn btn-ghost"
-            disabled={page >= Math.ceil(total / pageSize)}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            Next
-          </button>
-        </div>
-      </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
+            <span style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
+              {total} total · page {page} of {Math.max(1, Math.ceil(total / pageSize))}
+            </span>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <button type="button" className="btn btn-ghost" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                Previous
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={page >= Math.ceil(total / pageSize)}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       {showAiModal && (
         <div

@@ -684,8 +684,20 @@ export function TestSessionPage() {
       <div className="test-exam-body">
         <div className="test-exam-main">
           <div className="test-exam-passage">
-            <p className="test-exam-passage__label">Information</p>
-            {currentQuestion.image_url ? (
+            <p className="test-exam-passage__label">
+              {currentQuestion.passage ? "Reading Comprehension" : "Information"}
+            </p>
+            {currentQuestion.passage ? (
+              <>
+                {currentQuestion.passage.title ? (
+                  <p className="test-exam-passage__title">{currentQuestion.passage.title}</p>
+                ) : null}
+                <div className="test-exam-passage__text">{currentQuestion.passage.passage_text}</div>
+                {currentQuestion.passage.image_url ? (
+                  <img src={currentQuestion.passage.image_url} alt="" />
+                ) : null}
+              </>
+            ) : currentQuestion.image_url ? (
               <img src={currentQuestion.image_url} alt="" />
             ) : (
               <p className="test-exam-passage__placeholder">
@@ -771,7 +783,12 @@ export function TestSessionPage() {
                 Report
               </button>
             </div>
-            <h2 className="test-exam-qno">Question No. {currentIndex}</h2>
+            <h2 className="test-exam-qno">
+              Question No. {currentIndex}
+              {currentQuestion.sub_question_index && currentQuestion.passage
+                ? ` · RC ${currentQuestion.sub_question_index}`
+                : ""}
+            </h2>
             <p className="test-exam-stem">{currentQuestion.question_text}</p>
             <div className="test-exam-options">
               {isTita ? (

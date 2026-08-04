@@ -11,6 +11,7 @@ from app.api.routers import (
     admin_mentorship_bookings,
     admin_paper_unlocks,
     admin_question_papers,
+    admin_rc_sets,
     admin_students,
     admin_users,
     analytics,
@@ -46,6 +47,7 @@ from app.repositories.question_report_repository import QuestionReportRepository
 from app.repositories.student_coach_plan_repository import StudentCoachPlanRepository
 from app.repositories.paper_unlock_repository import PaperUnlockRepository
 from app.repositories.consultation_request_repository import ConsultationRequestRepository
+from app.repositories.reading_passage_repository import ReadingPassageRepository
 from app.repositories.leader_connect_repository import LeaderConnectRepository
 from app.repositories.mentorship_booking_repository import MentorshipBookingRepository
 from app.repositories.practice_attempt_request_repository import PracticeAttemptRequestRepository
@@ -73,6 +75,7 @@ async def lifespan(app: FastAPI):
         await PaperUnlockRepository().ensure_indexes()
         await LeaderConnectRepository().ensure_indexes()
         await ConsultationRequestRepository().ensure_indexes()
+        await ReadingPassageRepository().ensure_indexes()
         await StudentPublicProfileRepository().ensure_indexes()
         await LandingShowcaseService().ensure_showcase_papers()
     except Exception as exc:
@@ -117,6 +120,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_paper_unlocks.router, prefix="/api")
     app.include_router(admin_leader_connect.router, prefix="/api")
     app.include_router(admin_consultation_requests.router, prefix="/api")
+    app.include_router(admin_rc_sets.router, prefix="/api")
     app.include_router(challenges.router, prefix="/api")
     app.include_router(mentorship_bookings.router, prefix="/api")
     app.include_router(paper_unlocks.router, prefix="/api")

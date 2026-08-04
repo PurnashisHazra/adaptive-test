@@ -69,7 +69,7 @@ export function AdminPaperUnlocksPage() {
 
   return (
     <AdminPanel title="Paper unlock payments">
-      <p style={{ color: "var(--muted)", marginTop: 0, maxWidth: 640 }}>
+      <p className="app-page-lead">
         Approve UPI payments for landing-page mock tests (₹100). On approval, the question paper is assigned to the
         student automatically.
       </p>

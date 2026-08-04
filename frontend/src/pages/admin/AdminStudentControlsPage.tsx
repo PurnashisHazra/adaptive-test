@@ -199,7 +199,7 @@ export function AdminStudentControlsPage() {
 
   return (
     <AdminPanel title="Student controls">
-      <p style={{ color: "var(--muted)", marginTop: 0, maxWidth: 720 }}>
+      <p className="app-page-lead">
         Assign question papers, cap practice test attempts, restrict exam types for adaptive practice, and block access to AdapTest.
         Only students who signed up with your admin code appear here.
       </p>
