@@ -3,7 +3,9 @@ import { SiteNavbar } from "./SiteNavbar";
 
 export function AppShell() {
   const { pathname } = useLocation();
-  const isAdminSection = pathname.startsWith("/admin") || pathname.startsWith("/super-admin");
+  const isSuperAdmin = pathname.startsWith("/super-admin");
+  const isAdminSection = pathname.startsWith("/admin");
+  const isStudentHub = /^\/(history|performance|review|papers|profile)(\/|$)/.test(pathname);
   const isExamFullscreen = pathname === "/test" || pathname === "/instructions";
 
   if (isExamFullscreen) {
@@ -17,7 +19,9 @@ export function AppShell() {
   return (
     <div className="app-shell">
       <SiteNavbar />
-      <main className={`app-shell-main${isAdminSection ? " app-shell-main--admin" : ""}`}>
+      <main
+        className={`app-shell-main${isSuperAdmin ? " app-shell-main--landing" : ""}${isAdminSection ? " app-shell-main--admin" : ""}${isStudentHub ? " app-shell-main--student" : ""}`}
+      >
         <Outlet />
       </main>
     </div>

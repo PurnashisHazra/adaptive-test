@@ -21,6 +21,7 @@ function reviewsToBubbleSteps(questions: StudentQuestionReview[]): BubbleChartSt
       difficulty: (q.difficulty_when_served || "EASY").toString(),
       time_spent_seconds: q.time_spent_seconds ?? null,
       is_correct: q.is_correct,
+      is_attempted: q.is_attempted,
     }));
 }
 

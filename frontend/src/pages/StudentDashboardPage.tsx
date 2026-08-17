@@ -11,6 +11,7 @@ import { StudentLearningTrendCharts } from "../components/StudentLearningTrendCh
 import { StudentOverallRadar2D, StudentOverallStrategyPanel } from "../components/StudentOverallRadar2D";
 import { StudentPastAttemptsStrategyBlock } from "../components/StudentPastAttemptsStrategyBlock";
 import { AppPage } from "../components/AppPage";
+import { PageEmpty, PageLoading } from "../components/AppPageStates";
 
 const emptyFilters = (): StudentSessionFilters => ({ subject: "", topic: "", exam: "" });
 
@@ -75,63 +76,91 @@ export function StudentDashboardPage() {
   }, [filters.subject, filters.topic, filters.exam]);
 
   const hasTrendPoints = useMemo(() => Boolean(trends?.points.length), [trends]);
+  const filteredCount = useMemo(() => {
+    if (!trends?.points.length) return 0;
+    return trends.points.filter((p) => {
+      if (filters.subject && (p.subject ?? "") !== filters.subject) return false;
+      if (filters.topic && (p.topic ?? "") !== filters.topic) return false;
+      if (filters.exam && (p.exam_tag ?? "") !== filters.exam) return false;
+      return true;
+    }).length;
+  }, [trends, filters]);
 
   if (pageLoading) {
     return (
-      <AppPage title="Performance" lead="Loading your analytics…">
-        <p style={{ color: "var(--muted)" }}>Loading…</p>
+      <AppPage panel showSubNav title="Performance" lead="Loading your analytics…">
+        <PageLoading label="Loading performance data…" />
       </AppPage>
     );
   }
 
   return (
     <AppPage
+      panel
+      showSubNav
       title="Performance"
-      lead="Learning curves and the radar use the same subject, topic, and exam filters — only attempts that match are included."
-    >
-      <AttemptDrilldownModal attemptId={drillAttemptId} open={drillAttemptId != null} onClose={() => setDrillAttemptId(null)} />
-      <nav className="app-page-nav">
-        <Link to="/" className="app-page-nav__link">
-          ← Challenges
-        </Link>
+      lead="Learning curves and the performance radar use the same subject, topic, and exam filters — only matching attempts are included."
+      actions={
         <Link to="/take-test" className="btn btn-primary" style={{ textDecoration: "none" }}>
           Start adaptive test
         </Link>
-        <Link to="/review" className="app-page-nav__link">
-          Paper review
-        </Link>
-        <Link to="/history" className="app-page-nav__link">
-          My results
-        </Link>
-      </nav>
+      }
+    >
+      <AttemptDrilldownModal attemptId={drillAttemptId} open={drillAttemptId != null} onClose={() => setDrillAttemptId(null)} />
 
       {trends && hasTrendPoints ? (
-        <section className="review-progress-section" aria-label="Analytics and charts">
-          <h2 className="app-page-section__title">Learning curves</h2>
-          <p className="app-page-section__lead">
-            Filters match completed standalone tests and paper sections (including ended early), consistent with Paper review analytics.
-          </p>
-          <StudentAttemptFilterBar data={trends} value={filters} onChange={patchFilters} />
-          <StudentLearningTrendCharts
-            data={trends}
-            filters={filters}
-            onFiltersChange={patchFilters}
-            hideFilterRow
-            omitSectionChrome
-            onAttemptPointClick={setDrillAttemptId}
-          />
-          <StudentOverallRadar2D data={overall} loading={overallLoading} onAttemptPointClick={setDrillAttemptId} />
-          <StudentOverallStrategyPanel data={overall} analyticsUnlocked={analyticsUnlocked} />
-          <PerformanceAnalyticsGate unlocked={analyticsUnlocked} minHeight={280}>
-            <StudentPastAttemptsStrategyBlock trends={trends} filters={filters} overall={overall} />
-          </PerformanceAnalyticsGate>
-        </section>
+        <>
+          <div className="app-stat-grid">
+            <div className="card app-stat-card">
+              <div className="label">Sessions tracked</div>
+              <div className="app-stat-card__value">{trends.points.length}</div>
+            </div>
+            <div className="card app-stat-card">
+              <div className="label">Matching filters</div>
+              <div className="app-stat-card__value">{filteredCount}</div>
+            </div>
+            <div className="card app-stat-card">
+              <div className="label">Subjects</div>
+              <div className="app-stat-card__value">{trends.filter_options.subjects.length || "—"}</div>
+            </div>
+            <div className="card app-stat-card">
+              <div className="label">Strategy insights</div>
+              <div className="app-stat-card__value">{analyticsUnlocked ? "Unlocked" : "Add mobile"}</div>
+            </div>
+          </div>
+
+          <section className="student-content-section" aria-label="Analytics and charts">
+            <h2 className="app-page-section__title">Learning curves</h2>
+            <p className="app-page-section__lead">
+              Standalone tests and paper sections (including ended early), consistent with Analytics review.
+            </p>
+            <StudentAttemptFilterBar data={trends} value={filters} onChange={patchFilters} />
+            <StudentLearningTrendCharts
+              data={trends}
+              filters={filters}
+              onFiltersChange={patchFilters}
+              hideFilterRow
+              omitSectionChrome
+              onAttemptPointClick={setDrillAttemptId}
+            />
+            <StudentOverallRadar2D data={overall} loading={overallLoading} onAttemptPointClick={setDrillAttemptId} />
+            <StudentOverallStrategyPanel data={overall} analyticsUnlocked={analyticsUnlocked} />
+            <PerformanceAnalyticsGate unlocked={analyticsUnlocked} minHeight={280}>
+              <StudentPastAttemptsStrategyBlock trends={trends} filters={filters} overall={overall} />
+            </PerformanceAnalyticsGate>
+          </section>
+        </>
       ) : (
-        <div className="card">
-          <p style={{ margin: 0, color: "var(--muted)" }}>
-            No completed attempts with answers yet. Take a test to see learning curves and your performance radar here.
-          </p>
-        </div>
+        <PageEmpty
+          title="No performance data yet"
+          action={
+            <Link to="/take-test" className="btn btn-primary" style={{ textDecoration: "none" }}>
+              Take a test
+            </Link>
+          }
+        >
+          Complete a standalone test or paper section to see learning curves and your performance radar here.
+        </PageEmpty>
       )}
     </AppPage>
   );

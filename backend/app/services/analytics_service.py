@@ -3,6 +3,7 @@ from typing import Any, Dict, List
 
 from app.repositories.attempt_repository import AttemptRepository
 from app.repositories.question_repository import QuestionRepository
+from app.utils.attempt_scoring import is_answer_attempted
 from app.schemas.analytics import (
     AnalyticsOverview,
     AttemptBreakdown,
@@ -45,6 +46,8 @@ class AnalyticsService:
 
         for att in completed:
             for ans in att.get("answers", []):
+                if not is_answer_attempted(ans):
+                    continue
                 d = ans.get("difficulty_when_served", "EASY")
                 diff_total[d] += 1
                 if ans.get("is_correct"):

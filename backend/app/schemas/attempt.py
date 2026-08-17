@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -13,6 +13,7 @@ class AnswerRecord(BaseModel):
     question_id: str
     chosen_answer: str
     is_correct: bool
+    is_attempted: bool = True
     difficulty_when_served: Difficulty
     topic_when_served: Optional[str] = None
     target_difficulty_after: Optional[Difficulty] = None
@@ -162,9 +163,16 @@ class AttemptListItem(BaseModel):
     id: str
     student_name: str
     status: str
+    session_type: Literal["standalone", "paper", "challenge"] = "standalone"
+    test_name: str = "Adaptive test"
+    correct: int = 0
+    wrong: int = 0
+    not_attempted: int = 0
     score: int
     total_questions: int
     percentage: float
+    cohort_percentile: Optional[float] = None
+    cohort_ranked_count: int = 0
     subject: Optional[str] = None
     topic: Optional[str] = None
     started_at: datetime

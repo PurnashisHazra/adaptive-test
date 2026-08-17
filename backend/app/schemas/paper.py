@@ -4,7 +4,7 @@ from typing import List, Optional
 from bson import ObjectId
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.schemas.question import EXAM_TAGS
+from app.utils.exam_tags import normalize_exam_tag
 
 
 class PaperSectionIn(BaseModel):
@@ -26,12 +26,8 @@ class PaperSectionIn(BaseModel):
     def validate_exam_tag(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return None
-        t = str(v).strip().upper()
-        if not t:
-            return None
-        if t not in EXAM_TAGS:
-            raise ValueError(f"Invalid exam_tag '{v}'. Allowed: {', '.join(EXAM_TAGS)}")
-        return t
+        t = normalize_exam_tag(str(v))
+        return t if t != "OTHER" or str(v).strip() else None
 
     @field_validator("question_pool_ids", mode="before")
     @classmethod
@@ -137,6 +133,7 @@ class PaperSectionResultItem(BaseModel):
     total_questions: int
     correct: int
     wrong: int
+    not_attempted: int = 0
     marks: float
 
 

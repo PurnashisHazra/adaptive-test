@@ -5,6 +5,7 @@ from bson import ObjectId
 from pydantic import BaseModel, Field, field_validator
 
 from app.models.domain import Difficulty, QuestionType
+from app.utils.exam_tags import normalize_exam_tags
 
 
 class QuestionOption(BaseModel):
@@ -41,20 +42,8 @@ class QuestionBase(BaseModel):
 
     @field_validator("tags")
     @classmethod
-    def normalize_exam_tags(cls, v: List[str]) -> List[str]:
-        if not v:
-            return ["OTHER"]
-        allowed = {x.upper() for x in EXAM_TAGS}
-        out: List[str] = []
-        for raw in v:
-            t = str(raw).strip().upper()
-            if not t:
-                continue
-            if t not in allowed:
-                t = "OTHER"
-            if t not in out:
-                out.append(t)
-        return out or ["OTHER"]
+    def normalize_exam_tags_validator(cls, v: List[str]) -> List[str]:
+        return normalize_exam_tags(v)
 
 
 class QuestionCreate(QuestionBase):
@@ -209,14 +198,25 @@ class DifficultyMix(BaseModel):
         return cls(easy=easy, medium=medium, hard=hard, expert=expert, total=easy + medium + hard + expert)
 
 
+class QuestionBankFolderTopic(BaseModel):
+    topic: str
+    mix: DifficultyMix
+    question_ids: List[str] = Field(default_factory=list)
+
+
 class QuestionBankFolderSubject(BaseModel):
     subject: str
+    display_name: Optional[str] = None
     mix: DifficultyMix
+    question_ids: List[str] = Field(default_factory=list)
+    topics: List[QuestionBankFolderTopic] = Field(default_factory=list)
 
 
 class QuestionBankFolderExam(BaseModel):
     exam_tag: str
+    display_name: Optional[str] = None
     mix: DifficultyMix
+    question_ids: List[str] = Field(default_factory=list)
     subjects: List[QuestionBankFolderSubject] = Field(default_factory=list)
 
 

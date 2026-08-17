@@ -69,22 +69,30 @@ export function computeRunningAccuracySeries(questions: StudentQuestionReview[],
   const blendGap = strategyBlendGap(overall);
   let correct = 0;
   let stratSum = 0;
+  let attemptedCount = 0;
 
   for (let i = 0; i < n; i++) {
-    const k = i + 1;
     const q = ordered[i];
+    if (q.is_attempted === false) {
+      actual.push(attemptedCount > 0 ? (correct / attemptedCount) * 100 : 0);
+      strategy.push(attemptedCount > 0 ? Math.min(100, (stratSum / attemptedCount) * 100) : 0);
+      continue;
+    }
+    attemptedCount += 1;
     if (q.is_correct) {
       correct += 1;
       stratSum += 1;
     } else {
       stratSum += recoveryForWrong(q, blendGap);
     }
-    actual.push((correct / k) * 100);
-    strategy.push(Math.min(100, (stratSum / k) * 100));
+    actual.push((correct / attemptedCount) * 100);
+    strategy.push(Math.min(100, (stratSum / attemptedCount) * 100));
   }
 
-  const wrongWithPeer = ordered.filter((q) => !q.is_correct && q.peer_accuracy_percent != null).length;
-  const missedFlags = ordered.filter((q) => !q.is_correct && q.insight_capsules?.some((c) => c.key === "missed_opportunity")).length;
+  const wrongWithPeer = ordered.filter((q) => q.is_attempted !== false && !q.is_correct && q.peer_accuracy_percent != null).length;
+  const missedFlags = ordered.filter(
+    (q) => q.is_attempted !== false && !q.is_correct && q.insight_capsules?.some((c) => c.key === "missed_opportunity")
+  ).length;
 
   const timeGap = timeStrengthGap(overall);
   const timeActual: number[] = [];

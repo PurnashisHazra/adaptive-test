@@ -79,20 +79,30 @@ export function AttemptDrilldownModal({
           <p style={{ color: "var(--muted)" }}>Loading questions…</p>
         ) : detail?.questions.length ? (
           <ul style={{ listStyle: "none", padding: 0, margin: 0, overflowY: "auto", maxHeight: "calc(90vh - 8rem)" }}>
-            {detail.questions.map((q) => (
+            {detail.questions.map((q) => {
+              const attempted = q.is_attempted !== false;
+              return (
               <li
                 key={`${q.question_id}-${q.index}`}
                 className="card"
                 style={{
                   marginBottom: "0.65rem",
                   padding: "0.75rem 0.85rem",
-                  borderLeft: `4px solid ${q.is_correct ? "var(--success)" : "var(--danger)"}`,
+                  borderLeft: `4px solid ${
+                    !attempted ? "#94a3b8" : q.is_correct ? "var(--success)" : "var(--danger)"
+                  }`,
                 }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "0.5rem", flexWrap: "wrap" }}>
                   <span style={{ fontSize: "0.75rem", color: "var(--muted)", fontWeight: 600 }}>Question {q.index}</span>
-                  <span style={{ fontSize: "0.8rem", fontWeight: 700, color: q.is_correct ? "var(--success)" : "var(--danger)" }}>
-                    {q.is_correct ? "Correct" : "Wrong"}
+                  <span
+                    style={{
+                      fontSize: "0.8rem",
+                      fontWeight: 700,
+                      color: !attempted ? "#64748b" : q.is_correct ? "var(--success)" : "var(--danger)",
+                    }}
+                  >
+                    {!attempted ? "Not attempted" : q.is_correct ? "Correct" : "Wrong"}
                   </span>
                 </div>
                 <p style={{ margin: "0.4rem 0 0.35rem", fontSize: "0.9rem", lineHeight: 1.45 }}>{q.question_text}</p>
@@ -101,7 +111,8 @@ export function AttemptDrilldownModal({
                   <strong style={{ color: "var(--text)" }}>{q.time_spent_seconds != null ? `${q.time_spent_seconds}s` : "—"}</strong>
                 </p>
               </li>
-            ))}
+            );
+            })}
           </ul>
         ) : detail ? (
           <p style={{ color: "var(--muted)", margin: 0 }}>No questions recorded for this attempt.</p>

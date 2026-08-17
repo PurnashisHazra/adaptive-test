@@ -9,7 +9,9 @@ from app.schemas.super_admin_dashboard import (
     SuperAdminUserRow,
     UpdateUserRoleRequest,
 )
+from app.schemas.super_admin_metrics import SuperAdminMetricsResponse
 from app.services.super_admin_dashboard_service import SuperAdminDashboardService
+from app.services.super_admin_metrics_service import SuperAdminMetricsService
 
 router = APIRouter(prefix="/super-admin/dashboard", tags=["super-admin-dashboard"])
 
@@ -22,6 +24,11 @@ def _svc() -> SuperAdminDashboardService:
 async def list_users(_: dict = Depends(require_super_admin)) -> SuperAdminUserListResponse:
     users = await _svc().list_users()
     return SuperAdminUserListResponse(users=users)
+
+
+@router.get("/metrics", response_model=SuperAdminMetricsResponse)
+async def platform_metrics(_: dict = Depends(require_super_admin)) -> SuperAdminMetricsResponse:
+    return await SuperAdminMetricsService().overview()
 
 
 @router.patch("/users/{username}/role", response_model=SuperAdminUserRow)

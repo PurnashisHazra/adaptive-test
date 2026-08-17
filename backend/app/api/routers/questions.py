@@ -13,7 +13,6 @@ from app.api.deps import (
 from app.models.domain import Difficulty
 from app.schemas.common import BulkImportResult, Message, Paginated, RowError
 from app.schemas.question import (
-    EXAM_TAGS,
     AIGenerateQuestionRequest,
     AutoAssignDifficultyRequest,
     AutoAssignDifficultyResponse,
@@ -31,7 +30,24 @@ from app.services.question_service import QuestionService, QuestionValidationErr
 from app.services.pdf_question_import_service import PdfQuestionImportService, preview_item_to_question_create
 from app.services.r2_storage_service import R2StorageService
 from app.api.deps_auth import require_admin
+from app.schemas.question_bank_folder import (
+    BulkCopyFoldersRequest,
+    BulkCopyFoldersResult,
+    BulkMoveFoldersRequest,
+    BulkFolderMutationResult,
+    CopyQuestionsRequest,
+    CopyQuestionsResult,
+    CreateCategoryRequest,
+    CreateSubjectFolderRequest,
+    FolderMutationResult,
+    MoveFolderRequest,
+    MoveQuestionsRequest,
+    RenameCategoryRequest,
+    RenameSubjectFolderRequest,
+)
+from app.services.question_bank_folder_service import QuestionBankFolderError, QuestionBankFolderService
 from app.services.admin_limits_service import AdminLimitsService
+from app.utils.exam_tags import normalize_exam_tag
 
 router = APIRouter(prefix="/questions", tags=["questions"], dependencies=[Depends(require_admin)])
 
@@ -39,10 +55,11 @@ router = APIRouter(prefix="/questions", tags=["questions"], dependencies=[Depend
 def _parse_exam_tag_filter(exam_tag: Optional[str]) -> Optional[str]:
     if not exam_tag or not str(exam_tag).strip():
         return None
-    t = str(exam_tag).strip().upper()
-    if t not in EXAM_TAGS:
-        raise HTTPException(status_code=400, detail=f"Invalid exam_tag. Allowed: {', '.join(EXAM_TAGS)}")
-    return t
+    return normalize_exam_tag(str(exam_tag))
+
+
+def _folder_svc() -> QuestionBankFolderService:
+    return QuestionBankFolderService()
 
 
 @router.get("", response_model=Paginated[QuestionAdmin])
@@ -116,6 +133,198 @@ async def question_folder_tree(
 ) -> QuestionBankFolderTree:
     admin = str(claims.get("sub", ""))
     return await svc.folder_tree_for_admin(admin)
+
+
+@router.post("/folders/categories", response_model=FolderMutationResult)
+async def create_question_category(
+    body: CreateCategoryRequest,
+    claims: dict = Depends(require_admin),
+) -> FolderMutationResult:
+    admin = str(claims.get("sub", ""))
+    try:
+        await _folder_svc().create_category(admin, body)
+    except QuestionBankFolderError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return FolderMutationResult(message="Category created")
+
+
+@router.post("/folders/categories/{category_key}/subjects", response_model=FolderMutationResult)
+async def create_subject_folder(
+    category_key: str,
+    body: CreateSubjectFolderRequest,
+    claims: dict = Depends(require_admin),
+) -> FolderMutationResult:
+    admin = str(claims.get("sub", ""))
+    try:
+        await _folder_svc().create_subject_folder(admin, category_key, body)
+    except QuestionBankFolderError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return FolderMutationResult(message="Subject folder created")
+
+
+@router.patch("/folders/categories/{category_key}", response_model=FolderMutationResult)
+async def rename_question_category(
+    category_key: str,
+    body: RenameCategoryRequest,
+    claims: dict = Depends(require_admin),
+) -> FolderMutationResult:
+    if not body.new_name and not body.display_name:
+        raise HTTPException(status_code=400, detail="Provide new_name and/or display_name")
+    admin = str(claims.get("sub", ""))
+    try:
+        affected = await _folder_svc().rename_category(category_key, body, admin)
+    except QuestionBankFolderError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return FolderMutationResult(affected=affected, message="Category updated")
+
+
+@router.patch("/folders/categories/{category_key}/subjects/{subject_key}", response_model=FolderMutationResult)
+async def rename_subject_folder(
+    category_key: str,
+    subject_key: str,
+    body: RenameSubjectFolderRequest,
+    claims: dict = Depends(require_admin),
+) -> FolderMutationResult:
+    admin = str(claims.get("sub", ""))
+    try:
+        affected = await _folder_svc().rename_subject_folder(category_key, subject_key, body, admin)
+    except QuestionBankFolderError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return FolderMutationResult(affected=affected, message="Subject folder renamed")
+
+
+@router.delete("/folders/categories/{category_key}", response_model=FolderMutationResult)
+async def delete_question_category(
+    category_key: str,
+    claims: dict = Depends(require_admin),
+) -> FolderMutationResult:
+    admin = str(claims.get("sub", ""))
+    try:
+        deleted = await _folder_svc().delete_category(category_key, admin)
+    except QuestionBankFolderError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return FolderMutationResult(affected=deleted, message="Category deleted")
+
+
+@router.delete("/folders/categories/{category_key}/subjects/{subject_key}", response_model=FolderMutationResult)
+async def delete_subject_folder(
+    category_key: str,
+    subject_key: str,
+    claims: dict = Depends(require_admin),
+) -> FolderMutationResult:
+    admin = str(claims.get("sub", ""))
+    try:
+        deleted = await _folder_svc().delete_subject_folder(category_key, subject_key, admin)
+    except QuestionBankFolderError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return FolderMutationResult(affected=deleted, message="Subject folder deleted")
+
+
+@router.delete(
+    "/folders/categories/{category_key}/subjects/{subject_key}/topics/{topic_key}",
+    response_model=FolderMutationResult,
+)
+async def delete_topic_folder(
+    category_key: str,
+    subject_key: str,
+    topic_key: str,
+    claims: dict = Depends(require_admin),
+) -> FolderMutationResult:
+    admin = str(claims.get("sub", ""))
+    try:
+        deleted = await _folder_svc().delete_topic_folder(category_key, subject_key, topic_key, admin)
+    except QuestionBankFolderError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return FolderMutationResult(affected=deleted, message="Topic folder deleted")
+
+
+@router.post("/folders/move-folder", response_model=FolderMutationResult)
+async def move_question_folder(
+    body: MoveFolderRequest,
+    claims: dict = Depends(require_admin),
+) -> FolderMutationResult:
+    admin = str(claims.get("sub", ""))
+    try:
+        affected = await _folder_svc().move_folder(body, admin)
+    except QuestionBankFolderError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return FolderMutationResult(affected=affected, message=f"Moved folder ({affected} question(s) updated)")
+
+
+@router.post("/folders/copy-folder", response_model=BulkCopyFoldersResult)
+async def copy_question_folder(
+    body: MoveFolderRequest,
+    claims: dict = Depends(require_admin),
+) -> BulkCopyFoldersResult:
+    admin = str(claims.get("sub", ""))
+    try:
+        new_ids = await _folder_svc().copy_folder(body, admin)
+    except QuestionBankFolderError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return BulkCopyFoldersResult(
+        affected=len(new_ids),
+        copied_question_ids=new_ids,
+        message=f"Copied folder ({len(new_ids)} question(s))",
+    )
+
+
+@router.post("/folders/bulk-move", response_model=BulkFolderMutationResult)
+async def bulk_move_question_folders(
+    body: BulkMoveFoldersRequest,
+    claims: dict = Depends(require_admin),
+) -> BulkFolderMutationResult:
+    admin = str(claims.get("sub", ""))
+    try:
+        affected = await _folder_svc().bulk_move_folders(body, admin)
+    except QuestionBankFolderError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return BulkFolderMutationResult(
+        affected=affected,
+        message=f"Moved {len(body.from_paths)} folder(s) ({affected} question(s) updated)",
+    )
+
+
+@router.post("/folders/bulk-copy", response_model=BulkCopyFoldersResult)
+async def bulk_copy_question_folders(
+    body: BulkCopyFoldersRequest,
+    claims: dict = Depends(require_admin),
+) -> BulkCopyFoldersResult:
+    admin = str(claims.get("sub", ""))
+    try:
+        copied, new_ids = await _folder_svc().bulk_copy_folders(body, admin)
+    except QuestionBankFolderError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return BulkCopyFoldersResult(
+        affected=copied,
+        copied_question_ids=new_ids,
+        message=f"Copied {len(body.from_paths)} folder(s) ({copied} question(s))",
+    )
+
+
+@router.post("/folders/move", response_model=FolderMutationResult)
+async def move_questions_between_folders(
+    body: MoveQuestionsRequest,
+    claims: dict = Depends(require_admin),
+) -> FolderMutationResult:
+    admin = str(claims.get("sub", ""))
+    try:
+        moved = await _folder_svc().move_questions(body, admin)
+    except QuestionBankFolderError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return FolderMutationResult(affected=moved, message=f"Moved {moved} question(s)")
+
+
+@router.post("/folders/copy", response_model=CopyQuestionsResult)
+async def copy_questions_between_folders(
+    body: CopyQuestionsRequest,
+    claims: dict = Depends(require_admin),
+) -> CopyQuestionsResult:
+    admin = str(claims.get("sub", ""))
+    try:
+        new_ids = await _folder_svc().copy_questions(body, admin)
+    except QuestionBankFolderError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return CopyQuestionsResult(copied=len(new_ids), new_question_ids=new_ids)
 
 
 @router.get("/export/csv")
@@ -243,11 +452,18 @@ async def get_question(
 async def create_question(
     body: QuestionCreate,
     svc: QuestionService = Depends(get_question_service),
+    claims: dict = Depends(require_admin),
 ) -> QuestionAdmin:
     try:
         qid = await svc.create(body)
     except QuestionValidationError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    admin = str(claims.get("sub", ""))
+    exam_tag = body.tags[0] if body.tags else ""
+    try:
+        await _folder_svc().ensure_path(admin, exam_tag, body.subject, body.topic, question_id=qid)
+    except QuestionBankFolderError:
+        pass
     doc = await svc.get_admin(qid)
     assert doc is not None
     return QuestionAdmin.model_validate(doc)

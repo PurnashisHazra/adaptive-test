@@ -18,6 +18,11 @@ async def list_pending_unlocks(_: dict = Depends(require_admin)) -> List[PaperUn
     return await _svc().list_pending_admin()
 
 
+@router.get("/approved", response_model=List[PaperUnlockAdminItem])
+async def list_approved_unlocks(_: dict = Depends(require_admin)) -> List[PaperUnlockAdminItem]:
+    return await _svc().list_confirmed_admin()
+
+
 @router.post("/{purchase_id}/approve", response_model=PaperUnlockOut)
 async def approve_unlock(
     purchase_id: str,

@@ -1,7 +1,6 @@
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { AdminLimitsPanel } from "../../components/AdminLimitsPanel";
-import { AdminPanel } from "../../components/AdminPanel";
 import {
   generateSuperAdminUserAdminCode,
   listSuperAdminUsers,
@@ -11,6 +10,12 @@ import {
 import type { Role, SuperAdminUserRow } from "../../api/types";
 
 const ROLES: Role[] = ["student", "admin", "super_admin"];
+
+function roleLabel(role: Role) {
+  if (role === "super_admin") return "Super admin";
+  if (role === "admin") return "Admin";
+  return "Student";
+}
 
 export function SuperAdminDashboardPage() {
   const [users, setUsers] = useState<SuperAdminUserRow[]>([]);
@@ -38,7 +43,7 @@ export function SuperAdminDashboardPage() {
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   const filtered = users.filter((u) => {
@@ -51,7 +56,7 @@ export function SuperAdminDashboardPage() {
     setBusy(`role:${username}`);
     try {
       await updateSuperAdminUserRole(username, role);
-      toast.success(`Updated ${username} to ${role}`);
+      toast.success(`Updated ${username} to ${roleLabel(role)}`);
       await load();
     } catch (err: unknown) {
       const msg =
@@ -103,123 +108,132 @@ export function SuperAdminDashboardPage() {
     }
   }
 
+  function renderRoleSelect(user: SuperAdminUserRow) {
+    return (
+      <select
+        className="input"
+        value={user.role}
+        disabled={busy === `role:${user.username}`}
+        onChange={(e) => void onRoleChange(user.username, e.target.value as Role)}
+        aria-label={`Role for ${user.username}`}
+      >
+        {ROLES.map((r) => (
+          <option key={r} value={r}>
+            {roleLabel(r)}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  function renderAdminCodeControls(user: SuperAdminUserRow) {
+    if (user.role !== "admin") {
+      return <span style={{ color: "var(--landing-muted)" }}>—</span>;
+    }
+    return (
+      <div className="super-admin-code-cell">
+        <input
+          className="input"
+          value={codeDraft[user.username] ?? ""}
+          onChange={(e) =>
+            setCodeDraft((prev) => ({ ...prev, [user.username]: e.target.value.toUpperCase() }))
+          }
+          placeholder="ADMINCODE"
+          aria-label={`Admin code for ${user.username}`}
+        />
+        <button
+          type="button"
+          className="landing-btn-primary"
+          disabled={busy === `code:${user.username}`}
+          onClick={() => void onSaveCode(user.username)}
+        >
+          Save
+        </button>
+        <button
+          type="button"
+          className="landing-btn-secondary"
+          disabled={busy === `gen:${user.username}`}
+          onClick={() => void onGenerateCode(user.username)}
+        >
+          Generate
+        </button>
+      </div>
+    );
+  }
+
+  function renderQuotaToggle(user: SuperAdminUserRow) {
+    if (user.role !== "admin") {
+      return <span style={{ color: "var(--landing-muted)" }}>—</span>;
+    }
+    const open = limitsOpen === user.username;
+    return (
+      <button
+        type="button"
+        className="landing-btn-secondary"
+        onClick={() => setLimitsOpen((cur) => (cur === user.username ? null : user.username))}
+      >
+        {open ? "Hide limits" : "Configure"}
+      </button>
+    );
+  }
+
   return (
-    <AdminPanel title="Users & roles">
-      <p className="app-page-lead">
+    <div>
+      <p className="sa-page-lead">
         Assign roles, admin codes, and per-instructor quotas. Defaults are unlimited until you set limits below.
       </p>
 
-      <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+      <div className="sa-toolbar">
         <input
-          className="input"
+          className="input sa-search"
           placeholder="Search users or admin codes…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ maxWidth: 320 }}
         />
-        <button type="button" className="btn btn-ghost" onClick={load} disabled={loading}>
+        <button type="button" className="landing-btn-secondary" onClick={() => void load()} disabled={loading}>
           Refresh
         </button>
       </div>
 
       {loading ? (
-        <p style={{ color: "var(--muted)" }}>Loading users…</p>
+        <div className="skeleton sa-skeleton" aria-busy="true">
+          Loading users…
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="sa-empty">No users match that search.</div>
       ) : (
-        <div className="super-admin-table-wrap">
-          <table className="super-admin-table">
-            <thead>
-              <tr>
-                <th>Username</th>
-                <th>Role</th>
-                <th>Admin code</th>
-                <th>Student linked code</th>
-                <th>Quotas</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((u) => (
-                <Fragment key={u.username}>
-                  <tr>
-                    <td>
-                      <strong>{u.username}</strong>
-                    </td>
-                    <td>
-                      <select
-                        className="input"
-                        value={u.role}
-                        disabled={busy === `role:${u.username}`}
-                        onChange={(e) => onRoleChange(u.username, e.target.value as Role)}
-                        style={{ minWidth: 130 }}
-                      >
-                        {ROLES.map((r) => (
-                          <option key={r} value={r}>
-                            {r}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>
-                      {u.role === "admin" ? (
-                        <div className="super-admin-code-cell">
-                          <input
-                            className="input"
-                            value={codeDraft[u.username] ?? ""}
-                            onChange={(e) =>
-                              setCodeDraft((prev) => ({ ...prev, [u.username]: e.target.value.toUpperCase() }))
-                            }
-                            placeholder="ADMINCODE"
-                          />
-                          <button
-                            type="button"
-                            className="btn btn-ghost"
-                            disabled={busy === `code:${u.username}`}
-                            onClick={() => onSaveCode(u.username)}
-                          >
-                            Save
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-ghost"
-                            disabled={busy === `gen:${u.username}`}
-                            onClick={() => onGenerateCode(u.username)}
-                          >
-                            Generate
-                          </button>
-                        </div>
-                      ) : (
-                        <span style={{ color: "var(--muted)" }}>—</span>
-                      )}
-                    </td>
-                    <td style={{ color: "var(--muted)", fontFamily: "var(--mono, monospace)" }}>
-                      {u.assigned_admin_code ?? "—"}
-                    </td>
-                    <td>
-                      {u.role === "admin" ? (
-                        <button
-                          type="button"
-                          className="btn btn-ghost"
-                          onClick={() => setLimitsOpen((cur) => (cur === u.username ? null : u.username))}
-                        >
-                          {limitsOpen === u.username ? "Hide limits" : "Configure"}
-                        </button>
-                      ) : (
-                        <span style={{ color: "var(--muted)" }}>—</span>
-                      )}
-                    </td>
-                  </tr>
-                  {u.role === "admin" && limitsOpen === u.username ? (
-                    <tr key={`${u.username}-limits`}>
-                      <td colSpan={5}>
-                        <AdminLimitsPanel user={u} onSaved={load} />
-                      </td>
-                    </tr>
-                  ) : null}
-                </Fragment>
-              ))}
-            </tbody>
-          </table>
+        <div className="sa-user-cards">
+          {filtered.map((u) => (
+            <article className="sa-user-card" key={u.username}>
+              <div className="sa-user-card__top">
+                <h2 className="sa-user-card__name">{u.username}</h2>
+                <span className="sa-role-badge">{roleLabel(u.role)}</span>
+              </div>
+              <div className="sa-user-field">
+                <label className="label">Role</label>
+                {renderRoleSelect(u)}
+              </div>
+              {u.role === "admin" ? (
+                <div className="sa-user-field">
+                  <label className="label">Admin code</label>
+                  {renderAdminCodeControls(u)}
+                </div>
+              ) : null}
+              <div className="sa-user-meta">Linked student code: {u.assigned_admin_code ?? "—"}</div>
+              {u.role === "admin" ? (
+                <div className="sa-user-actions">
+                  {renderQuotaToggle(u)}
+                </div>
+              ) : null}
+              {u.role === "admin" && limitsOpen === u.username ? (
+                <div style={{ marginTop: "0.85rem" }}>
+                  <AdminLimitsPanel user={u} onSaved={() => void load()} />
+                </div>
+              ) : null}
+            </article>
+          ))}
         </div>
       )}
-    </AdminPanel>
+    </div>
   );
 }

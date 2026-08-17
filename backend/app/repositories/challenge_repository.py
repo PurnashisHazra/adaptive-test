@@ -240,6 +240,18 @@ class ChallengeRepository:
         )
         return n > 0
 
+    async def list_challenge_attempts_for_student(self, student_username: str) -> List[Dict[str, Any]]:
+        cur = self._attempts.find({"student_username": student_username.strip()}).sort("started_at", -1)
+        return [d async for d in cur]
+
+    async def get_challenges_by_ids(self, challenge_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        out: Dict[str, Dict[str, Any]] = {}
+        for cid in {str(x).strip() for x in challenge_ids if str(x).strip()}:
+            doc = await self.get_challenge(cid)
+            if doc:
+                out[cid] = doc
+        return out
+
     async def insert_challenge_attempt(self, doc: Dict[str, Any]) -> str:
         doc.setdefault("started_at", _utc_now())
         res = await self._attempts.insert_one(doc)

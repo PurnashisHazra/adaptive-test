@@ -46,22 +46,13 @@ export function StudentAttemptFilterBar({
   }, [exam, examOptions, onChange]);
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexWrap: "wrap",
-        gap: "0.75rem",
-        marginBottom: "1.25rem",
-        alignItems: "flex-end",
-      }}
-    >
-      <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.82rem", color: "var(--muted)" }}>
+    <div className="student-filter-grid">
+      <label className="student-filter-grid__field">
         Subject
         <select
           className="input"
           value={subject}
           onChange={(e) => onChange({ subject: e.target.value, topic: "", exam: "" })}
-          style={{ minWidth: 160 }}
         >
           <option value="">All subjects</option>
           {data.filter_options.subjects.map((s) => (
@@ -71,9 +62,9 @@ export function StudentAttemptFilterBar({
           ))}
         </select>
       </label>
-      <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.82rem", color: "var(--muted)" }}>
+      <label className="student-filter-grid__field">
         Topic
-        <select className="input" value={topic} onChange={(e) => onChange({ topic: e.target.value, exam: "" })} style={{ minWidth: 160 }}>
+        <select className="input" value={topic} onChange={(e) => onChange({ topic: e.target.value, exam: "" })}>
           <option value="">All topics</option>
           {topicOptions.map((t) => (
             <option key={t} value={t}>
@@ -82,9 +73,9 @@ export function StudentAttemptFilterBar({
           ))}
         </select>
       </label>
-      <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.82rem", color: "var(--muted)" }}>
+      <label className="student-filter-grid__field">
         Exam
-        <select className="input" value={exam} onChange={(e) => onChange({ exam: e.target.value })} style={{ minWidth: 140 }}>
+        <select className="input" value={exam} onChange={(e) => onChange({ exam: e.target.value })}>
           <option value="">All exams</option>
           {examOptions.map((e) => (
             <option key={e} value={e}>

@@ -94,6 +94,7 @@ function QuestionInsightCapsules({ capsules }: { capsules: StudentInsightCapsule
 }
 
 export function QuestionReviewCard({ q }: { q: StudentQuestionReview }) {
+  const attempted = q.is_attempted !== false;
   const diff = q.difficulty_when_served ? String(q.difficulty_when_served).toUpperCase() : null;
   const acc = peerAccuracyLine(q);
   const avgT = peerAvgTimeLine(q);
@@ -124,12 +125,15 @@ export function QuestionReviewCard({ q }: { q: StudentQuestionReview }) {
         </span>
         <span
           className="badge"
-          style={{
-            background: q.is_correct ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)",
-            color: q.is_correct ? "#166534" : "#991b1b",
-          }}
+          style={
+            !attempted
+              ? { background: "rgba(100,116,139,0.14)", color: "#475569" }
+              : q.is_correct
+                ? { background: "rgba(34,197,94,0.15)", color: "#166534" }
+                : { background: "rgba(239,68,68,0.15)", color: "#991b1b" }
+          }
         >
-          {q.is_correct ? "Correct" : "Wrong"}
+          {!attempted ? "Not attempted" : q.is_correct ? "Correct" : "Wrong"}
         </span>
       </div>
       <QuestionInsightCapsules capsules={q.insight_capsules ?? []} />

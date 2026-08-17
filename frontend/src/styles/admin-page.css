@@ -198,6 +198,66 @@
   transform: translateY(-1px);
 }
 
+.sa-metrics-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.85rem;
+}
+
+.sa-metrics-stat-grid--tight {
+  margin-top: 1rem;
+}
+
+.sa-metrics-stat__value {
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #0f172a;
+  margin-top: 0.15rem;
+}
+
+.sa-metrics-section {
+  margin-top: 1.75rem;
+}
+
+.sa-metrics-section h2 {
+  margin: 0 0 0.65rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.sa-metrics-note {
+  color: var(--muted);
+  font-size: 0.88rem;
+  margin: 0 0 0.75rem;
+  max-width: 42rem;
+}
+
+.sa-metrics-table-wrap {
+  margin-top: 0;
+}
+
+.sa-metrics-table-wrap td:not(:first-child),
+.sa-metrics-table-wrap th:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.sa-metrics-row-label {
+  font-weight: 600;
+}
+
+.sa-metrics-row-hint {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin-top: 0.15rem;
+}
+
+.sa-metrics-table-gap {
+  margin-top: 0.85rem;
+}
+
 @media (max-width: 1024px) {
   .admin-stage {
     padding: 0.75rem;

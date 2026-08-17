@@ -68,7 +68,8 @@ export function TestResultPage() {
                 <div>
                   <div style={{ fontWeight: 600 }}>{s.section_title}</div>
                   <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
-                    {s.correct} correct · {s.wrong} wrong · {s.total_questions} questions
+                    {s.correct} correct · {s.wrong} wrong
+                    {(s.not_attempted ?? 0) > 0 ? ` · ${s.not_attempted} not attempted` : ""} · {s.total_questions} questions
                   </div>
                 </div>
                 <div style={{ fontWeight: 700 }}>{s.marks.toFixed(2)} marks</div>
@@ -96,6 +97,12 @@ export function TestResultPage() {
   }
 
   const endedEarly = Boolean(summary?.ended_early);
+  const scoreLabel =
+    summary!.total_questions > 0
+      ? `${summary!.score} / ${summary!.total_questions} correct (attempted)`
+      : endedEarly
+        ? "No questions attempted"
+        : "0 / 0";
 
   return (
     <div className="page">
@@ -111,7 +118,7 @@ export function TestResultPage() {
                 <p style={{ color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", fontSize: "0.8rem", marginBottom: "0.35rem" }}>Your result</p>
                 <p style={{ fontSize: "2.5rem", fontWeight: 700, color: "var(--primary-dark)", margin: "0 0 0.5rem" }}>{summary!.percentage.toFixed(1)}%</p>
                 <p style={{ fontSize: "1.1rem", marginBottom: "0.5rem" }}>
-                  {summary!.score} / {summary!.total_questions} correct
+                  {scoreLabel}
                 </p>
               </>
             ) : (
@@ -123,7 +130,7 @@ export function TestResultPage() {
             <p style={{ color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", fontSize: "0.8rem" }}>Session complete</p>
             <h1 style={{ fontSize: "2.5rem", color: "var(--primary-dark)" }}>{summary!.percentage.toFixed(1)}%</h1>
             <p style={{ fontSize: "1.1rem", marginBottom: "0.5rem" }}>
-              {summary!.score} / {summary!.total_questions} correct
+              {scoreLabel}
             </p>
           </>
         )}
@@ -134,19 +141,28 @@ export function TestResultPage() {
         <div className="card" style={{ marginTop: "1.25rem" }}>
           <h3 style={{ marginBottom: "1rem" }}>Review</h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            {summary!.answers.map((a) => (
+            {summary!.answers.map((a) => {
+              const attempted = a.is_attempted !== false;
+              return (
               <div
                 key={a.question_id}
                 style={{
                   padding: "0.75rem",
                   borderRadius: 10,
                   border: "1px solid var(--border)",
-                  background: a.is_correct ? "rgba(16,185,129,0.06)" : "rgba(239,68,68,0.06)",
+                  background: !attempted
+                    ? "rgba(100,116,139,0.06)"
+                    : a.is_correct
+                      ? "rgba(16,185,129,0.06)"
+                      : "rgba(239,68,68,0.06)",
                 }}
               >
-                <div style={{ fontWeight: 600 }}>{a.is_correct ? "Correct" : "Needs practice"}</div>
+                <div style={{ fontWeight: 600 }}>
+                  {!attempted ? "Not attempted" : a.is_correct ? "Correct" : "Needs practice"}
+                </div>
               </div>
-            ))}
+            );
+            })}
           </div>
         </div>
       ) : null}

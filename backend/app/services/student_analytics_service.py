@@ -46,6 +46,13 @@ from app.services.coach_plan_fallback import (
     build_fallback_time_strategy,
 )
 from app.utils.ids import oid_str
+from app.utils.attempt_scoring import (
+    is_answer_attempted,
+    max_marks_from_section_results,
+    percentage_from_marks,
+    section_answer_rows,
+    standalone_accuracy_stats,
+)
 
 
 def _sorted_sections(paper: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -59,6 +66,15 @@ def _section_title(paper: Optional[Dict[str, Any]], section_index: int) -> str:
     if 0 <= section_index < len(secs):
         return str(secs[section_index].get("title") or f"Section {section_index + 1}")
     return f"Section {section_index + 1}"
+
+
+def _section_total_questions(paper: Optional[Dict[str, Any]], section_index: int) -> int:
+    if not paper:
+        return 0
+    secs = _sorted_sections(paper)
+    if 0 <= section_index < len(secs):
+        return int(secs[section_index].get("total_questions", 0))
+    return 0
 
 
 def _paper_max_marks(paper: Dict[str, Any], mpc: float) -> float:
@@ -86,6 +102,8 @@ def _difficulty_stats_from_reviews(reviews: List[StudentQuestionReview]) -> List
         level: {"total": 0, "correct": 0, "times": []} for level in _DIFFICULTY_LEVELS
     }
     for r in reviews:
+        if not r.is_attempted:
+            continue
         raw = (r.difficulty_when_served or "").upper()
         if raw not in buckets:
             continue
@@ -187,6 +205,9 @@ class StudentAnalyticsService:
         """Set per-question insight flags after peer stats are applied."""
         _, long_time_threshold = self._time_baselines(reviews)
         for r in reviews:
+            if not r.is_attempted:
+                r.insight_capsules = []
+                continue
             capsules: List[StudentInsightCapsule] = []
             diff = str(r.difficulty_when_served or "UNKNOWN").upper()
             spent = int(r.time_spent_seconds) if r.time_spent_seconds is not None else None
@@ -238,22 +259,23 @@ class StudentAnalyticsService:
         reviews: List[StudentQuestionReview],
         ended_early: bool,
     ) -> StudentPerformanceInsights:
-        attempted = len(reviews)
-        correct = sum(1 for r in reviews if r.is_correct)
+        attempted_reviews = [r for r in reviews if r.is_attempted]
+        attempted = len(attempted_reviews)
+        correct = sum(1 for r in attempted_reviews if r.is_correct)
         accuracy = round((correct / attempted) * 100.0, 1) if attempted else 0.0
 
-        avg_time, _ = self._time_baselines(reviews)
+        avg_time, _ = self._time_baselines(attempted_reviews)
 
         def _has_cap(r: StudentQuestionReview, key: str) -> bool:
             return any(c.key == key for c in r.insight_capsules)
 
-        wasted = sum(1 for r in reviews if _has_cap(r, "wasted_time"))
-        missed_opportunity = sum(1 for r in reviews if _has_cap(r, "missed_opportunity"))
-        skip_candidate = sum(1 for r in reviews if _has_cap(r, "skip_revisit"))
+        wasted = sum(1 for r in attempted_reviews if _has_cap(r, "wasted_time"))
+        missed_opportunity = sum(1 for r in attempted_reviews if _has_cap(r, "missed_opportunity"))
+        skip_candidate = sum(1 for r in attempted_reviews if _has_cap(r, "skip_revisit"))
 
         by_diff: Dict[str, Dict[str, Any]] = defaultdict(lambda: {"attempts": 0, "correct": 0, "times": []})
 
-        for r in reviews:
+        for r in attempted_reviews:
             diff = str(r.difficulty_when_served or "UNKNOWN").upper()
             by_diff[diff]["attempts"] += 1
             if r.is_correct:
@@ -366,6 +388,7 @@ class StudentAnalyticsService:
         for i, a in enumerate(answers, start=index_offset + 1):
             qid = str(a.get("question_id", ""))
             chosen = str(a.get("chosen_answer", ""))
+            attempted = is_answer_attempted(a)
             qdoc = qmap.get(qid.strip()) if qid else None
             diff_served = self._difficulty_served(a, qdoc)
             if not qdoc:
@@ -379,9 +402,10 @@ class StudentAnalyticsService:
                         options=[],
                         chosen_answer=chosen,
                         correct_answer="",
-                        chosen_label=chosen,
+                        chosen_label="Not attempted" if not attempted else chosen,
                         correct_label="—",
-                        is_correct=bool(a.get("is_correct")),
+                        is_correct=bool(a.get("is_correct")) if attempted else False,
+                        is_attempted=attempted,
                         explanation=None,
                         time_spent_seconds=a.get("time_spent_seconds"),
                         difficulty_when_served=diff_served,
@@ -399,6 +423,7 @@ class StudentAnalyticsService:
             correct_key = str(qdoc.get("correct_answer", ""))
             raw_img = qdoc.get("image_url")
             img = str(raw_img).strip() if raw_img else None
+            chosen_label = "Not attempted" if not attempted else _option_label(raw_opts, chosen)
             out.append(
                 StudentQuestionReview(
                     index=i,
@@ -409,9 +434,10 @@ class StudentAnalyticsService:
                     options=opts,
                     chosen_answer=chosen,
                     correct_answer=correct_key,
-                    chosen_label=_option_label(raw_opts, chosen),
+                    chosen_label=chosen_label,
                     correct_label=_option_label(raw_opts, correct_key),
-                    is_correct=bool(a.get("is_correct")),
+                    is_correct=bool(a.get("is_correct")) if attempted else False,
+                    is_attempted=attempted,
                     explanation=qdoc.get("explanation"),
                     time_spent_seconds=a.get("time_spent_seconds"),
                     difficulty_when_served=diff_served,
@@ -454,16 +480,16 @@ class StudentAnalyticsService:
             subj = att.get("subject_filter") or None
             top = att.get("topic_filter") or None
             st = str(att.get("status", ""))
-            score = int(att.get("score", 0))
-            total = max(1, int(att.get("total_questions", 1)))
+            answers = list(att.get("answers") or [])
+            score, attempted, _ = standalone_accuracy_stats(answers)
             title = "Adaptive test"
             sub_bits: List[str] = []
             if subj:
                 sub_bits.append(subj)
             if top:
                 sub_bits.append(top)
-            if st == AttemptStatus.COMPLETED.value:
-                sub_bits.append(f"Score {score}/{total}")
+            if st == AttemptStatus.COMPLETED.value and attempted > 0:
+                sub_bits.append(f"Score {score}/{attempted}")
             elif st == AttemptStatus.IN_PROGRESS.value:
                 sub_bits.append("In progress")
             items.append(
@@ -518,9 +544,8 @@ class StudentAnalyticsService:
         rows = await self._attempts.list_answer_slices_for_questions(qids)
         self._apply_peer_stats(reviews, rows)
         self._apply_question_insight_capsules(reviews)
-        score = int(att.get("score", 0))
-        total = max(1, int(att.get("total_questions", 1)))
-        pct = round((score / total) * 100.0, 2) if total else None
+        score, total, pct_raw = standalone_accuracy_stats(answers)
+        pct = round(pct_raw, 2) if total else None
         ended_early = str(att.get("completion_reason", "")) == "ended_early"
         subj = att.get("subject_filter")
         top = att.get("topic_filter")
@@ -559,7 +584,7 @@ class StudentAnalyticsService:
             started_at=att["started_at"],
             completed_at=att.get("completed_at"),
             score=score,
-            total_questions=int(att.get("total_questions", total)),
+            total_questions=total,
             percentage=pct,
             ended_early=ended_early,
             cohort_percentile=cohort_pct,
@@ -582,14 +607,18 @@ class StudentAnalyticsService:
         paper = await self._papers.get_paper(pa["paper_id"])
         paper_title = str(paper["title"]) if paper else "Question paper"
         mpc = float(paper.get("marks_per_correct", 1)) if paper else 1.0
-        max_m = _paper_max_marks(paper, mpc) if paper else None
+        full_max = _paper_max_marks(paper, mpc) if paper else None
 
         st = str(pa.get("status", ""))
         ended_early = st == "ended_early"
         total_marks = float(pa["total_marks"]) if pa.get("total_marks") is not None else None
         pct: Optional[float] = None
-        if total_marks is not None and max_m and max_m > 0:
-            pct = round(max(0.0, min(100.0, total_marks / max_m * 100.0)), 2)
+        prev_results = list(pa.get("section_results", []))
+        max_m: Optional[float] = None
+        if paper and full_max is not None:
+            max_m = max_marks_from_section_results(prev_results, mpc, ended_early=ended_early, full_max=full_max)
+        if total_marks is not None and max_m is not None and max_m > 0:
+            pct = percentage_from_marks(total_marks, max_m)
 
         pa_id = oid_str(pa["_id"])
         sections_out: List[StudentPaperSectionReview] = []
@@ -604,7 +633,9 @@ class StudentAnalyticsService:
             sec_idx = int(att.get("paper_section_index", 0))
             sec_title = _section_title(paper, sec_idx)
             answers = list(att.get("answers") or [])
-            reviews = await self._reviews_from_answers(answers, aid_s)
+            section_total = _section_total_questions(paper, sec_idx) or len(answers)
+            answer_rows = section_answer_rows(att, section_total)
+            reviews = await self._reviews_from_answers(answer_rows, aid_s)
             all_reviews.extend(reviews)
             sections_out.append(
                 StudentPaperSectionReview(
@@ -671,14 +702,18 @@ class StudentAnalyticsService:
         if str(att.get("paper_attempt_id") or "").strip() != pa_id:
             raise ValueError("Not found")
 
+        paper = await self._papers.get_paper(pa["paper_id"])
+        sec_idx = int(att.get("paper_section_index", 0))
         answers = list(att.get("answers") or [])
-        total = len(answers)
+        section_total = _section_total_questions(paper, sec_idx) or len(answers)
+        answer_rows = section_answer_rows(att, section_total)
+        total = len(answer_rows)
         page_size = max(1, min(30, page_size))
         total_pages = max(1, (total + page_size - 1) // page_size) if total else 1
         page = max(1, min(page, total_pages))
         start = (page - 1) * page_size
-        slice_answers = answers[start : start + page_size]
-        reviews = await self._reviews_from_answers(slice_answers, section_attempt_id, index_offset=start)
+        slice_rows = answer_rows[start : start + page_size]
+        reviews = await self._reviews_from_answers(slice_rows, section_attempt_id, index_offset=start)
         qids = [r.question_id for r in reviews if r.question_id != "unknown"]
         rows = await self._attempts.list_answer_slices_for_questions(qids)
         self._apply_peer_stats(reviews, rows)
@@ -705,12 +740,13 @@ class StudentAnalyticsService:
 
         for doc in rows:
             answers = list(doc.get("answers") or [])
-            if not answers:
+            attempted_answers = [a for a in answers if is_answer_attempted(a)]
+            if not attempted_answers:
                 continue
-            n = len(answers)
-            cor = sum(1 for a in answers if a.get("is_correct"))
+            n = len(attempted_answers)
+            cor = sum(1 for a in attempted_answers if a.get("is_correct"))
             acc = (cor / n) * 100.0 if n else 0.0
-            tsec = sum(int(a.get("time_spent_seconds") or 0) for a in answers)
+            tsec = sum(int(a.get("time_spent_seconds") or 0) for a in attempted_answers)
             subj_raw = doc.get("subject_filter")
             top_raw = doc.get("topic_filter")
             ex_raw = doc.get("exam_tag_filter")
@@ -841,6 +877,8 @@ class StudentAnalyticsService:
             local_hard_correct = 0
 
             for a in answers:
+                if not is_answer_attempted(a):
+                    continue
                 total += 1
                 local_total += 1
                 ok = bool(a.get("is_correct"))

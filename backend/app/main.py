@@ -53,6 +53,7 @@ from app.repositories.mentorship_booking_repository import MentorshipBookingRepo
 from app.repositories.practice_attempt_request_repository import PracticeAttemptRequestRepository
 from app.repositories.student_profile_repository import StudentProfileRepository
 from app.repositories.student_public_profile_repository import StudentPublicProfileRepository
+from app.repositories.user_repository import UserRepository
 from app.services.landing_showcase_service import LandingShowcaseService
 
 logger = logging.getLogger(__name__)
@@ -77,6 +78,9 @@ async def lifespan(app: FastAPI):
         await ConsultationRequestRepository().ensure_indexes()
         await ReadingPassageRepository().ensure_indexes()
         await StudentPublicProfileRepository().ensure_indexes()
+        from app.services.question_bank_folder_service import QuestionBankFolderService
+
+        await QuestionBankFolderService().ensure_indexes()
         await LandingShowcaseService().ensure_showcase_papers()
     except Exception as exc:
         # Keep API available even if MongoDB is temporarily unreachable.

@@ -35,6 +35,7 @@ function aggregateByDifficulty(questions: StudentQuestionReview[]): DifficultySt
   };
 
   for (const q of questions) {
+    if (q.is_attempted === false) continue;
     const raw = (q.difficulty_when_served || "").toUpperCase();
     if (!LEVELS.includes(raw as Level)) continue;
     const d = raw as Level;

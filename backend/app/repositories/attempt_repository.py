@@ -31,6 +31,22 @@ class AttemptRepository:
     async def get(self, attempt_id: str) -> Optional[Dict[str, Any]]:
         return await self._col.find_one({"_id": ObjectId(attempt_id)})
 
+    async def list_by_ids(self, attempt_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        oids: List[ObjectId] = []
+        seen: set[str] = set()
+        for raw in attempt_ids:
+            s = str(raw).strip()
+            if not s or s in seen or not ObjectId.is_valid(s):
+                continue
+            seen.add(s)
+            oids.append(ObjectId(s))
+        if not oids:
+            return {}
+        out: Dict[str, Dict[str, Any]] = {}
+        async for doc in self._col.find({"_id": {"$in": oids}}):
+            out[oid_str(doc["_id"])] = doc
+        return out
+
     async def update(self, attempt_id: str, patch: Dict[str, Any]) -> bool:
         res = await self._col.update_one({"_id": ObjectId(attempt_id)}, {"$set": patch})
         return res.matched_count > 0
@@ -178,6 +194,48 @@ class AttemptRepository:
             )
             .sort("started_at", -1)
         )
+        return [d async for d in cursor]
+
+    async def list_standalone_history_for_student(self, student_username: str) -> List[Dict[str, Any]]:
+        """Completed standalone practice attempts for My results (excludes paper/challenge sections)."""
+        sn = student_username.strip()
+        filt: Dict[str, Any] = {
+            "status": {"$in": [AttemptStatus.COMPLETED.value, "ended_early"]},
+            "$and": [
+                {
+                    "$or": [
+                        {"paper_attempt_id": {"$exists": False}},
+                        {"paper_attempt_id": None},
+                        {"paper_attempt_id": ""},
+                    ],
+                },
+                {
+                    "$or": [
+                        {"challenge_attempt_id": {"$exists": False}},
+                        {"challenge_attempt_id": None},
+                        {"challenge_attempt_id": ""},
+                    ],
+                },
+                {
+                    "$or": [
+                        {"student_username": sn},
+                        {
+                            "student_username": {"$exists": False},
+                            "student_name": {"$regex": f"^{re.escape(sn)}$", "$options": "i"},
+                        },
+                        {
+                            "student_username": None,
+                            "student_name": {"$regex": f"^{re.escape(sn)}$", "$options": "i"},
+                        },
+                        {
+                            "student_username": "",
+                            "student_name": {"$regex": f"^{re.escape(sn)}$", "$options": "i"},
+                        },
+                    ],
+                },
+            ],
+        }
+        cursor = self._col.find(filt).sort("started_at", -1)
         return [d async for d in cursor]
 
     async def list_trend_attempts_for_student(self, student_name: str, limit: int = 2000) -> List[Dict[str, Any]]:

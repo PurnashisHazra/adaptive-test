@@ -2,27 +2,44 @@ import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import {
   approveAdminMentorshipBooking,
+  listAdminMentorshipBookingsApproved,
   listAdminMentorshipBookingsPending,
   rejectAdminMentorshipBooking,
 } from "../../api/client";
 import type { MentorshipBookingAdminItem } from "../../api/types";
 import { AdminPanel } from "../../components/AdminPanel";
 
+type Tab = "pending" | "approved";
+
 function statusLabel(status: string): string {
   if (status === "pending_payment") return "Awaiting payment";
   if (status === "under_review") return "Under review";
+  if (status === "confirmed") return "Approved";
   return status;
 }
 
+function formatWhen(iso?: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
+}
+
 export function AdminMentorshipBookingsPage() {
-  const [items, setItems] = useState<MentorshipBookingAdminItem[]>([]);
+  const [tab, setTab] = useState<Tab>("pending");
+  const [pending, setPending] = useState<MentorshipBookingAdminItem[]>([]);
+  const [approved, setApproved] = useState<MentorshipBookingAdminItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setItems(await listAdminMentorshipBookingsPending());
+      const [pendingRows, approvedRows] = await Promise.all([
+        listAdminMentorshipBookingsPending(),
+        listAdminMentorshipBookingsApproved(),
+      ]);
+      setPending(pendingRows);
+      setApproved(approvedRows);
     } catch {
       toast.error("Could not load mentorship bookings");
     } finally {
@@ -67,16 +84,35 @@ export function AdminMentorshipBookingsPage() {
     }
   }
 
+  const items = tab === "pending" ? pending : approved;
+
   return (
     <AdminPanel title="Mentorship payments">
       <p className="app-page-lead">
         Approve UPI payments for topper mentorship sessions (₹100). Students see a live status update when you approve.
       </p>
 
+      <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem", flexWrap: "wrap" }}>
+        <button
+          type="button"
+          className={`btn ${tab === "pending" ? "btn-primary" : "btn-ghost"}`}
+          onClick={() => setTab("pending")}
+        >
+          Pending {pending.length > 0 ? `(${pending.length})` : ""}
+        </button>
+        <button
+          type="button"
+          className={`btn ${tab === "approved" ? "btn-primary" : "btn-ghost"}`}
+          onClick={() => setTab("approved")}
+        >
+          Approved {approved.length > 0 ? `(${approved.length})` : ""}
+        </button>
+      </div>
+
       {loading && items.length === 0 ? (
-        <p style={{ color: "var(--muted)" }}>Loading…</p>
+        <p style={{ color: "var(--muted)", marginTop: "1rem" }}>Loading…</p>
       ) : items.length === 0 ? (
-        <p className="empty">No pending mentorship payments.</p>
+        <p className="empty">{tab === "pending" ? "No pending mentorship payments." : "No approved payments yet."}</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem", marginTop: "1rem" }}>
           {items.map((b) => (
@@ -87,28 +123,38 @@ export function AdminMentorshipBookingsPage() {
                   <div style={{ fontSize: "0.9rem", color: "var(--muted)", marginTop: "0.25rem" }}>
                     {b.session_date} · {b.session_time} · ₹{b.amount_inr}
                   </div>
-                  <div style={{ fontSize: "0.85rem", marginTop: "0.5rem" }}>
-                    <span className="badge">{statusLabel(b.status)}</span>
+                  <div style={{ fontSize: "0.85rem", marginTop: "0.5rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                    <span className={`badge${b.status === "confirmed" ? " badge--success" : ""}`}>
+                      {statusLabel(b.status)}
+                    </span>
+                    {b.status === "confirmed" && b.confirmed_at ? (
+                      <span style={{ color: "var(--muted)" }}>Approved {formatWhen(b.confirmed_at)}</span>
+                    ) : null}
+                    {b.approved_by ? (
+                      <span style={{ color: "var(--muted)" }}>by {b.approved_by}</span>
+                    ) : null}
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    disabled={acting === b.id}
-                    onClick={() => void onApprove(b.id)}
-                  >
-                    {acting === b.id ? "…" : "Approve payment"}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    disabled={acting === b.id}
-                    onClick={() => void onReject(b.id)}
-                  >
-                    Reject
-                  </button>
-                </div>
+                {tab === "pending" ? (
+                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={acting === b.id}
+                      onClick={() => void onApprove(b.id)}
+                    >
+                      {acting === b.id ? "…" : "Approve payment"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      disabled={acting === b.id}
+                      onClick={() => void onReject(b.id)}
+                    >
+                      Reject
+                    </button>
+                  </div>
+                ) : null}
               </div>
               <p style={{ margin: "0.75rem 0 0", fontSize: "0.92rem", color: "var(--muted)", lineHeight: 1.55 }}>
                 <strong style={{ color: "var(--text)" }}>Pre-meet question:</strong> {b.pre_meet_question}

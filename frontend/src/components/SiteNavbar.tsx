@@ -81,9 +81,14 @@ function NavLinks({
 
   if (isStaff) {
     return isSuperAdmin ? (
-      <NavLink to="/super-admin" className={navLinkClass} {...linkProps}>
-        Super admin
-      </NavLink>
+      <>
+        <NavLink to="/super-admin" end className={navLinkClass} {...linkProps}>
+          Users
+        </NavLink>
+        <NavLink to="/super-admin/metrics" className={navLinkClass} {...linkProps}>
+          Metrics
+        </NavLink>
+      </>
     ) : (
       <NavLink to="/admin" className={navLinkClass} {...linkProps}>
         Admin

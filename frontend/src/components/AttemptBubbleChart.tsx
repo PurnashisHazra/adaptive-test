@@ -23,7 +23,9 @@ export function difficultyRadius(difficulty: string): number {
   }
 }
 
-export type BubbleChartStep = Pick<AttemptQuestionStep, "sequence" | "question_text" | "difficulty" | "time_spent_seconds" | "is_correct">;
+export type BubbleChartStep = Pick<AttemptQuestionStep, "sequence" | "question_text" | "difficulty" | "time_spent_seconds" | "is_correct"> & {
+  is_attempted?: boolean;
+};
 
 export function AttemptBubbleChart({
   steps,
@@ -78,12 +80,18 @@ export function AttemptBubbleChart({
           const cx = xToPx(step.sequence);
           const cy = yToPx(step.time_spent_seconds ?? 0);
           const rad = difficultyRadius(step.difficulty);
-          const fill = step.is_correct ? "rgba(16,185,129,0.45)" : "rgba(239,68,68,0.45)";
-          const stroke = step.is_correct ? "#059669" : "#dc2626";
+          const attempted = step.is_attempted !== false;
+          const fill = !attempted
+            ? "rgba(100,116,139,0.35)"
+            : step.is_correct
+              ? "rgba(16,185,129,0.45)"
+              : "rgba(239,68,68,0.45)";
+          const stroke = !attempted ? "#64748b" : step.is_correct ? "#059669" : "#dc2626";
+          const statusLabel = !attempted ? "Not attempted" : step.is_correct ? "Correct" : "Incorrect";
           return (
             <g key={`${chartKey}-${step.sequence}`}>
               <circle cx={cx} cy={cy} r={rad} fill={fill} stroke={stroke} />
-              <title>{`#${step.sequence} ${step.difficulty} · ${formatQuestionTime(step.time_spent_seconds)} · ${step.is_correct ? "Correct" : "Incorrect"} · ${step.question_text}`}</title>
+              <title>{`#${step.sequence} ${step.difficulty} · ${formatQuestionTime(step.time_spent_seconds)} · ${statusLabel} · ${step.question_text}`}</title>
             </g>
           );
         })}

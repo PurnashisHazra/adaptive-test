@@ -48,18 +48,12 @@ def _sorted_sections(challenge: Dict[str, Any]) -> List[Dict[str, Any]]:
     return sorted(challenge.get("sections", []), key=lambda s: int(s.get("order", 0)))
 
 
-def _marks_from_answers(answers: List[Dict[str, Any]], mpc: float, mpi: float) -> Tuple[float, int, int]:
-    correct = 0
-    wrong = 0
-    m = 0.0
-    for a in answers:
-        if bool(a.get("is_correct")):
-            correct += 1
-            m += mpc
-        else:
-            wrong += 1
-            m -= mpi
-    return m, correct, wrong
+from app.utils.attempt_scoring import (
+    marks_for_section,
+    max_marks_from_section_results,
+    percentage_from_marks,
+    section_answer_rows,
+)
 
 
 def _max_marks(challenge: Dict[str, Any], mpc: float) -> float:
@@ -555,8 +549,9 @@ class ChallengeService:
         sec_idx = int(att_done.get("challenge_section_index", 0))
         mpc = float(challenge.get("marks_per_correct", 1))
         mpi = float(challenge.get("marks_per_incorrect", 0))
+        section_total = int(secs[sec_idx]["total_questions"])
         answers = list(att_done.get("answers", []))
-        marks, correct, wrong = _marks_from_answers(answers, mpc, mpi)
+        marks, correct, wrong, not_attempted = marks_for_section(answers, section_total, mpc, mpi)
 
         sec_result = {
             "section_index": sec_idx,
@@ -565,7 +560,8 @@ class ChallengeService:
             "marks": marks,
             "correct": correct,
             "wrong": wrong,
-            "total_questions": int(secs[sec_idx]["total_questions"]),
+            "not_attempted": not_attempted,
+            "total_questions": section_total,
         }
         prev_results = list(challenge_attempt.get("section_results", []))
         prev_results.append(sec_result)
@@ -659,8 +655,11 @@ class ChallengeService:
                     sec_idx = int(att_done.get("challenge_section_index", 0))
                     mpc = float(challenge.get("marks_per_correct", 1))
                     mpi = float(challenge.get("marks_per_incorrect", 0))
+                    section_total = int(secs[sec_idx]["total_questions"])
                     answers = list(att_done.get("answers", []))
-                    marks, correct, wrong = _marks_from_answers(answers, mpc, mpi)
+                    marks, correct, wrong, not_attempted = marks_for_section(
+                        answers, section_total, mpc, mpi
+                    )
                     sec_result = {
                         "section_index": sec_idx,
                         "section_title": secs[sec_idx]["title"],
@@ -668,7 +667,8 @@ class ChallengeService:
                         "marks": marks,
                         "correct": correct,
                         "wrong": wrong,
-                        "total_questions": int(secs[sec_idx]["total_questions"]),
+                        "not_attempted": not_attempted,
+                        "total_questions": section_total,
                     }
                     prev = list(ca.get("section_results", []))
                     if not any(r.get("attempt_id") == active for r in prev):
@@ -686,11 +686,11 @@ class ChallengeService:
         ca_id = oid_str(challenge_attempt["_id"])
         cid = oid_str(challenge["_id"])
         mpc = float(challenge.get("marks_per_correct", 1))
-        max_m = _max_marks(challenge, mpc)
+        full_max = _max_marks(challenge, mpc)
         prev_results = list(challenge_attempt.get("section_results", []))
         total_marks = sum(float(r["marks"]) for r in prev_results)
-        pct = (total_marks / max_m * 100.0) if max_m > 0 else 0.0
-        pct = max(0.0, min(100.0, round(pct, 2)))
+        max_m = max_marks_from_section_results(prev_results, mpc, ended_early=ended_early, full_max=full_max)
+        pct = percentage_from_marks(total_marks, max_m)
         status_val = "ended_early" if ended_early else "completed"
         await self._challenges.update_challenge_attempt(
             ca_id,
@@ -724,6 +724,7 @@ class ChallengeService:
                     total_questions=int(r["total_questions"]),
                     correct=int(r["correct"]),
                     wrong=int(r["wrong"]),
+                    not_attempted=int(r.get("not_attempted", 0)),
                     marks=round(float(r["marks"]), 4),
                 )
                 for r in prev_results
@@ -762,8 +763,9 @@ class ChallengeService:
         sec_idx = int(att_done.get("challenge_section_index", 0))
         mpc = float(challenge.get("marks_per_correct", 1))
         mpi = float(challenge.get("marks_per_incorrect", 0))
+        section_total = int(secs[sec_idx]["total_questions"])
         answers = list(att_done.get("answers", []))
-        marks, correct, wrong = _marks_from_answers(answers, mpc, mpi)
+        marks, correct, wrong, not_attempted = marks_for_section(answers, section_total, mpc, mpi)
 
         sec_result = {
             "section_index": sec_idx,
@@ -772,7 +774,8 @@ class ChallengeService:
             "marks": marks,
             "correct": correct,
             "wrong": wrong,
-            "total_questions": int(secs[sec_idx]["total_questions"]),
+            "not_attempted": not_attempted,
+            "total_questions": section_total,
         }
         prev = list(ca.get("section_results", []))
         prev.append(sec_result)
@@ -1124,14 +1127,18 @@ class ChallengeService:
         analytics = StudentAnalyticsService()
         all_reviews: List[StudentQuestionReview] = []
         idx = 0
+        secs = _sorted_sections(challenge)
         for attempt_id in list(ca.get("section_attempt_ids") or []):
             att = await self._tests._attempts.get(str(attempt_id))
             if not att:
                 continue
             answers = list(att.get("answers") or [])
-            chunk = await analytics._reviews_from_answers(answers, str(attempt_id), index_offset=idx)
+            sec_idx = int(att.get("challenge_section_index", 0))
+            section_total = int(secs[sec_idx]["total_questions"]) if 0 <= sec_idx < len(secs) else len(answers)
+            answer_rows = section_answer_rows(att, section_total)
+            chunk = await analytics._reviews_from_answers(answer_rows, str(attempt_id), index_offset=idx)
             all_reviews.extend(chunk)
-            idx += len(answers)
+            idx += len(answer_rows)
 
         if all_reviews:
             qids = [r.question_id for r in all_reviews if r.question_id != "unknown"]
@@ -1146,11 +1153,11 @@ class ChallengeService:
         ca_id = oid_str(ca["_id"])
         cid = oid_str(challenge["_id"])
         mpc = float(challenge.get("marks_per_correct", 1))
-        max_m = _max_marks(challenge, mpc)
+        full_max = _max_marks(challenge, mpc)
         prev_results = list(ca.get("section_results", []))
         total_marks = float(ca.get("total_marks") or sum(float(r["marks"]) for r in prev_results))
-        pct = (total_marks / max_m * 100.0) if max_m > 0 else 0.0
-        pct = max(0.0, min(100.0, round(pct, 2)))
+        max_m = max_marks_from_section_results(prev_results, mpc, ended_early=ended_early, full_max=full_max)
+        pct = percentage_from_marks(total_marks, max_m)
         ch_status, _, _ = _window_status(challenge["launch_at"], challenge["end_at"])
         cohort = await CohortPercentileService().for_challenge(
             cid,
@@ -1171,6 +1178,7 @@ class ChallengeService:
                     total_questions=int(r["total_questions"]),
                     correct=int(r["correct"]),
                     wrong=int(r["wrong"]),
+                    not_attempted=int(r.get("not_attempted", 0)),
                     marks=round(float(r["marks"]), 4),
                 )
                 for r in prev_results

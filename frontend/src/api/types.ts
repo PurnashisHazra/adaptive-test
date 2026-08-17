@@ -50,6 +50,57 @@ export interface SuperAdminUserRow {
   updated_at?: string | null;
 }
 
+export interface SuperAdminPeriodCounts {
+  last_day: number;
+  last_week: number;
+  last_month: number;
+  all_time: number;
+}
+
+export interface SuperAdminPaymentStreamMetrics {
+  confirmed: SuperAdminPeriodCounts;
+  revenue_inr: SuperAdminPeriodCounts;
+  pending: number;
+  rejected: SuperAdminPeriodCounts;
+}
+
+export interface SuperAdminMetrics {
+  generated_at: string;
+  last_day_start: string;
+  last_week_start: string;
+  last_month_start: string;
+  currency: string;
+  users: {
+    total: SuperAdminPeriodCounts;
+    students: SuperAdminPeriodCounts;
+    admins: SuperAdminPeriodCounts;
+    super_admins: SuperAdminPeriodCounts;
+  };
+  attempts: {
+    adaptive_tests: SuperAdminPeriodCounts;
+    adaptive_tests_completed: SuperAdminPeriodCounts;
+    paper_attempts: SuperAdminPeriodCounts;
+    paper_attempts_completed: SuperAdminPeriodCounts;
+    challenge_attempts: SuperAdminPeriodCounts;
+    challenge_attempts_completed: SuperAdminPeriodCounts;
+  };
+  revenue: {
+    mentorship: SuperAdminPaymentStreamMetrics;
+    paper_unlocks: SuperAdminPaymentStreamMetrics;
+    total_revenue_inr: SuperAdminPeriodCounts;
+    pending_payments: number;
+  };
+  leads: {
+    consultations: SuperAdminPeriodCounts;
+    leader_connect: SuperAdminPeriodCounts;
+  };
+  catalog: {
+    questions: number;
+    papers: number;
+    challenges: number;
+  };
+}
+
 export interface AuthResponse {
   token: string;
   user: AuthUser;
@@ -85,14 +136,25 @@ export interface DifficultyMix {
   total: number;
 }
 
+export interface QuestionBankFolderTopic {
+  topic: string;
+  mix: DifficultyMix;
+  question_ids?: string[];
+}
+
 export interface QuestionBankFolderSubject {
   subject: string;
+  display_name?: string | null;
   mix: DifficultyMix;
+  question_ids?: string[];
+  topics: QuestionBankFolderTopic[];
 }
 
 export interface QuestionBankFolderExam {
   exam_tag: string;
+  display_name?: string | null;
   mix: DifficultyMix;
+  question_ids?: string[];
   subjects: QuestionBankFolderSubject[];
 }
 
@@ -241,6 +303,7 @@ export interface PaperSectionResultItem {
   total_questions: number;
   correct: number;
   wrong: number;
+  not_attempted?: number;
   marks: number;
 }
 
@@ -438,6 +501,7 @@ export interface AnswerRecord {
   question_id: string;
   chosen_answer: string;
   is_correct: boolean;
+  is_attempted?: boolean;
   difficulty_when_served: Difficulty;
   target_difficulty_after?: Difficulty | null;
   time_spent_seconds?: number | null;
@@ -529,9 +593,16 @@ export interface StudentHistoryStats {
     id: string;
     student_name: string;
     status: string;
+    session_type?: "standalone" | "paper" | "challenge";
+    test_name: string;
+    correct: number;
+    wrong: number;
+    not_attempted: number;
     score: number;
     total_questions: number;
     percentage: number;
+    cohort_percentile?: number | null;
+    cohort_ranked_count?: number;
     subject?: string | null;
     topic?: string | null;
     started_at: string;
@@ -730,6 +801,7 @@ export interface StudentQuestionReview {
   chosen_label: string;
   correct_label: string;
   is_correct: boolean;
+  is_attempted?: boolean;
   explanation?: string | null;
   time_spent_seconds?: number | null;
   difficulty_when_served?: string | null;
@@ -976,6 +1048,8 @@ export interface MentorshipBookingAdminItem {
   status: MentorshipBookingStatus;
   payment_deadline_at: string;
   created_at: string;
+  confirmed_at?: string | null;
+  approved_by?: string | null;
 }
 
 export interface ExamShowcasePaper {
@@ -1010,6 +1084,8 @@ export interface PaperUnlockAdminItem {
   status: MentorshipBookingStatus;
   payment_deadline_at: string;
   created_at: string;
+  confirmed_at?: string | null;
+  approved_by?: string | null;
 }
 
 export type LeaderConnectStatus = "pending" | "reviewed";

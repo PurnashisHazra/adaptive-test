@@ -49,10 +49,11 @@ export function StudentPerformanceSpiderChart({
   questions: StudentQuestionReview[];
 }) {
   const axes = useMemo<AxisScore[]>(() => {
-    const attempted = Math.max(1, questions.length);
+    const attemptedQuestions = questions.filter((q) => q.is_attempted !== false);
+    const attempted = Math.max(1, attemptedQuestions.length);
     const avgTime = insights.avg_time_seconds ?? 0;
 
-    const timed = questions.filter((q) => q.time_spent_seconds != null && q.time_spent_seconds >= 0);
+    const timed = attemptedQuestions.filter((q) => q.time_spent_seconds != null && q.time_spent_seconds >= 0);
     const faster = timed.filter((q) => (q.your_time_faster_than_peer_percent ?? 0) >= 50).length;
     const timeStrength = timed.length > 0 ? clampPct((faster / timed.length) * 100) : clampPct(100 - Math.min(100, avgTime));
     const timeWeakness = clampPct(
@@ -61,13 +62,13 @@ export function StudentPerformanceSpiderChart({
 
     let totalW = 0;
     let solvedW = 0;
-    for (const q of questions) {
+    for (const q of attemptedQuestions) {
       const w = difficultyWeight(q.difficulty_when_served);
       totalW += w;
       if (q.is_correct) solvedW += w;
     }
     const diffStrength = totalW > 0 ? clampPct((solvedW / totalW) * 100) : 0;
-    const hardWrong = questions.filter(
+    const hardWrong = attemptedQuestions.filter(
       (q) =>
         !q.is_correct &&
         ["HARD", "EXPERT"].includes((q.difficulty_when_served || "").toUpperCase())

@@ -8,7 +8,8 @@ from pypdf import PdfReader
 from app.core.config import get_settings
 from app.services.llm_client import LlmChatError, ai_any_configured, chat_completion, strip_markdown_fence
 from app.models.domain import Difficulty, QuestionType
-from app.schemas.question import EXAM_TAGS, PdfImportPreviewItem, PdfImportPreviewResponse
+from app.schemas.question import PdfImportPreviewItem, PdfImportPreviewResponse
+from app.utils.exam_tags import normalize_exam_tag, normalize_exam_tags
 
 logger = logging.getLogger(__name__)
 
@@ -100,20 +101,13 @@ def _normalize_question_type(raw: Any) -> str:
 
 
 def _normalize_exam_tags(raw_tags: Any) -> List[str]:
-    allowed = {x.upper() for x in EXAM_TAGS}
     if not isinstance(raw_tags, list):
         return ["OTHER"]
-    out: List[str] = []
-    for x in raw_tags:
-        t = str(x).strip().upper()
-        if t and t in allowed and t not in out:
-            out.append(t)
-    return out or ["OTHER"]
+    return normalize_exam_tags([str(x) for x in raw_tags])
 
 
 def _normalize_exam_tag(raw: Any) -> str:
-    t = str(raw or "").strip().upper()
-    return t if t in {x.upper() for x in EXAM_TAGS} else "OTHER"
+    return normalize_exam_tag(str(raw or ""))
 
 
 def _dicts_to_preview_items(rows: List[Dict[str, Any]], subject: str, topic: str) -> List[PdfImportPreviewItem]:

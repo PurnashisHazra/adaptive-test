@@ -18,6 +18,11 @@ async def list_pending_bookings(_: dict = Depends(require_admin)) -> List[Mentor
     return await _svc().list_pending_admin()
 
 
+@router.get("/approved", response_model=List[MentorshipBookingAdminItem])
+async def list_approved_bookings(_: dict = Depends(require_admin)) -> List[MentorshipBookingAdminItem]:
+    return await _svc().list_confirmed_admin()
+
+
 @router.post("/{booking_id}/approve", response_model=MentorshipBookingOut)
 async def approve_booking(
     booking_id: str,

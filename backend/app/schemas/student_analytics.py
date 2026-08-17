@@ -30,6 +30,7 @@ class StudentQuestionReview(BaseModel):
     chosen_label: str
     correct_label: str
     is_correct: bool
+    is_attempted: bool = True
     explanation: Optional[str] = None
     time_spent_seconds: Optional[int] = None
     difficulty_when_served: Optional[str] = Field(

@@ -34,6 +34,10 @@ class MentorshipBookingRepository:
         cur = self._col.find({"status": {"$in": ["pending_payment", "under_review"]}}).sort("created_at", -1)
         return [d async for d in cur]
 
+    async def list_confirmed_admin(self, *, limit: int = 100) -> List[Dict[str, Any]]:
+        cur = self._col.find({"status": "confirmed"}).sort("confirmed_at", -1).limit(limit)
+        return [d async for d in cur]
+
     async def update_status(
         self,
         booking_id: str,

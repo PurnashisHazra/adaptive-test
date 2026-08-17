@@ -5,6 +5,7 @@ import { getMyAccount, getMyPublicProfile, updateMyAccount, updateMyPublicProfil
 import type { PublicProfile, StudentAccount } from "../api/types";
 import { useAuthStore } from "../store/authStore";
 import { AppPage } from "../components/AppPage";
+import { PageLoading } from "../components/AppPageStates";
 
 function normalizeMobileInput(raw: string): string {
   return raw.replace(/\D/g, "");
@@ -134,144 +135,146 @@ export function StudentProfilePage() {
 
   if (loading) {
     return (
-      <AppPage narrow title="Profile">
-        <p style={{ color: "var(--muted)" }}>Loading profile…</p>
+      <AppPage panel showSubNav title="Profile" lead="Loading your account settings…">
+        <PageLoading label="Loading profile…" />
       </AppPage>
     );
   }
 
   return (
     <AppPage
-      narrow
+      panel
+      showSubNav
       title="Profile"
-      lead="Private account settings and your public profile others can view on challenge leaderboards."
+      lead="Private account settings and your public profile for challenge leaderboards."
     >
-        <form onSubmit={onSavePublicProfile} className="card app-form-card">
-          <h3>Public profile</h3>
-          <p className="app-form-card__intro">
-            Anyone can view this page. Your name appears on challenges you attempt.
+      <div className="student-profile-layout">
+      <form onSubmit={onSavePublicProfile} className="card app-form-card student-profile-section student-profile-section--wide">
+        <h3>Public profile</h3>
+        <p className="app-form-card__intro">Anyone can view this page. Your name appears on challenges you attempt.</p>
+        {publicUrl ? (
+          <p style={{ margin: "0 0 1rem", fontSize: "0.9rem" }}>
+            <Link to={publicUrl}>View public profile →</Link>
           </p>
-          {publicUrl ? (
-            <p style={{ margin: "0 0 1rem", fontSize: "0.9rem" }}>
-              <Link to={publicUrl}>View public profile →</Link>
-            </p>
-          ) : null}
-          <div style={{ marginBottom: "1rem" }}>
-            <label className="label" htmlFor="profile-display-name">
-              Display name
-            </label>
+        ) : null}
+        <div className="student-form-field">
+          <label className="label" htmlFor="profile-display-name">
+            Display name
+          </label>
+          <input
+            id="profile-display-name"
+            className="input"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            maxLength={120}
+            required
+          />
+        </div>
+        <div className="student-form-field">
+          <label className="label" htmlFor="profile-slug">
+            Profile URL
+          </label>
+          <div className="student-form-slug">
+            <span className="student-form-slug__prefix">/u/</span>
             <input
-              id="profile-display-name"
+              id="profile-slug"
               className="input"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              maxLength={120}
+              value={profileSlug}
+              onChange={(e) => setProfileSlug(normalizeSlugInput(e.target.value))}
+              maxLength={64}
               required
             />
           </div>
-          <div style={{ marginBottom: "1rem" }}>
-            <label className="label" htmlFor="profile-slug">
-              Profile URL
-            </label>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", flexWrap: "wrap" }}>
-              <span style={{ color: "var(--muted)", fontSize: "0.9rem" }}>/u/</span>
-              <input
-                id="profile-slug"
-                className="input"
-                style={{ flex: 1, minWidth: 160 }}
-                value={profileSlug}
-                onChange={(e) => setProfileSlug(normalizeSlugInput(e.target.value))}
-                maxLength={64}
-                required
-              />
-            </div>
-          </div>
-          <div style={{ marginBottom: "1rem" }}>
-            <label className="label" htmlFor="profile-bio">
-              Bio
-            </label>
-            <textarea
-              id="profile-bio"
-              className="input"
-              rows={4}
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              placeholder="A short intro for your public profile"
-              maxLength={1000}
-            />
-          </div>
-          <button type="submit" className="btn btn-primary" disabled={savingPublic}>
-            {savingPublic ? "Saving…" : "Save public profile"}
-          </button>
-        </form>
-
-        <div className="card app-form-card">
-          <p className="app-card-subtitle">Login username</p>
-          <p style={{ margin: 0, fontWeight: 600 }}>{account?.username}</p>
         </div>
-
-        <form onSubmit={onSaveMobile} className="card app-form-card">
-          <h3>Mobile number</h3>
-          <div style={{ marginBottom: "1rem" }}>
-            <label className="label" htmlFor="profile-mobile">
-              Mobile
-            </label>
-            <input
-              id="profile-mobile"
-              className="input"
-              type="tel"
-              inputMode="numeric"
-              autoComplete="tel"
-              value={mobile}
-              onChange={(e) => setMobile(normalizeMobileInput(e.target.value))}
-              placeholder="10-digit mobile number"
-              maxLength={15}
-            />
-          </div>
-          <button type="submit" className="btn btn-primary" disabled={savingMobile}>
-            {savingMobile ? "Saving…" : "Save mobile"}
-          </button>
-        </form>
-
-        <div className="card app-form-card">
-          <h3>Instructor admin code</h3>
-          {account?.assigned_admin_code ? (
-            <p style={{ margin: 0 }}>
-              Linked to instructor code: <strong>{account.assigned_admin_code}</strong>
-            </p>
-          ) : (
-            <>
-              <p className="app-form-card__intro">
-                Optional — link your instructor to unlock practice tests and assigned papers. Challenges, Analytics,
-                and Performance do not require a code.
-              </p>
-              <form onSubmit={onLinkAdminCode}>
-                <div style={{ marginBottom: "1rem" }}>
-                  <label className="label" htmlFor="profile-admin-code">
-                    Admin code
-                  </label>
-                  <input
-                    id="profile-admin-code"
-                    className="input"
-                    value={adminCode}
-                    onChange={(e) => setAdminCode(e.target.value.toUpperCase())}
-                    placeholder="e.g. A1B2C3"
-                    autoComplete="off"
-                  />
-                </div>
-                <button type="submit" className="btn btn-primary" disabled={linkingCode} style={{ width: "100%" }}>
-                  {linkingCode ? "Verifying…" : "Link instructor"}
-                </button>
-              </form>
-            </>
-          )}
-          {needsAdminCode ? (
-            <p style={{ margin: "1rem 0 0", fontSize: "0.85rem", color: "var(--muted)" }}>
-              Practice tests and papers require an instructor code. <Link to="/">Challenges</Link>,{" "}
-              <Link to="/review">Analytics</Link>, and <Link to="/performance">Performance</Link> do not.
-            </p>
-          ) : null}
+        <div className="student-form-field">
+          <label className="label" htmlFor="profile-bio">
+            Bio
+          </label>
+          <textarea
+            id="profile-bio"
+            className="input"
+            rows={4}
+            value={bio}
+            onChange={(e) => setBio(e.target.value)}
+            placeholder="A short intro for your public profile"
+            maxLength={1000}
+          />
         </div>
+        <button type="submit" className="btn btn-primary" disabled={savingPublic}>
+          {savingPublic ? "Saving…" : "Save public profile"}
+        </button>
+      </form>
+
+      <div className="card app-form-card student-profile-section">
+        <h3>Account</h3>
+        <p className="app-card-subtitle">Login username</p>
+        <p className="student-profile-readonly">{account?.username}</p>
+      </div>
+
+      <form onSubmit={onSaveMobile} className="card app-form-card student-profile-section">
+        <h3>Mobile number</h3>
+        <p className="app-form-card__intro">Required to unlock advanced strategy insights on the Performance page.</p>
+        <div className="student-form-field">
+          <label className="label" htmlFor="profile-mobile">
+            Mobile
+          </label>
+          <input
+            id="profile-mobile"
+            className="input"
+            type="tel"
+            inputMode="numeric"
+            autoComplete="tel"
+            value={mobile}
+            onChange={(e) => setMobile(normalizeMobileInput(e.target.value))}
+            placeholder="10-digit mobile number"
+            maxLength={15}
+          />
+        </div>
+        <button type="submit" className="btn btn-primary" disabled={savingMobile}>
+          {savingMobile ? "Saving…" : "Save mobile"}
+        </button>
+      </form>
+
+      <div className="card app-form-card student-profile-section">
+        <h3>Instructor admin code</h3>
+        {account?.assigned_admin_code ? (
+          <p style={{ margin: 0 }}>
+            Linked to instructor code: <strong>{account.assigned_admin_code}</strong>
+          </p>
+        ) : (
+          <>
+            <p className="app-form-card__intro">
+              Optional — link your instructor to unlock practice tests and assigned papers. Challenges, Analytics, and
+              Performance do not require a code.
+            </p>
+            <form onSubmit={onLinkAdminCode}>
+              <div className="student-form-field">
+                <label className="label" htmlFor="profile-admin-code">
+                  Admin code
+                </label>
+                <input
+                  id="profile-admin-code"
+                  className="input"
+                  value={adminCode}
+                  onChange={(e) => setAdminCode(e.target.value.toUpperCase())}
+                  placeholder="e.g. A1B2C3"
+                  autoComplete="off"
+                />
+              </div>
+              <button type="submit" className="btn btn-primary" disabled={linkingCode} style={{ width: "100%" }}>
+                {linkingCode ? "Verifying…" : "Link instructor"}
+              </button>
+            </form>
+          </>
+        )}
+        {needsAdminCode ? (
+          <p style={{ margin: "1rem 0 0", fontSize: "0.85rem", color: "var(--muted)" }}>
+            Practice tests and papers require an instructor code. <Link to="/challenges">Mock Tests</Link>,{" "}
+            <Link to="/review">Analytics</Link>, and <Link to="/performance">Performance</Link> do not.
+          </p>
+        ) : null}
+      </div>
+      </div>
     </AppPage>
   );
 }

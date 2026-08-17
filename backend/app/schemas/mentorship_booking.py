@@ -54,3 +54,5 @@ class MentorshipBookingAdminItem(BaseModel):
     status: MentorshipBookingStatus
     payment_deadline_at: datetime
     created_at: datetime
+    confirmed_at: Optional[datetime] = None
+    approved_by: Optional[str] = None

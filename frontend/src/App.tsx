@@ -40,6 +40,7 @@ import { StudentProtectedRoute } from "./components/StudentProtectedRoute";
 import { ChallengeExamRoute } from "./components/ChallengeExamRoute";
 import { SuperAdminLayout } from "./components/SuperAdminLayout";
 import { SuperAdminDashboardPage } from "./pages/admin/SuperAdminDashboardPage";
+import { SuperAdminMetricsPage } from "./pages/admin/SuperAdminMetricsPage";
 import { CatMockTestPage } from "./pages/seo/CatMockTestPage";
 import { SscMockTestPage } from "./pages/seo/SscMockTestPage";
 import { BankExamMockTestPage } from "./pages/seo/BankExamMockTestPage";
@@ -181,6 +182,7 @@ export default function App() {
           }
         >
           <Route index element={<SuperAdminDashboardPage />} />
+          <Route path="metrics" element={<SuperAdminMetricsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

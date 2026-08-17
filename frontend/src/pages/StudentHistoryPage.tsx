@@ -5,10 +5,14 @@ import { formatDateTimeIST } from "../lib/istTime";
 import { getMyStudentHistory } from "../api/client";
 import type { StudentHistoryStats } from "../api/types";
 import { AppPage } from "../components/AppPage";
-import { useAuthStore } from "../store/authStore";
+import { PageEmpty, PageLoading } from "../components/AppPageStates";
+
+function formatPercentile(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) return "—";
+  return `${Math.round(value)}%`;
+}
 
 export function StudentHistoryPage() {
-  const session = useAuthStore((s) => s.session);
   const [data, setData] = useState<StudentHistoryStats | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -35,25 +39,18 @@ export function StudentHistoryPage() {
 
   return (
     <AppPage
+      panel
+      showSubNav
       title="My results"
-      lead={
-        <>
-          Completed tests where the session used your account name (<strong>{session?.username ?? "—"}</strong>). Standalone tests
-          started from “Start a test” must use the same name as your login to appear here.
-        </>
+      lead="All tests, papers, and challenges for your account. Percentage uses attempted questions only — skipped questions are not penalized."
+      actions={
+        <Link to="/take-test" className="btn btn-primary" style={{ textDecoration: "none" }}>
+          Start test
+        </Link>
       }
     >
-      <nav className="app-page-nav">
-        <Link to="/review" className="app-page-nav__link">
-          Question-by-question answer review
-        </Link>
-        <Link to="/review?type=paper" className="app-page-nav__link">
-          Paper-wise summary
-        </Link>
-      </nav>
-
       {loading ? (
-        <p style={{ color: "var(--muted)" }}>Loading…</p>
+        <PageLoading label="Loading your results…" />
       ) : data ? (
         <>
           <div className="app-stat-grid">
@@ -62,11 +59,11 @@ export function StudentHistoryPage() {
               <div className="app-stat-card__value">{data.tests_taken}</div>
             </div>
             <div className="card app-stat-card">
-              <div className="label">Average score</div>
+              <div className="label">Average correct</div>
               <div className="app-stat-card__value">{data.average_score.toFixed(2)}</div>
             </div>
             <div className="card app-stat-card">
-              <div className="label">Best score</div>
+              <div className="label">Best correct</div>
               <div className="app-stat-card__value">{data.best_score}</div>
             </div>
             <div className="card app-stat-card">
@@ -74,36 +71,75 @@ export function StudentHistoryPage() {
               <div className="app-stat-card__value">{data.best_percentage}%</div>
             </div>
           </div>
-          <section className="app-page-section">
+
+          <section className="app-page-section student-content-section">
             <h2 className="app-page-section__title">All attempts</h2>
-            <div className="table-wrap">
-              <table className="data">
-                <thead>
-                  <tr>
-                    <th>When</th>
-                    <th>Score</th>
-                    <th>%</th>
-                    <th>Subject</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.recent_attempts.map((a) => (
-                    <tr key={a.id}>
-                      <td>{formatDateTimeIST(a.started_at)}</td>
-                      <td>
-                        {a.score}/{a.total_questions}
-                      </td>
-                      <td>{a.percentage}%</td>
-                      <td>{a.subject ?? "—"}</td>
+            <p className="app-page-section__lead">
+              Every standalone test, paper, and challenge you have started — with correct, wrong, and not-attempted counts.
+            </p>
+            {data.recent_attempts.length ? (
+              <div className="table-wrap">
+                <table className="data">
+                  <thead>
+                    <tr>
+                      <th>Test name</th>
+                      <th>Type</th>
+                      <th>Attempt time</th>
+                      <th>Correct</th>
+                      <th>Wrong</th>
+                      <th>Not attempted</th>
+                      <th>Percentage</th>
+                      <th>Percentile</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {data.recent_attempts.map((a) => (
+                      <tr key={a.id}>
+                        <td>{a.test_name}</td>
+                        <td>
+                          <span className="badge badge--muted">
+                            {a.session_type === "paper"
+                              ? "Paper"
+                              : a.session_type === "challenge"
+                                ? "Challenge"
+                                : "Test"}
+                          </span>
+                        </td>
+                        <td>{formatDateTimeIST(a.started_at)}</td>
+                        <td>{a.correct ?? 0}</td>
+                        <td>{a.wrong ?? 0}</td>
+                        <td>{a.not_attempted ?? 0}</td>
+                        <td>{a.percentage.toFixed(1)}%</td>
+                        <td
+                          title={
+                            a.cohort_ranked_count && a.cohort_ranked_count > 0
+                              ? `Among ${a.cohort_ranked_count} comparable attempt${a.cohort_ranked_count === 1 ? "" : "s"}`
+                              : "Not enough cohort data yet"
+                          }
+                        >
+                          {formatPercentile(a.cohort_percentile)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <PageEmpty
+                title="No attempts yet"
+                action={
+                  <Link to="/take-test" className="btn btn-primary" style={{ textDecoration: "none" }}>
+                    Start your first test
+                  </Link>
+                }
+              >
+                Complete a test, paper, or challenge to see scores and percentiles here.
+              </PageEmpty>
+            )}
           </section>
         </>
       ) : (
-        <p className="empty">No results yet.</p>
+        <PageEmpty title="Could not load results">Try refreshing the page in a moment.</PageEmpty>
       )}
     </AppPage>
   );

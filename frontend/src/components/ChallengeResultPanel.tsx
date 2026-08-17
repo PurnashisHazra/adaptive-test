@@ -144,7 +144,8 @@ export function ChallengeResultPanel({ challengeAttemptId }: { challengeAttemptI
               <div>
                 <div style={{ fontWeight: 600 }}>{s.section_title}</div>
                 <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
-                  {s.correct} correct · {s.wrong} wrong · {s.total_questions} questions
+                  {s.correct} correct · {s.wrong} wrong
+                  {(s.not_attempted ?? 0) > 0 ? ` · ${s.not_attempted} not attempted` : ""} · {s.total_questions} questions
                 </div>
               </div>
               <div style={{ fontWeight: 700 }}>{s.marks.toFixed(2)} marks</div>

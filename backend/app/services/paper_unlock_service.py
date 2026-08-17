@@ -90,6 +90,10 @@ class PaperUnlockService:
         rows = await self._purchases.list_pending_admin()
         return [self._to_admin_item(r) for r in rows]
 
+    async def list_confirmed_admin(self, *, limit: int = 100) -> List[PaperUnlockAdminItem]:
+        rows = await self._purchases.list_confirmed_admin(limit=limit)
+        return [self._to_admin_item(r) for r in rows]
+
     async def approve(self, admin_username: str, purchase_id: str) -> PaperUnlockOut:
         row = await self._purchases.get(purchase_id)
         if not row:
@@ -183,4 +187,6 @@ class PaperUnlockService:
             status=str(row.get("status")),  # type: ignore[arg-type]
             payment_deadline_at=row["payment_deadline_at"],
             created_at=row["created_at"],
+            confirmed_at=row.get("confirmed_at"),
+            approved_by=str(row["approved_by"]) if row.get("approved_by") else None,
         )

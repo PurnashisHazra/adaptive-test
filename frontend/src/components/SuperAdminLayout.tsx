@@ -1,30 +1,36 @@
-import { Link, NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet } from "react-router-dom";
+import "../styles/landing.css";
+import "../styles/super-admin-home.css";
 
-const linkClass = ({ isActive }: { isActive: boolean }) =>
-  `admin-nav-link${isActive ? " admin-nav-link--active" : ""}`;
+const tabClass = ({ isActive }: { isActive: boolean }) =>
+  `sa-home-tab${isActive ? " sa-home-tab--active" : ""}`;
 
 export function SuperAdminLayout() {
   return (
-    <div className="admin-root">
-      <aside className="admin-sidebar" aria-label="Super admin navigation">
-        <div className="admin-sidebar-brand">
-          Super admin
-          <span className="admin-sidebar-brand__sub">Platform control</span>
-        </div>
-        <nav className="admin-nav">
-          <div className="admin-nav-group">
-            <NavLink to="/super-admin" end className={linkClass}>
+    <div className="landing sa-home">
+      <div className="sa-home-inner">
+        <header className="sa-home-head">
+          <p className="landing-kicker">PLATFORM CONTROL</p>
+          <h1 className="sa-home-title">
+            Super admin
+            <span className="landing-headline-outline">command center</span>
+          </h1>
+          <p className="landing-subhead">
+            Assign roles, admin codes, and quotas — then watch users, attempts, and confirmed UPI revenue in one place.
+          </p>
+          <nav className="sa-home-tabs" aria-label="Super admin sections">
+            <NavLink to="/super-admin" end className={tabClass}>
               Users & roles
             </NavLink>
-          </div>
-        </nav>
-        <div className="admin-sidebar-footer">
-          <Link to="/admin">← Admin dashboard</Link>
+            <NavLink to="/super-admin/metrics" className={tabClass}>
+              Metrics
+            </NavLink>
+          </nav>
+        </header>
+        <div className="sa-home-stage">
+          <Outlet />
         </div>
-      </aside>
-      <section className="admin-stage">
-        <Outlet />
-      </section>
+      </div>
     </div>
   );
 }

@@ -24,6 +24,7 @@ from app.services.adaptive_engine import get_next_difficulty, get_next_question_
 from app.services.explanation_hint_openai import request_openai_explanation_hint
 from app.services.rc_set_service import RcSetService
 from app.utils.ids import oid_str
+from app.utils.attempt_scoring import standalone_accuracy_stats
 
 
 def _utc_now() -> datetime:
@@ -211,6 +212,7 @@ class TestService:
             "student_name": student_name.strip(),
             "status": AttemptStatus.IN_PROGRESS.value,
             "total_questions": total_questions,
+            "planned_total_questions": total_questions,
             "questions_answered": 0,
             "score": 0,
             "question_ids": [first_id],
@@ -305,6 +307,7 @@ class TestService:
             "question_id": question_id,
             "chosen_answer": chosen_answer.strip(),
             "is_correct": is_correct,
+            "is_attempted": bool(chosen_answer.strip()),
             "difficulty_when_served": last_diff.value,
             "topic_when_served": str(qdoc.get("topic", "")).strip() or None,
             "target_difficulty_after": next_diff.value,
@@ -587,23 +590,24 @@ class TestService:
             raise ValueError("This attempt is part of a multi-section test. End it from the contest screen.")
 
         answered = int(att.get("questions_answered", 0))
-        answers = list(att.get("answers", []))
-        score = int(att.get("score", 0))
+        answers = list(att.get("answers") or [])
+        correct, attempted, _ = standalone_accuracy_stats(answers)
 
         patch: Dict[str, Any] = {
             "status": AttemptStatus.COMPLETED.value,
             "completed_at": _utc_now(),
             "completion_reason": "ended_early",
-            "total_questions": answered,
+            "score": correct,
+            "total_questions": attempted if attempted > 0 else answered,
         }
         await self._attempts.update(attempt_id, patch)
         att_done = await self._attempts.get(attempt_id) or att
 
-        effective_total = answered if answered > 0 else 0
+        effective_total = attempted if attempted > 0 else answered
         return await self._build_summary(
             att_done,
             attempt_id,
-            score,
+            correct,
             effective_total,
             answers,
             ended_early=True,
@@ -621,7 +625,12 @@ class TestService:
         from app.schemas.attempt import AnswerRecord
 
         total = effective_total
-        pct = (score / total * 100.0) if total else 0.0
+        correct, attempted, pct = standalone_accuracy_stats(answers)
+        if attempted > 0:
+            score = correct
+            total = attempted
+        else:
+            pct = (score / total * 100.0) if total else 0.0
         recs: List[AnswerRecord] = []
         for a in answers:
             recs.append(
@@ -629,6 +638,7 @@ class TestService:
                     question_id=a["question_id"],
                     chosen_answer=a["chosen_answer"],
                     is_correct=a["is_correct"],
+                    is_attempted=bool(str(a.get("chosen_answer", "")).strip()) if a.get("is_attempted") is None else bool(a.get("is_attempted")),
                     difficulty_when_served=Difficulty(a["difficulty_when_served"]),
                     topic_when_served=a.get("topic_when_served"),
                     target_difficulty_after=(

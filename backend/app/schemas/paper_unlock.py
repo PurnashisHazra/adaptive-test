@@ -54,6 +54,8 @@ class PaperUnlockAdminItem(BaseModel):
     status: PaperUnlockStatus
     payment_deadline_at: datetime
     created_at: datetime
+    confirmed_at: Optional[datetime] = None
+    approved_by: Optional[str] = None
 
 
 class ExamShowcasePaperOut(BaseModel):

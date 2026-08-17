@@ -4,10 +4,11 @@ import toast from "react-hot-toast";
 import { listAssignedPapers, resumePaper, startPaper } from "../api/client";
 import type { AssignedPaperItem } from "../api/types";
 import { AppPage } from "../components/AppPage";
+import { PageEmpty, PageLoading } from "../components/AppPageStates";
 import { useAuthStore } from "../store/authStore";
 import { useTestSession } from "../store/testSession";
 
-function PaperRow({
+function PaperCard({
   p,
   starting,
   onStart,
@@ -22,24 +23,29 @@ function PaperRow({
   const canContinue = Boolean(p.has_started && !p.completed && p.paper_attempt_id);
 
   return (
-    <div className="card app-row-card">
+    <article className="card student-paper-card">
       <div>
-        <h3 className="app-row-card__title">{p.title}</h3>
-        <p className="app-row-card__meta">
-          {p.section_count} section{p.section_count === 1 ? "" : "s"} · +{p.marks_per_correct} / −{p.marks_per_incorrect} per wrong
+        <h3 className="student-paper-card__title">{p.title}</h3>
+        <p className="student-paper-card__meta">
+          {p.section_count} section{p.section_count === 1 ? "" : "s"} · +{p.marks_per_correct} / −{p.marks_per_incorrect}{" "}
+          per wrong
         </p>
-        {p.completed ? (
-          <span className="badge" style={{ marginTop: "0.5rem", display: "inline-block" }}>
-            Completed
-          </span>
-        ) : p.has_started ? (
-          <span className="badge" style={{ marginTop: "0.5rem", display: "inline-block" }}>
-            In progress
-          </span>
-        ) : null}
+        <div className="student-paper-card__badges">
+          {p.completed ? (
+            <span className="badge" style={{ background: "rgba(34,197,94,0.12)", color: "#166534" }}>
+              Completed
+            </span>
+          ) : p.has_started ? (
+            <span className="badge" style={{ background: "rgba(234,179,8,0.14)", color: "#854d0e" }}>
+              In progress
+            </span>
+          ) : (
+            <span className="badge">Not started</span>
+          )}
+        </div>
       </div>
       {p.completed ? null : (
-        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+        <div className="student-paper-card__actions">
           {canContinue ? (
             <button
               type="button"
@@ -67,7 +73,7 @@ function PaperRow({
           ) : null}
         </div>
       )}
-    </div>
+    </article>
   );
 }
 
@@ -140,39 +146,63 @@ export function PapersPage() {
 
   return (
     <AppPage
+      panel
+      showSubNav
       title="Question papers"
-      lead="Papers assigned to you by an instructor. Once you start a paper, you cannot restart it — use Continue to pick up where you left off, or end the paper from the test screen."
-    >
-      <nav className="app-page-nav">
-        <Link to="/take-test" className="app-page-nav__link">
-          Take a standalone adaptive test instead →
+      lead="Papers assigned by your instructor. Once started, use Continue to pick up where you left off — you cannot restart a paper."
+      actions={
+        <Link to="/take-test" className="btn btn-ghost" style={{ textDecoration: "none" }}>
+          Standalone test
         </Link>
-      </nav>
+      }
+    >
       {loading ? (
-        <p style={{ color: "var(--muted)" }}>Loading…</p>
+        <PageLoading label="Loading assigned papers…" />
       ) : items.length === 0 ? (
-        <div className="card">
-          <p style={{ margin: 0, color: "var(--muted)" }}>No question papers assigned yet.</p>
-        </div>
+        <PageEmpty title="No papers assigned">
+          Your instructor has not assigned any question papers yet. You can still take a standalone adaptive test or join
+          a challenge from Mock Tests.
+        </PageEmpty>
       ) : (
         <>
+          <div className="app-stat-grid">
+            <div className="card app-stat-card">
+              <div className="label">Assigned</div>
+              <div className="app-stat-card__value">{items.length}</div>
+            </div>
+            <div className="card app-stat-card">
+              <div className="label">Pending</div>
+              <div className="app-stat-card__value">{pending.length}</div>
+            </div>
+            <div className="card app-stat-card">
+              <div className="label">Completed</div>
+              <div className="app-stat-card__value">{completed.length}</div>
+            </div>
+            <div className="card app-stat-card">
+              <div className="label">In progress</div>
+              <div className="app-stat-card__value">{pending.filter((p) => p.has_started).length}</div>
+            </div>
+          </div>
+
           {pending.length > 0 ? (
-            <section className="app-page-section">
+            <section className="app-page-section student-content-section">
               <h2 className="app-page-section__title">Pending tasks</h2>
               <p className="app-page-section__lead">Assigned papers you have not finished yet.</p>
-              <div className="app-page-stack">
+              <div className="app-page-stack app-page-stack--lg">
                 {pending.map((p) => (
-                  <PaperRow key={p.paper_id} p={p} starting={starting} onStart={onStart} onContinue={onContinue} />
+                  <PaperCard key={p.paper_id} p={p} starting={starting} onStart={onStart} onContinue={onContinue} />
                 ))}
               </div>
             </section>
           ) : null}
+
           {completed.length > 0 ? (
-            <section className="app-page-section">
+            <section className="app-page-section student-content-section">
               <h2 className="app-page-section__title">Completed</h2>
+              <p className="app-page-section__lead">Finished papers — open Analytics to review question-by-question.</p>
               <div className="app-page-stack">
                 {completed.map((p) => (
-                  <PaperRow key={p.paper_id} p={p} starting={starting} onStart={onStart} onContinue={onContinue} />
+                  <PaperCard key={p.paper_id} p={p} starting={starting} onStart={onStart} onContinue={onContinue} />
                 ))}
               </div>
             </section>

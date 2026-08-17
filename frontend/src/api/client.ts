@@ -138,6 +138,11 @@ export async function listSuperAdminUsers() {
   return data.users;
 }
 
+export async function getSuperAdminMetrics() {
+  const { data } = await api.get<import("./types").SuperAdminMetrics>("/super-admin/dashboard/metrics");
+  return data;
+}
+
 export async function updateSuperAdminUserRole(username: string, role: import("./types").Role) {
   const { data } = await api.patch<import("./types").SuperAdminUserRow>(
     `/super-admin/dashboard/users/${encodeURIComponent(username)}/role`,
@@ -212,6 +217,117 @@ export async function countQuestions() {
 
 export async function getQuestionFolderTree() {
   const { data } = await api.get<QuestionBankFolderTree>("/questions/folder-tree");
+  return data;
+}
+
+export async function createQuestionCategory(name: string) {
+  const { data } = await api.post<{ affected: number; message: string }>("/questions/folders/categories", { name });
+  return data;
+}
+
+export async function createQuestionSubjectFolder(categoryKey: string, name: string) {
+  const { data } = await api.post<{ affected: number; message: string }>(
+    `/questions/folders/categories/${encodeURIComponent(categoryKey)}/subjects`,
+    { name },
+  );
+  return data;
+}
+
+export async function renameQuestionCategory(categoryKey: string, body: { new_name?: string; display_name?: string }) {
+  const { data } = await api.patch<{ affected: number; message: string }>(
+    `/questions/folders/categories/${encodeURIComponent(categoryKey)}`,
+    body,
+  );
+  return data;
+}
+
+export async function renameQuestionSubjectFolder(categoryKey: string, subjectKey: string, newName: string) {
+  const { data } = await api.patch<{ affected: number; message: string }>(
+    `/questions/folders/categories/${encodeURIComponent(categoryKey)}/subjects/${encodeURIComponent(subjectKey)}`,
+    { new_name: newName },
+  );
+  return data;
+}
+
+export async function deleteQuestionCategory(categoryKey: string) {
+  const { data } = await api.delete<{ affected: number; message: string }>(
+    `/questions/folders/categories/${encodeURIComponent(categoryKey)}`,
+  );
+  return data;
+}
+
+export async function deleteQuestionSubjectFolder(categoryKey: string, subjectKey: string) {
+  const { data } = await api.delete<{ affected: number; message: string }>(
+    `/questions/folders/categories/${encodeURIComponent(categoryKey)}/subjects/${encodeURIComponent(subjectKey)}`,
+  );
+  return data;
+}
+
+export async function deleteQuestionTopicFolder(categoryKey: string, subjectKey: string, topicKey: string) {
+  const { data } = await api.delete<{ affected: number; message: string }>(
+    `/questions/folders/categories/${encodeURIComponent(categoryKey)}/subjects/${encodeURIComponent(subjectKey)}/topics/${encodeURIComponent(topicKey)}`,
+  );
+  return data;
+}
+
+export async function moveQuestionFolder(body: {
+  from_path: { exam_tag: string; subject?: string; topic?: string };
+  to_path: { exam_tag: string; subject?: string; topic?: string };
+}) {
+  const { data } = await api.post<{ affected: number; message: string }>("/questions/folders/move-folder", body);
+  return data;
+}
+
+export async function copyQuestionFolder(body: {
+  from_path: { exam_tag: string; subject?: string; topic?: string };
+  to_path: { exam_tag: string; subject?: string; topic?: string };
+}) {
+  const { data } = await api.post<{ affected: number; copied_question_ids: string[]; message: string }>(
+    "/questions/folders/copy-folder",
+    body,
+  );
+  return data;
+}
+
+export async function bulkMoveQuestionFolders(body: {
+  from_paths: { exam_tag: string; subject?: string; topic?: string }[];
+  to_exam_tag: string;
+  to_subject?: string;
+  to_topic?: string;
+}) {
+  const { data } = await api.post<{ affected: number; message: string }>("/questions/folders/bulk-move", body);
+  return data;
+}
+
+export async function bulkCopyQuestionFolders(body: {
+  from_paths: { exam_tag: string; subject?: string; topic?: string }[];
+  to_exam_tag: string;
+  to_subject?: string;
+  to_topic?: string;
+}) {
+  const { data } = await api.post<{ affected: number; copied_question_ids: string[]; message: string }>(
+    "/questions/folders/bulk-copy",
+    body,
+  );
+  return data;
+}
+
+export async function moveQuestionsToFolder(body: {
+  question_ids: string[];
+  from_exam_tag: string;
+  to_exam_tag: string;
+  to_subject: string;
+}) {
+  const { data } = await api.post<{ affected: number; message: string }>("/questions/folders/move", body);
+  return data;
+}
+
+export async function copyQuestionsToFolder(body: {
+  question_ids: string[];
+  to_exam_tag: string;
+  to_subject: string;
+}) {
+  const { data } = await api.post<{ copied: number; new_question_ids: string[] }>("/questions/folders/copy", body);
   return data;
 }
 
@@ -706,6 +822,11 @@ export async function listAdminMentorshipBookingsPending() {
   return data;
 }
 
+export async function listAdminMentorshipBookingsApproved() {
+  const { data } = await api.get<MentorshipBookingAdminItem[]>("/admin/mentorship-bookings/approved");
+  return data;
+}
+
 export async function approveAdminMentorshipBooking(bookingId: string) {
   const { data } = await api.post<MentorshipBookingOut>(
     `/admin/mentorship-bookings/${encodeURIComponent(bookingId)}/approve`,
@@ -739,6 +860,11 @@ export async function getPaperUnlock(purchaseId: string) {
 
 export async function listAdminPaperUnlocksPending() {
   const { data } = await api.get<PaperUnlockAdminItem[]>("/admin/paper-unlocks/pending");
+  return data;
+}
+
+export async function listAdminPaperUnlocksApproved() {
+  const { data } = await api.get<PaperUnlockAdminItem[]>("/admin/paper-unlocks/approved");
   return data;
 }
 
