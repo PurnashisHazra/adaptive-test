@@ -48,6 +48,8 @@ class TestStartResponse(BaseModel):
     questions_answered: int = 0
     max_reachable_index: int = 1
     can_submit: bool = True
+    adaptive_disabled: bool = False
+    answered_indices: List[int] = Field(default_factory=list)
     paper: Optional["PaperSessionMeta"] = None
     attempt_filters: AttemptSessionFilters = Field(default_factory=AttemptSessionFilters)
 
@@ -69,6 +71,7 @@ class QuestionPayload(BaseModel):
         default=None,
         description="1-based index within an RC set when this question belongs to a passage.",
     )
+    is_ai_generated: bool = False
 
 
 class PaperNextSection(BaseModel):
@@ -81,6 +84,8 @@ class PaperNextSection(BaseModel):
     marked_for_review: List[int] = Field(default_factory=list)
     questions_answered: int = 0
     max_reachable_index: int = 1
+    adaptive_disabled: bool = False
+    answered_indices: List[int] = Field(default_factory=list)
     paper: "PaperSessionMeta"
 
 
@@ -117,6 +122,8 @@ class SubmitAnswerResponse(BaseModel):
     max_reachable_index: int = 0
     paper_next: Optional[PaperNextSection] = None
     paper_summary: Optional["PaperResultSummary"] = None
+    adaptive_disabled: bool = False
+    answered_indices: List[int] = Field(default_factory=list)
 
 
 class QuestionAtIndexResponse(BaseModel):
@@ -128,6 +135,8 @@ class QuestionAtIndexResponse(BaseModel):
     max_reachable_index: int
     questions_answered: int
     marked_for_review: List[int] = Field(default_factory=list)
+    adaptive_disabled: bool = False
+    answered_indices: List[int] = Field(default_factory=list)
 
 
 class MarkReviewRequest(BaseModel):

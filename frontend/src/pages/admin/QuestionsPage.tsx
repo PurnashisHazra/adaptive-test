@@ -995,6 +995,11 @@ export function QuestionsPage() {
                       <td>{q.question_type}</td>
                       <td>
                         <span className="badge">{q.difficulty}</span>
+                        {q.is_ai_generated ? (
+                          <span className="badge" style={{ marginLeft: "0.35rem", background: "#eef2ff", color: "#3730a3" }}>
+                            AI generated
+                          </span>
+                        ) : null}
                       </td>
                       <td style={{ whiteSpace: "nowrap" }}>
                         <Link to={`/admin/questions/${q.id}`} className="btn btn-ghost" style={{ padding: "0.35rem 0.6rem", fontSize: "0.85rem" }}>
@@ -1248,7 +1253,7 @@ export function QuestionsPage() {
           >
             <h3 style={{ marginTop: 0 }}>Generate CAT Question with AI</h3>
             <p style={{ color: "var(--muted)", marginTop: "-0.25rem" }}>
-              Provide an instruction prompt. You will review and approve before saving.
+              Provide an instruction prompt. Name EASY, MEDIUM, HARD, or EXPERT to set the draft difficulty. You will review and approve before saving.
             </p>
             <label className="label">Prompt</label>
             <textarea
@@ -1256,7 +1261,7 @@ export function QuestionsPage() {
               rows={5}
               value={aiPrompt}
               onChange={(e) => setAiPrompt(e.target.value)}
-              placeholder="Example: Create an EXPERT CAT quant question on algebra with tricky distractors and clear explanation."
+              placeholder="Example: Create an EASY CAT quant question on percentages with a short explanation."
             />
             <div style={{ display: "flex", gap: "0.6rem", marginTop: "0.8rem", flexWrap: "wrap" }}>
               <button type="button" className="btn btn-primary" onClick={onGenerateAiDraft} disabled={aiGenerating}>

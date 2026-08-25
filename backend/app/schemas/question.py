@@ -82,6 +82,7 @@ class QuestionStudentView(BaseModel):
     subject: str
     topic: str
     image_url: Optional[str] = None
+    is_ai_generated: bool = False
 
 
 class QuestionFilterParams(BaseModel):
@@ -104,6 +105,31 @@ class QuestionListRequest(BaseModel):
     exam_tag: Optional[str] = Field(default=None, max_length=16)
     page: int = Field(1, ge=1)
     page_size: int = Field(20, ge=1, le=100)
+
+
+class QuestionIdsLookupRequest(BaseModel):
+    """Fetch questions by id, returned in the requested order."""
+
+    question_ids: List[str] = Field(..., min_length=1, max_length=500)
+
+    @field_validator("question_ids", mode="before")
+    @classmethod
+    def normalize_lookup_ids(cls, v: Any) -> List[str]:
+        if not isinstance(v, list):
+            raise ValueError("question_ids must be a list")
+        out: List[str] = []
+        seen: set[str] = set()
+        for x in v:
+            s = str(x).strip()
+            if not s or s in seen:
+                continue
+            if not ObjectId.is_valid(s):
+                raise ValueError(f"Invalid question id: {x}")
+            seen.add(s)
+            out.append(s)
+        if not out:
+            raise ValueError("question_ids must contain at least one valid id")
+        return out[:500]
 
 
 class BulkJsonPayload(BaseModel):

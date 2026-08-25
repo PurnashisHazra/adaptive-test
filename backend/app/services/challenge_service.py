@@ -305,6 +305,8 @@ class ChallengeService:
             questions_answered=res.questions_answered,
             max_reachable_index=res.max_reachable_index,
             can_submit=True,
+            adaptive_disabled=res.adaptive_disabled,
+            answered_indices=list(res.answered_indices or []),
             paper=meta,
             attempt_filters=res.attempt_filters,
         )
@@ -504,8 +506,9 @@ class ChallengeService:
         if not att or att.get("status") != AttemptStatus.IN_PROGRESS.value:
             raise ValueError("Your session could not be restored.")
 
-        answered = int(att.get("questions_answered", 0))
-        next_idx = answered + 1
+        from app.services.test_service import _resume_question_index
+
+        next_idx = _resume_question_index(att)
         qi = await self._tests.get_question_at_index(active, next_idx)
         sec_idx = int(ca.get("current_section_index", 0))
         meta = self._session_meta(challenge, ca_id, sec_idx)
@@ -522,6 +525,8 @@ class ChallengeService:
             questions_answered=qi.questions_answered,
             max_reachable_index=qi.max_reachable_index,
             can_submit=qi.can_submit,
+            adaptive_disabled=qi.adaptive_disabled,
+            answered_indices=list(qi.answered_indices or []),
             paper=meta,
             attempt_filters=_attempt_filters_from_doc(att),
         )
@@ -593,6 +598,8 @@ class ChallengeService:
                 marked_for_review=nxt.marked_for_review,
                 questions_answered=nxt.questions_answered,
                 max_reachable_index=nxt.max_reachable_index,
+                adaptive_disabled=nxt.adaptive_disabled,
+                answered_indices=list(nxt.answered_indices or []),
                 paper=nxt.paper,
             )
             return SubmitAnswerResponse(
@@ -804,6 +811,8 @@ class ChallengeService:
                 marked_for_review=nxt.marked_for_review,
                 questions_answered=nxt.questions_answered,
                 max_reachable_index=nxt.max_reachable_index,
+                adaptive_disabled=nxt.adaptive_disabled,
+                answered_indices=list(nxt.answered_indices or []),
                 paper=nxt.paper,
             )
             return SubmitAnswerResponse(

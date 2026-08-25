@@ -34,6 +34,24 @@ def _sorted_sections(paper: Dict[str, Any]) -> List[Dict[str, Any]]:
 from app.utils.attempt_scoring import marks_for_section, max_marks_from_section_results, percentage_from_marks
 
 
+def _section_pool_ids(sec: Any) -> List[str]:
+    if hasattr(sec, "question_pool_ids"):
+        pool = sec.question_pool_ids
+    else:
+        pool = sec.get("question_pool_ids") if isinstance(sec, dict) else None
+    if not isinstance(pool, list):
+        return []
+    return [str(x).strip() for x in pool if str(x).strip()]
+
+
+def _assert_non_adaptive_sections(sections: List[Any]) -> None:
+    for i, sec in enumerate(sections):
+        if not _section_pool_ids(sec):
+            raise ValueError(
+                f"Section {i + 1} needs a question set. Non-adaptive papers serve only the selected questions, in order."
+            )
+
+
 def _max_marks(paper: Dict[str, Any], mpc: float) -> float:
     return sum(int(s.get("total_questions", 0)) for s in _sorted_sections(paper)) * mpc
 
@@ -68,6 +86,7 @@ class PaperService:
             ],
             marks_per_correct=float(doc.get("marks_per_correct", 1)),
             marks_per_incorrect=float(doc.get("marks_per_incorrect", 0)),
+            is_adaptive=bool(doc.get("is_adaptive", True)),
             created_at=doc["created_at"],
             updated_at=doc.get("updated_at") or doc["created_at"],
         )
@@ -90,6 +109,7 @@ class PaperService:
             "sections": [s.model_dump() for s in body.sections],
             "marks_per_correct": float(body.marks_per_correct),
             "marks_per_incorrect": float(body.marks_per_incorrect),
+            "is_adaptive": bool(body.is_adaptive),
             "created_by": created_by,
         }
         pid = await self._papers.insert_paper(doc)
@@ -98,6 +118,9 @@ class PaperService:
         return self._out_paper(got)
 
     async def update_paper(self, paper_id: str, patch: QuestionPaperUpdate, *, admin_username: Optional[str] = None) -> QuestionPaperOut:
+        got = await self._papers.get_paper(paper_id)
+        if not got:
+            raise ValueError("Paper not found")
         p: Dict[str, Any] = {}
         if patch.title is not None:
             p["title"] = patch.title
@@ -115,17 +138,20 @@ class PaperService:
             p["marks_per_correct"] = float(patch.marks_per_correct)
         if patch.marks_per_incorrect is not None:
             p["marks_per_incorrect"] = float(patch.marks_per_incorrect)
+        if patch.is_adaptive is not None:
+            p["is_adaptive"] = bool(patch.is_adaptive)
+        next_adaptive = bool(p["is_adaptive"]) if "is_adaptive" in p else bool(got.get("is_adaptive", True))
+        next_sections: List[Any] = patch.sections if patch.sections is not None else _sorted_sections(got)
+        if not next_adaptive:
+            _assert_non_adaptive_sections(next_sections)
         if not p:
-            got = await self._papers.get_paper(paper_id)
-            if not got:
-                raise ValueError("Paper not found")
             return self._out_paper(got)
         ok = await self._papers.update_paper(paper_id, p)
         if not ok:
             raise ValueError("Paper not found")
-        got = await self._papers.get_paper(paper_id)
-        assert got is not None
-        return self._out_paper(got)
+        updated = await self._papers.get_paper(paper_id)
+        assert updated is not None
+        return self._out_paper(updated)
 
     async def get_paper(self, paper_id: str) -> QuestionPaperOut:
         got = await self._papers.get_paper(paper_id)
@@ -229,6 +255,11 @@ class PaperService:
         if pool_list:
             pool_list = [x for x in pool_list if x]
         pool_arg = pool_list if pool_list else None
+        adaptive = bool(paper.get("is_adaptive", True))
+        if not adaptive and not pool_arg:
+            raise ValueError(
+                "This non-adaptive paper is missing a question set for the current section."
+            )
         res = await self._tests.start_test(
             student_name=paper_attempt["student_username"],
             subject=sec.get("subject"),
@@ -238,6 +269,9 @@ class PaperService:
             time_limit_seconds=int(sec["time_limit_seconds"]),
             paper_context=ctx,
             question_pool_ids=pool_arg,
+            student_username=str(paper_attempt.get("student_username") or "") or None,
+            adaptive_disabled=not adaptive,
+            preserve_pool_order=not adaptive,
         )
         meta = self._session_meta(paper, pa_id, section_index)
         return TestStartResponse(
@@ -251,6 +285,8 @@ class PaperService:
             questions_answered=res.questions_answered,
             max_reachable_index=res.max_reachable_index,
             can_submit=True,
+            adaptive_disabled=res.adaptive_disabled,
+            answered_indices=list(res.answered_indices or []),
             paper=meta,
             attempt_filters=res.attempt_filters,
         )
@@ -316,8 +352,9 @@ class PaperService:
         if not att or att.get("status") != AttemptStatus.IN_PROGRESS.value:
             raise ValueError("Your session could not be restored. Please contact your instructor.")
 
-        answered = int(att.get("questions_answered", 0))
-        next_idx = answered + 1
+        from app.services.test_service import _resume_question_index
+
+        next_idx = _resume_question_index(att)
         try:
             qi = await self._tests.get_question_at_index(active, next_idx)
         except ValueError as e:
@@ -338,6 +375,8 @@ class PaperService:
             questions_answered=qi.questions_answered,
             max_reachable_index=qi.max_reachable_index,
             can_submit=qi.can_submit,
+            adaptive_disabled=qi.adaptive_disabled,
+            answered_indices=list(qi.answered_indices or []),
             paper=meta,
             attempt_filters=_attempt_filters_from_doc(att),
         )
@@ -409,6 +448,8 @@ class PaperService:
                 marked_for_review=nxt.marked_for_review,
                 questions_answered=nxt.questions_answered,
                 max_reachable_index=nxt.max_reachable_index,
+                adaptive_disabled=nxt.adaptive_disabled,
+                answered_indices=list(nxt.answered_indices or []),
                 paper=nxt.paper,
             )
             return SubmitAnswerResponse(
@@ -614,6 +655,8 @@ class PaperService:
                 marked_for_review=nxt.marked_for_review,
                 questions_answered=nxt.questions_answered,
                 max_reachable_index=nxt.max_reachable_index,
+                adaptive_disabled=nxt.adaptive_disabled,
+                answered_indices=list(nxt.answered_indices or []),
                 paper=nxt.paper,
             )
             return SubmitAnswerResponse(
@@ -675,6 +718,7 @@ class PaperService:
                     "has_started": pa is not None,
                     "completed": pa is not None and pa.get("status") in ("completed", "ended_early"),
                     "paper_attempt_id": oid_str(pa["_id"]) if in_progress else None,
+                    "is_adaptive": bool(pdoc.get("is_adaptive", True)),
                 }
             )
         return out

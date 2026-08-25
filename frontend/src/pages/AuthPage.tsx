@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useAuthStore } from "../store/authStore";
@@ -22,6 +22,7 @@ export function AuthPage() {
   const location = useLocation();
   const role = useAuthStore((s) => s.role);
   const isHydrated = useAuthStore((s) => s.isHydrated);
+  const hydrate = useAuthStore((s) => s.hydrate);
   const session = useAuthStore((s) => s.session);
 
   const [mode, setMode] = useState<"login" | "signup">("login");
@@ -30,11 +31,23 @@ export function AuthPage() {
   const [mobile, setMobile] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (!isHydrated) hydrate();
+  }, [isHydrated, hydrate]);
+
   const postAuthStudentPath = useMemo(() => {
     const from = (location.state as { from?: string } | null)?.from;
     if (typeof from === "string" && from.startsWith("/") && !from.startsWith("//")) return from;
     return "/";
   }, [location.state]);
+
+  if (!isHydrated) {
+    return (
+      <AppPage title="Login" lead="Restoring your session…">
+        <p style={{ color: "var(--muted)" }}>Loading…</p>
+      </AppPage>
+    );
+  }
 
   if (isHydrated && role) {
     return <Navigate to={redirectForRole(role, postAuthStudentPath)} replace />;

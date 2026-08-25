@@ -2,17 +2,21 @@ import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { startTest } from "../api/client";
-import { useTestSession } from "../store/testSession";
+import { useHasTestSessionHydrated, useTestSession } from "../store/testSession";
 
 export function TestInstructionsPage() {
   const nav = useNavigate();
   const pending = useTestSession((s) => s.pendingStart);
   const hydrateStart = useTestSession((s) => s.hydrateStart);
-  const reset = useTestSession((s) => s.reset);
   const clearPendingStart = useTestSession((s) => s.clearPendingStart);
+  const sessionReady = useHasTestSessionHydrated();
 
   const [agree, setAgree] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  if (!sessionReady) {
+    return <div className="page">Loading…</div>;
+  }
 
   if (!pending) {
     return <Navigate to="/take-test" replace />;
@@ -27,7 +31,6 @@ export function TestInstructionsPage() {
     }
     setLoading(true);
     try {
-      reset();
       const res = await startTest({
         student_name: pendingStart.studentName,
         subject: pendingStart.subject,

@@ -27,7 +27,7 @@ export function QuestionPapersPage() {
   return (
     <AdminPanel
       title="Question papers"
-      lead="Multi-section papers with per-section subject, topic, question count, and time. Assign to students who have accounts."
+      lead="Multi-section papers. Adaptive papers pick the next question by difficulty; non-adaptive papers serve the selected questions in order."
       actions={
         <Link to="/admin/question-papers/new" className="btn btn-primary">
           New paper
@@ -52,7 +52,8 @@ export function QuestionPapersPage() {
             <Link key={p.id} to={`/admin/question-papers/${p.id}`} className="card" style={{ textDecoration: "none", color: "inherit" }}>
               <h3 style={{ margin: "0 0 0.35rem" }}>{p.title}</h3>
               <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--muted)" }}>
-                {p.sections.length} section{p.sections.length === 1 ? "" : "s"} · marking +{p.marks_per_correct} / −{p.marks_per_incorrect}
+                {p.is_adaptive === false ? "Non-adaptive" : "Adaptive"} · {p.sections.length} section
+                {p.sections.length === 1 ? "" : "s"} · marking +{p.marks_per_correct} / −{p.marks_per_incorrect}
               </p>
             </Link>
           ))}

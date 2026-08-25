@@ -1,14 +1,19 @@
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { ChallengeResultPanel } from "../components/ChallengeResultPanel";
 import { CohortPercentileBanner } from "../components/CohortPercentileBanner";
-import { useTestSession } from "../store/testSession";
+import { useHasTestSessionHydrated, useTestSession } from "../store/testSession";
 
 export function TestResultPage() {
   const nav = useNavigate();
+  const sessionReady = useHasTestSessionHydrated();
   const summary = useTestSession((s) => s.lastSummary);
   const paperSummary = useTestSession((s) => s.lastPaperSummary);
   const structuredKind = useTestSession((s) => s.structuredKind);
   const reset = useTestSession((s) => s.reset);
+
+  if (!sessionReady) {
+    return <div className="page">Loading…</div>;
+  }
 
   if (!summary && !paperSummary) {
     return <Navigate to="/" replace />;

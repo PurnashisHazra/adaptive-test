@@ -95,6 +95,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
     set({ token, session: decoded, role: decoded.role, needsAdminCode: false, isHydrated: true });
+    // Do not log out if /auth/me fails (expired network, 401, etc.) — keep the local session
+    // so an in-progress test is not dumped to the login screen.
     getAuthMe()
       .then((user) => {
         if (localStorage.getItem(LS_TOKEN) !== token) return;

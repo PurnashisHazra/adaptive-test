@@ -28,6 +28,15 @@ class ConfigRepository:
     async def get_or_create(self) -> Dict[str, Any]:
         doc = await self._col.find_one({"_id": DEFAULT_CONFIG_ID})
         if doc:
+            stored = int(doc.get("default_time_limit_seconds") or 0)
+            desired = int(get_settings().default_test_time_limit_seconds)
+            # 60s was a leftover local default and ends practice tests almost immediately.
+            if stored == 60 and desired > 60:
+                doc["default_time_limit_seconds"] = desired
+                await self._col.update_one(
+                    {"_id": DEFAULT_CONFIG_ID},
+                    {"$set": {"default_time_limit_seconds": desired, "updated_at": _utc_now()}},
+                )
             return doc
         settings = get_settings()
         default_doc = {

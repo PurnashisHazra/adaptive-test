@@ -77,22 +77,31 @@ def marks_for_section(
 
 
 def section_answer_rows(att: Dict[str, Any], section_total: int) -> List[Dict[str, Any]]:
-    """Merge sequential answers with served-but-unanswered question ids for review/analytics."""
+    """Merge stored answers onto the served question order for review/analytics."""
     served_ids = [str(x) for x in (att.get("question_ids") or []) if str(x).strip()]
     answers = list(att.get("answers") or [])
+    by_qid: Dict[str, Dict[str, Any]] = {}
+    for a in answers:
+        qid = str(a.get("question_id") or "").strip()
+        if qid:
+            by_qid[qid] = a
     rows: List[Dict[str, Any]] = []
     for i in range(max(0, int(section_total))):
-        if i < len(answers):
+        if i < len(served_ids):
+            qid = served_ids[i]
+            if qid in by_qid:
+                rows.append(dict(by_qid[qid]))
+            else:
+                rows.append(
+                    {
+                        "question_id": qid,
+                        "chosen_answer": "",
+                        "is_correct": False,
+                        "is_attempted": False,
+                    }
+                )
+        elif i < len(answers):
             rows.append(dict(answers[i]))
-        elif i < len(served_ids):
-            rows.append(
-                {
-                    "question_id": served_ids[i],
-                    "chosen_answer": "",
-                    "is_correct": False,
-                    "is_attempted": False,
-                }
-            )
     return rows
 
 

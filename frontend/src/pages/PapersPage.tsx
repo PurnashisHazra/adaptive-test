@@ -27,8 +27,8 @@ function PaperCard({
       <div>
         <h3 className="student-paper-card__title">{p.title}</h3>
         <p className="student-paper-card__meta">
-          {p.section_count} section{p.section_count === 1 ? "" : "s"} · +{p.marks_per_correct} / −{p.marks_per_incorrect}{" "}
-          per wrong
+          {p.is_adaptive === false ? "Non-adaptive" : "Adaptive"} · {p.section_count} section
+          {p.section_count === 1 ? "" : "s"} · +{p.marks_per_correct} / −{p.marks_per_incorrect} per wrong
         </p>
         <div className="student-paper-card__badges">
           {p.completed ? (

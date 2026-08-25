@@ -194,6 +194,7 @@ export interface QuestionStudent {
   difficulty?: string | null;
   passage?: ReadingPassageView | null;
   sub_question_index?: number | null;
+  is_ai_generated?: boolean;
 }
 
 export interface ReadingPassageView {
@@ -281,6 +282,8 @@ export interface TestStartResponse {
   questions_answered?: number;
   max_reachable_index?: number;
   can_submit?: boolean;
+  adaptive_disabled?: boolean;
+  answered_indices?: number[];
   paper?: PaperSessionMeta | null;
   attempt_filters?: AttemptSessionFilters;
 }
@@ -295,6 +298,8 @@ export interface PaperNextSection {
   marked_for_review: number[];
   questions_answered: number;
   max_reachable_index: number;
+  adaptive_disabled?: boolean;
+  answered_indices?: number[];
   paper: PaperSessionMeta;
 }
 
@@ -333,6 +338,7 @@ export interface AssignedPaperItem {
   has_started: boolean;
   completed: boolean;
   paper_attempt_id?: string | null;
+  is_adaptive?: boolean;
 }
 
 export interface QuestionPaperSection {
@@ -344,7 +350,7 @@ export interface QuestionPaperSection {
   exam_tag?: ExamTag | null;
   total_questions: number;
   time_limit_seconds: number;
-  /** When non-empty, the section only serves these questions (adaptive within the set). */
+  /** When non-empty, the section only serves these questions. Non-adaptive papers use this list in order. */
   question_pool_ids?: string[] | null;
 }
 
@@ -354,6 +360,7 @@ export interface QuestionPaper {
   sections: QuestionPaperSection[];
   marks_per_correct: number;
   marks_per_incorrect: number;
+  is_adaptive?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -477,6 +484,8 @@ export interface SubmitAnswerResponse {
   max_reachable_index?: number;
   paper_next?: PaperNextSection | null;
   paper_summary?: PaperResultSummary | null;
+  adaptive_disabled?: boolean;
+  answered_indices?: number[];
 }
 
 export interface CoachExplanationHintResponse {
@@ -495,6 +504,8 @@ export interface TestQuestionAtResponse {
   max_reachable_index: number;
   questions_answered: number;
   marked_for_review: number[];
+  adaptive_disabled?: boolean;
+  answered_indices?: number[];
 }
 
 export interface AnswerRecord {

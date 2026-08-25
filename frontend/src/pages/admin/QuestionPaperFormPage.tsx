@@ -15,6 +15,7 @@ import {
   updateQuestionPaper,
 } from "../../api/client";
 import type { AppConfig, Difficulty, ExamTag, QuestionAdmin, QuestionPaperSection } from "../../api/types";
+import { PaperDraftPreview } from "../../components/PaperDraftPreview";
 
 function useDebouncedValue<T>(value: T, delayMs: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -172,9 +173,11 @@ const POOL_PAGE_SIZE = 40;
 function SectionQuestionPoolEditor({
   sec,
   setSection,
+  isAdaptive,
 }: {
   sec: QuestionPaperSection;
   setSection: (next: QuestionPaperSection) => void;
+  isAdaptive: boolean;
 }) {
   const pool = sec.question_pool_ids ?? [];
   const [search, setSearch] = useState("");
@@ -221,25 +224,38 @@ function SectionQuestionPoolEditor({
   const poolTooSmall = pool.length > 0 && pool.length < sec.total_questions;
 
   function mergeIds(add: string[]) {
-    const s = new Set(pool);
+    const next = [...pool];
+    const seen = new Set(next);
     for (const id of add) {
-      if (s.size >= MAX_QUESTION_POOL) break;
-      s.add(id);
+      if (seen.has(id)) continue;
+      if (next.length >= MAX_QUESTION_POOL) break;
+      seen.add(id);
+      next.push(id);
     }
-    setSection({ ...sec, question_pool_ids: Array.from(s) });
+    setSection({ ...sec, question_pool_ids: next });
   }
 
   function toggle(id: string) {
-    const s = new Set(pool);
-    if (s.has(id)) s.delete(id);
-    else {
-      if (s.size >= MAX_QUESTION_POOL) {
-        toast.error(`At most ${MAX_QUESTION_POOL} questions per section.`);
-        return;
-      }
-      s.add(id);
+    if (pool.includes(id)) {
+      setSection({ ...sec, question_pool_ids: pool.filter((x) => x !== id) });
+      return;
     }
-    setSection({ ...sec, question_pool_ids: Array.from(s) });
+    if (pool.length >= MAX_QUESTION_POOL) {
+      toast.error(`At most ${MAX_QUESTION_POOL} questions per section.`);
+      return;
+    }
+    setSection({ ...sec, question_pool_ids: [...pool, id] });
+  }
+
+  function movePool(id: string, dir: -1 | 1) {
+    const i = pool.indexOf(id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= pool.length) return;
+    const next = [...pool];
+    const tmp = next[i];
+    next[i] = next[j];
+    next[j] = tmp;
+    setSection({ ...sec, question_pool_ids: next });
   }
 
   function selectPage() {
@@ -249,10 +265,11 @@ function SectionQuestionPoolEditor({
   async function selectAllMatchingFilters() {
     setBulkLoading(true);
     try {
-      const merged = new Set(pool);
+      const next = [...pool];
+      const seen = new Set(next);
       let p = 1;
       const pageSize = 100;
-      while (merged.size < MAX_QUESTION_POOL) {
+      while (next.length < MAX_QUESTION_POOL) {
         const res = await listQuestions({
           page: p,
           page_size: pageSize,
@@ -263,16 +280,17 @@ function SectionQuestionPoolEditor({
           exam_tag: browseExamTag || undefined,
         });
         for (const q of res.items) {
-          merged.add(q.id);
-          if (merged.size >= MAX_QUESTION_POOL) break;
+          if (seen.has(q.id)) continue;
+          seen.add(q.id);
+          next.push(q.id);
+          if (next.length >= MAX_QUESTION_POOL) break;
         }
         if (res.items.length < pageSize) break;
         p += 1;
         if (p > 60) break;
       }
-      const next = Array.from(merged).slice(0, MAX_QUESTION_POOL);
-      setSection({ ...sec, question_pool_ids: next });
-      if (merged.size >= MAX_QUESTION_POOL) {
+      setSection({ ...sec, question_pool_ids: next.slice(0, MAX_QUESTION_POOL) });
+      if (next.length >= MAX_QUESTION_POOL) {
         toast(`Selected up to ${MAX_QUESTION_POOL} questions (maximum per section).`);
       }
     } catch {
@@ -286,11 +304,11 @@ function SectionQuestionPoolEditor({
 
   return (
     <div style={{ marginTop: "0.75rem", paddingTop: "0.75rem", borderTop: "1px solid var(--border)" }}>
-      <label className="label">Question set (optional)</label>
+      <label className="label">{isAdaptive ? "Question set (optional)" : "Question sequence (required)"}</label>
       <p style={{ margin: "0 0 0.5rem", fontSize: "0.82rem", color: "var(--muted)" }}>
-        Leave empty to use the full bank with the section filters above. Use the bank browser (subject/topic from the
-        section, plus optional exam category and difficulty) to pick questions; the section can still adapt difficulty
-        within the selected set.
+        {isAdaptive
+          ? "Leave empty to use the full bank with the section filters above. Use the bank browser to pick questions; the section can still adapt difficulty within the selected set."
+          : "Select questions in the order students should see them. The first N questions (section length) are the paper sequence. Use the arrows to reorder."}
       </p>
       {poolTooSmall ? (
         <p style={{ margin: "0 0 0.5rem", fontSize: "0.82rem", color: "#b45309" }}>
@@ -312,6 +330,47 @@ function SectionQuestionPoolEditor({
           Clear set
         </button>
       </div>
+      {!isAdaptive && pool.length > 0 ? (
+        <ol
+          style={{
+            margin: "0 0 0.65rem",
+            paddingLeft: "1.2rem",
+            maxHeight: 180,
+            overflowY: "auto",
+            fontSize: "0.82rem",
+            background: "#fff",
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+          }}
+        >
+          {pool.map((id, i) => {
+            const q = rows.find((row) => row.id === id);
+            const label = q
+              ? q.question_text.length > 80
+                ? `${q.question_text.slice(0, 80)}…`
+                : q.question_text
+              : `Selected · ${id.slice(-6)}`;
+            return (
+              <li key={id} style={{ padding: "0.35rem 0.5rem 0.35rem 0", display: "flex", gap: "0.35rem", alignItems: "center" }}>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  {i < sec.total_questions ? (
+                    <span style={{ color: "var(--muted)", fontSize: "0.72rem", marginRight: "0.35rem" }}>Q{i + 1}</span>
+                  ) : (
+                    <span style={{ color: "var(--muted)", fontSize: "0.72rem", marginRight: "0.35rem" }}>unused</span>
+                  )}
+                  {label}
+                </span>
+                <button type="button" className="btn btn-ghost" disabled={i === 0} onClick={() => movePool(id, -1)}>
+                  Up
+                </button>
+                <button type="button" className="btn btn-ghost" disabled={i === pool.length - 1} onClick={() => movePool(id, 1)}>
+                  Down
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      ) : null}
       <div className="grid-2" style={{ marginBottom: "0.5rem", gridTemplateColumns: "1fr 1fr" }}>
         <div>
           <label className="label" style={{ fontSize: "0.8rem" }}>
@@ -462,6 +521,8 @@ export function QuestionPaperFormPage() {
   const [title, setTitle] = useState("");
   const [marksCorrect, setMarksCorrect] = useState(1);
   const [marksIncorrect, setMarksIncorrect] = useState(0);
+  const [isAdaptive, setIsAdaptive] = useState(true);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [sections, setSections] = useState<QuestionPaperSection[]>([newSection()]);
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
@@ -500,6 +561,7 @@ export function QuestionPaperFormPage() {
         setTitle(p.title);
         setMarksCorrect(p.marks_per_correct);
         setMarksIncorrect(p.marks_per_incorrect);
+        setIsAdaptive(p.is_adaptive !== false);
         setSections(
           p.sections.map((s, i) => ({
             id: s.id,
@@ -540,10 +602,18 @@ export function QuestionPaperFormPage() {
       toast.error("Add at least one section");
       return;
     }
+    if (!isAdaptive) {
+      const missing = sections.findIndex((s) => !(s.question_pool_ids && s.question_pool_ids.length));
+      if (missing >= 0) {
+        toast.error(`Section ${missing + 1} needs a question sequence for a non-adaptive paper`);
+        return;
+      }
+    }
     const payload = {
       title: title.trim(),
       marks_per_correct: marksCorrect,
       marks_per_incorrect: marksIncorrect,
+      is_adaptive: isAdaptive,
       sections: sections.map((s, i) => ({
         id: s.id,
         title: s.title.trim(),
@@ -627,10 +697,27 @@ export function QuestionPaperFormPage() {
             <input className="input" type="number" min={0} step={0.25} value={marksIncorrect} onChange={(e) => setMarksIncorrect(Number(e.target.value))} />
           </div>
         </div>
+        <div style={{ marginBottom: "1rem" }}>
+          <label className="label">Mode</label>
+          <select
+            className="input"
+            value={isAdaptive ? "adaptive" : "fixed"}
+            onChange={(e) => setIsAdaptive(e.target.value === "adaptive")}
+          >
+            <option value="adaptive">Adaptive</option>
+            <option value="fixed">Non-adaptive (fixed sequence)</option>
+          </select>
+          <p style={{ margin: "0.35rem 0 0", fontSize: "0.85rem", color: "var(--muted)" }}>
+            {isAdaptive
+              ? "Difficulty moves after each answer. A question set is optional and used as a pool, not a fixed order."
+              : "Students see the selected questions in the exact order you pick. Preview the draft sequence before assigning."}
+          </p>
+        </div>
         <h3 style={{ marginBottom: "0.75rem" }}>Sections</h3>
         <p style={{ color: "var(--muted)", fontSize: "0.9rem", marginTop: 0 }}>
-          Each section is an adaptive test with its own length and time limit. Use subject/topic filters for the whole bank,
-          or pick a question set below to restrict the section to specific questions.
+          {isAdaptive
+            ? "Each section is an adaptive test with its own length and time limit. Use subject/topic filters for the whole bank, or pick a question set below to restrict the section to specific questions."
+            : "Each section has a fixed question sequence, length, and time limit. Select questions in order — the first N in the list are what the student gets."}
         </p>
         {sections.map((sec, idx) => (
           <div key={sec.id} className="card" style={{ marginBottom: "1rem", background: "#f8fafc" }}>
@@ -662,6 +749,7 @@ export function QuestionPaperFormPage() {
             />
             <SectionQuestionPoolEditor
               sec={sec}
+              isAdaptive={isAdaptive}
               setSection={(next) => setSections(sections.map((s) => (s.id === sec.id ? next : s)))}
             />
             <div className="grid-2">
@@ -697,10 +785,24 @@ export function QuestionPaperFormPage() {
         <button type="button" className="btn btn-ghost" onClick={() => setSections([...sections, newSection()])} style={{ marginBottom: "1rem" }}>
           Add section
         </button>
-        <button type="submit" className="btn btn-primary" disabled={saving}>
-          {saving ? "Saving…" : "Save"}
-        </button>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+          <button type="submit" className="btn btn-primary" disabled={saving}>
+            {saving ? "Saving…" : "Save"}
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={() => setPreviewOpen(true)}>
+            Preview sequence
+          </button>
+        </div>
       </form>
+
+      {previewOpen ? (
+        <PaperDraftPreview
+          title={title}
+          isAdaptive={isAdaptive}
+          sections={sections}
+          onClose={() => setPreviewOpen(false)}
+        />
+      ) : null}
 
       {!isNew && id ? (
         <div className="card" style={{ marginTop: "1.25rem" }}>

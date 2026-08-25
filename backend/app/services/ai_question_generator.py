@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 from typing import Any, Dict, List, Optional
 
 from app.services.llm_client import LlmChatError, ai_any_configured, chat_completion, strip_markdown_fence
@@ -8,40 +9,172 @@ from app.models.domain import Difficulty, QuestionType
 from app.repositories.question_repository import QuestionRepository
 from app.schemas.question import QuestionCreate, QuestionOption
 from app.services.question_service import question_create_to_doc
+from app.utils.exam_tags import is_others_exam, normalize_exam_tag, normalize_exam_tags
 from app.utils.ids import oid_str
 
 logger = logging.getLogger(__name__)
 
+AI_GENERATED_FOLDER_SUBJECT = "AI Generated"
+
+
+async def resolve_folder_admin_username(student_username: Optional[str]) -> Optional[str]:
+    """Instructor who owns the student's question-bank tree, if assigned."""
+    from app.repositories.user_repository import UserRepository
+
+    if not student_username or not str(student_username).strip():
+        return None
+    users = UserRepository()
+    user = await users.get_by_username(str(student_username).strip())
+    if not user:
+        return None
+    code = user.get("assigned_admin_code")
+    if not code:
+        return None
+    admin = await users.get_admin_by_code(str(code))
+    name = str((admin or {}).get("username") or "").strip()
+    return name or None
+
+
+def _exam_label(exam_tag: Optional[str]) -> str:
+    raw = str(exam_tag or "").strip()
+    if not raw or is_others_exam(raw):
+        return "Indian competitive exam"
+    return normalize_exam_tag(raw)
+
+
+_DIFFICULTY_ALIASES = {
+    "EASY": Difficulty.EASY,
+    "BEGINNER": Difficulty.EASY,
+    "MEDIUM": Difficulty.MEDIUM,
+    "INTERMEDIATE": Difficulty.MEDIUM,
+    "HARD": Difficulty.HARD,
+    "ADVANCED": Difficulty.HARD,
+    "EXPERT": Difficulty.EXPERT,
+}
+
+_DIFFICULTY_RE = re.compile(
+    r"(?<![A-Za-z])(easy|beginner|medium|intermediate|hard|advanced|expert)(?![A-Za-z])",
+    re.IGNORECASE,
+)
+
+
+def difficulty_from_prompt(text: Optional[str]) -> Optional[Difficulty]:
+    """Return the last difficulty named in text (EASY / MEDIUM / HARD / EXPERT)."""
+    if not text or not str(text).strip():
+        return None
+    matches = _DIFFICULTY_RE.findall(str(text))
+    if not matches:
+        return None
+    return _DIFFICULTY_ALIASES[matches[-1].upper()]
+
 
 class AIQuestionGenerator:
-    """Generate and persist AI-authored expert questions."""
+    """Generate and persist AI-authored questions."""
 
     def __init__(self) -> None:
         self._repo = QuestionRepository()
 
-    async def generate_and_store_expert_question(
+    async def generate_and_store_question(
         self,
         subject: Optional[str],
         topic: Optional[str],
+        *,
+        difficulty: Optional[Difficulty] = None,
+        exam_tag: Optional[str] = None,
+        folder_admin_username: Optional[str] = None,
     ) -> Optional[str]:
+        """Create one AI question, mark it generated, and file it under AI Generated."""
         if not ai_any_configured():
             return None
 
-        payload = await asyncio.to_thread(self._generate_question_payload, subject, topic)
+        level = difficulty or Difficulty.EXPERT
+        payload = await asyncio.to_thread(
+            self._generate_question_payload,
+            subject,
+            topic,
+            None,
+            level,
+            exam_tag,
+        )
         if not payload:
             return None
 
         try:
-            qc = self._payload_to_question_create(payload, subject=subject, topic=topic)
+            qc = self._payload_to_question_create(
+                payload,
+                subject=subject,
+                topic=topic,
+                difficulty=level,
+                exam_tag=exam_tag,
+            )
             doc = question_create_to_doc(qc)
         except Exception as exc:
-            logger.warning("Generated expert question payload failed validation: %s", exc)
+            logger.warning("Generated question payload failed validation: %s", exc)
             return None
 
         dup = await self._repo.find_ids_by_text_hash(doc["question_text"])
         if dup:
             return None
-        return await self._repo.insert_one(doc)
+        qid = await self._repo.insert_one(doc)
+        await self._file_in_ai_generated_folder(
+            qid,
+            exam_tag,
+            str(doc.get("topic") or topic or "General"),
+            folder_admin_username,
+        )
+        return qid
+
+    async def generate_and_store_expert_question(
+        self,
+        subject: Optional[str],
+        topic: Optional[str],
+        exam_tag: Optional[str] = None,
+        folder_admin_username: Optional[str] = None,
+    ) -> Optional[str]:
+        return await self.generate_and_store_question(
+            subject,
+            topic,
+            difficulty=Difficulty.EXPERT,
+            exam_tag=exam_tag,
+            folder_admin_username=folder_admin_username,
+        )
+
+    async def _file_in_ai_generated_folder(
+        self,
+        question_id: str,
+        exam_tag: Optional[str],
+        topic: Optional[str],
+        folder_admin_username: Optional[str],
+    ) -> None:
+        from app.repositories.user_repository import UserRepository
+        from app.services.question_bank_folder_service import QuestionBankFolderError, QuestionBankFolderService
+        from app.utils.exam_tags import OTHERS_EXAM_TAG
+
+        owners: List[str] = []
+        owner = str(folder_admin_username or "").strip()
+        if owner:
+            owners = [owner]
+        else:
+            admins = await UserRepository().list_by_role("admin", limit=500)
+            owners = [str(a.get("username") or "").strip() for a in admins if str(a.get("username") or "").strip()]
+
+        raw = str(exam_tag or "").strip()
+        tag = normalize_exam_tag(raw) if raw and not is_others_exam(raw) else OTHERS_EXAM_TAG
+        topic_name = str(topic or "").strip() or "General"
+        svc = QuestionBankFolderService()
+        for name in owners:
+            try:
+                await svc.ensure_path(
+                    name,
+                    tag,
+                    AI_GENERATED_FOLDER_SUBJECT,
+                    topic_name,
+                    question_id=question_id,
+                )
+            except QuestionBankFolderError as exc:
+                logger.warning("Could not file AI question %s for %s: %s", question_id, name, exc)
+            except Exception as exc:
+                logger.warning("Could not file AI question %s for %s: %s", question_id, name, exc)
 
     async def generate_expert_draft_question(
         self,
@@ -49,14 +182,27 @@ class AIQuestionGenerator:
         subject: Optional[str],
         topic: Optional[str],
     ) -> Optional[QuestionCreate]:
-        """Generate (but do not store) one EXPERT question draft from admin prompt."""
+        """Generate (but do not store) one question draft from admin prompt."""
         if not ai_any_configured():
             return None
-        payload = await asyncio.to_thread(self._generate_question_payload, subject, topic, prompt)
+        requested = difficulty_from_prompt(prompt)
+        payload = await asyncio.to_thread(
+            self._generate_question_payload,
+            subject,
+            topic,
+            prompt,
+            requested,
+            None,
+        )
         if not payload:
             return None
         try:
-            return self._payload_to_question_create(payload, subject=subject, topic=topic)
+            return self._payload_to_question_create(
+                payload,
+                subject=subject,
+                topic=topic,
+                difficulty=requested,
+            )
         except Exception as exc:
             logger.warning("Generated expert draft payload failed validation: %s", exc)
             return None
@@ -66,13 +212,23 @@ class AIQuestionGenerator:
         subject: Optional[str],
         topic: Optional[str],
         admin_prompt: Optional[str] = None,
+        requested_difficulty: Optional[Difficulty] = None,
+        exam_tag: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
-        prompt = self._build_prompt(subject, topic, admin_prompt=admin_prompt)
+        prompt = self._build_prompt(
+            subject,
+            topic,
+            admin_prompt=admin_prompt,
+            requested_difficulty=requested_difficulty,
+            exam_tag=exam_tag,
+        )
+        exam_label = _exam_label(exam_tag)
         try:
             result = chat_completion(
                 system=(
-                    "You are a CAT convener with 50+ years of experience setting high-quality "
-                    "CAT exam questions. Produce rigorous, unambiguous, test-ready questions."
+                    f"You are a senior {exam_label} paper setter with decades of experience. "
+                    f"Produce rigorous, unambiguous, test-ready questions that match {exam_label} "
+                    "style and difficulty norms."
                 ),
                 user=prompt,
                 temperature=0.7,
@@ -88,12 +244,31 @@ class AIQuestionGenerator:
             return None
 
     @staticmethod
-    def _build_prompt(subject: Optional[str], topic: Optional[str], admin_prompt: Optional[str] = None) -> str:
+    def _build_prompt(
+        subject: Optional[str],
+        topic: Optional[str],
+        admin_prompt: Optional[str] = None,
+        requested_difficulty: Optional[Difficulty] = None,
+        exam_tag: Optional[str] = None,
+    ) -> str:
         sub = (subject or "Mathematics").strip() or "Mathematics"
         top = (topic or "Mixed").strip() or "Mixed"
         user_prompt = (admin_prompt or "").strip()
+        level = (requested_difficulty or Difficulty.EXPERT).value
+        exam_label = _exam_label(exam_tag)
+        raw_exam = str(exam_tag or "").strip()
+        forced_tag = (
+            normalize_exam_tag(raw_exam)
+            if raw_exam and not is_others_exam(raw_exam)
+            else None
+        )
+        tag_rule = (
+            f'- tags MUST be ["{forced_tag}"] only.'
+            if forced_tag
+            else "- tags MUST contain exactly one exam category from: CAT, SSC, BANK, RAILWAY, DEFENCE, STATE, OTHER."
+        )
         return (
-            "Generate exactly one EXPERT-level CAT-style MCQ and return ONLY valid JSON with this shape:\n"
+            f"Generate exactly one {level}-level {exam_label}-style MCQ and return ONLY valid JSON with this shape:\n"
             "{\n"
             '  "question_text": "string",\n'
             '  "option_a": "string",\n'
@@ -104,15 +279,17 @@ class AIQuestionGenerator:
             '  "explanation": "string",\n'
             '  "subject": "string",\n'
             '  "topic": "string",\n'
+            '  "difficulty": "EASY|MEDIUM|HARD|EXPERT",\n'
             '  "tags": ["CAT|SSC|BANK|RAILWAY|DEFENCE|STATE|OTHER"]\n'
             "}\n"
             "Rules:\n"
             "- Use subject/topic close to the given context.\n"
-            "- Difficulty must be truly EXPERT.\n"
+            f"- Difficulty MUST be {level}. Set JSON difficulty to {level}. Match stem, options, and explanation to that level.\n"
+            "- If the admin prompt names EASY, MEDIUM, HARD, or EXPERT, that level overrides any other default.\n"
             "- No ambiguous wording; exactly one correct option.\n"
             "- Keep options balanced and plausible.\n"
-            "- tags MUST contain exactly one exam category from: CAT, SSC, BANK, RAILWAY, DEFENCE, STATE, OTHER.\n"
-            f"Context: subject={sub}, topic={top}\n"
+            f"{tag_rule}\n"
+            f"Context: exam={exam_label}, subject={sub}, topic={top}\n"
             f"Additional admin prompt/instruction: {user_prompt if user_prompt else '(none)'}"
         )
 
@@ -121,6 +298,8 @@ class AIQuestionGenerator:
         payload: Dict[str, Any],
         subject: Optional[str],
         topic: Optional[str],
+        difficulty: Optional[Difficulty] = None,
+        exam_tag: Optional[str] = None,
     ) -> QuestionCreate:
         opts: List[QuestionOption] = [
             QuestionOption(key="a", label=str(payload.get("option_a", "")).strip()),
@@ -134,16 +313,20 @@ class AIQuestionGenerator:
             tags = []
         # Question tags are reserved for exam categories.
         clean_tags = [str(t).strip().upper() for t in tags if str(t).strip()]
-        if not clean_tags:
+        forced = normalize_exam_tags([str(exam_tag)]) if exam_tag and str(exam_tag).strip() else []
+        if forced:
+            clean_tags = forced
+        elif not clean_tags:
             clean_tags = ["OTHER"]
 
+        resolved = difficulty or difficulty_from_prompt(str(payload.get("difficulty", "")).strip())
         return QuestionCreate(
             question_text=str(payload.get("question_text", "")).strip(),
             question_type=QuestionType.MCQ_SINGLE,
             options=opts,
             correct_answer=str(payload.get("correct_answer", "")).strip().lower(),
             explanation=str(payload.get("explanation", "")).strip() or None,
-            difficulty=Difficulty.EXPERT,
+            difficulty=resolved or Difficulty.EXPERT,
             subject=str(payload.get("subject", "")).strip() or (subject or "Mathematics"),
             topic=str(payload.get("topic", "")).strip() or (topic or "Mixed"),
             tags=clean_tags,

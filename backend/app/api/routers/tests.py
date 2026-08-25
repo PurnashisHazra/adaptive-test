@@ -84,6 +84,17 @@ async def submit_answer(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
+@router.post("/{attempt_id}/finish-section", response_model=SubmitAnswerResponse)
+async def finish_section(
+    attempt_id: str,
+    svc: TestService = Depends(get_test_service),
+) -> SubmitAnswerResponse:
+    try:
+        return await svc.finish_section_attempt(attempt_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
 @router.get("/{attempt_id}/question/{question_index}", response_model=QuestionAtIndexResponse)
 async def get_question_at_index(
     attempt_id: str,

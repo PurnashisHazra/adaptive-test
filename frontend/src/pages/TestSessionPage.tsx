@@ -5,6 +5,7 @@ import {
   endChallengeAttempt,
   endPaperAttempt,
   endTest,
+  finishTestSection,
   getMyCoachPlan,
   getQuestionAt,
   patchMarkReview,
@@ -17,7 +18,7 @@ import {
 import type { PaperNextSection, PaperResultSummary, StudentCoachPlanBundle } from "../api/types";
 import { computeCoachLiveAdvice } from "../lib/coachHints";
 import { QuestionNumpad } from "../components/QuestionNumpad";
-import { useTestSession } from "../store/testSession";
+import { useHasTestSessionHydrated, useTestSession } from "../store/testSession";
 
 function formatCountdown(totalSeconds: number) {
   const sec = Math.max(0, Math.floor(totalSeconds));
@@ -26,6 +27,15 @@ function formatCountdown(totalSeconds: number) {
   const s = sec % 60;
   if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+/** Treat naive ISO timestamps from the API as UTC (avoid instant timeout in IST). */
+function utcMillis(iso: string | null | undefined): number {
+  if (!iso) return NaN;
+  const s = iso.trim();
+  if (!s) return NaN;
+  if (/Z$/i.test(s) || /[+-]\d{2}:?\d{2}$/.test(s)) return new Date(s).getTime();
+  return new Date(`${s}Z`).getTime();
 }
 
 export function TestSessionPage() {
@@ -45,12 +55,17 @@ export function TestSessionPage() {
   const maxReachableIndex = useTestSession((s) => s.maxReachableIndex);
   const markedForReview = useTestSession((s) => s.markedForReview);
   const canSubmit = useTestSession((s) => s.canSubmit);
+  const adaptiveDisabled = useTestSession((s) => s.adaptiveDisabled);
+  const answeredIndices = useTestSession((s) => s.answeredIndices);
   const paperMeta = useTestSession((s) => s.paperMeta);
   const paperAttemptId = useTestSession((s) => s.paperAttemptId);
   const structuredKind = useTestSession((s) => s.structuredKind);
   const sectionStartedAt = useTestSession((s) => s.sectionStartedAt);
   const attemptFilters = useTestSession((s) => s.attemptFilters);
   const studentName = useTestSession((s) => s.studentName);
+  const lastSummary = useTestSession((s) => s.lastSummary);
+  const lastPaperSummary = useTestSession((s) => s.lastPaperSummary);
+  const sessionReady = useHasTestSessionHydrated();
 
   const isQuestionPaperSession = Boolean(paperMeta || paperAttemptId);
 
@@ -66,13 +81,17 @@ export function TestSessionPage() {
   const [sectionTimingOut, setSectionTimingOut] = useState(false);
   const [pendingSectionNext, setPendingSectionNext] = useState<PaperNextSection | null>(null);
   const [sectionGateReason, setSectionGateReason] = useState<"submit" | "timeout" | null>(null);
+  const [visitedIndices, setVisitedIndices] = useState<number[]>([1]);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportMessage, setReportMessage] = useState("");
   const [reportSending, setReportSending] = useState(false);
   const questionShownAtMs = useRef<number>(Date.now());
   const draftByIndex = useRef<Record<number, string>>({});
   const timeoutOnce = useRef(false);
+  const practiceTimeoutOnce = useRef(false);
   const explanationHintFetchedForQid = useRef<string | null>(null);
+  const pausedAccumMs = useRef(0);
+  const pauseStartedAt = useRef<number | null>(null);
 
   const [explanationHint, setExplanationHint] = useState<string | null>(null);
   const [explanationHintLoading, setExplanationHintLoading] = useState(false);
@@ -81,6 +100,14 @@ export function TestSessionPage() {
   useEffect(() => {
     questionShownAtMs.current = Date.now();
   }, [question?.id]);
+
+  useEffect(() => {
+    setVisitedIndices((prev) => (prev.includes(currentIndex) ? prev : [...prev, currentIndex]));
+  }, [currentIndex]);
+
+  useEffect(() => {
+    setVisitedIndices([currentIndex]);
+  }, [paperMeta?.section_index, attemptId]);
 
   useEffect(() => {
     setSecondsOnQuestion(0);
@@ -105,20 +132,46 @@ export function TestSessionPage() {
   }, [sectionStartedAt, paperMeta?.section_index]);
 
   useEffect(() => {
+    practiceTimeoutOnce.current = false;
+    pausedAccumMs.current = 0;
+    pauseStartedAt.current = null;
+  }, [attemptId]);
+
+  const timerPaused = submitting || ending || sectionTimingOut;
+  useEffect(() => {
+    if (timerPaused) {
+      if (pauseStartedAt.current == null) pauseStartedAt.current = Date.now();
+      return;
+    }
+    if (pauseStartedAt.current != null) {
+      pausedAccumMs.current += Date.now() - pauseStartedAt.current;
+      pauseStartedAt.current = null;
+    }
+  }, [timerPaused]);
+
+  useEffect(() => {
     if (!startedAt || !timeLimitSeconds || paperMeta) return;
-    const start = new Date(startedAt).getTime();
-    const id = window.setInterval(() => {
-      setElapsed(Math.floor((Date.now() - start) / 1000));
-    }, 1000);
+    const start = utcMillis(startedAt);
+    if (!Number.isFinite(start)) return;
+    const tick = () => {
+      const pauseLive = pauseStartedAt.current != null ? Date.now() - pauseStartedAt.current : 0;
+      setElapsed(Math.max(0, Math.floor((Date.now() - start - pausedAccumMs.current - pauseLive) / 1000)));
+    };
+    tick();
+    const id = window.setInterval(tick, 250);
     return () => window.clearInterval(id);
   }, [startedAt, timeLimitSeconds, paperMeta]);
 
   useEffect(() => {
     if (!paperMeta || !sectionStartedAt || !timeLimitSeconds) return;
-    const start = new Date(sectionStartedAt).getTime();
-    const id = window.setInterval(() => {
-      setSectionElapsed(Math.floor((Date.now() - start) / 1000));
-    }, 1000);
+    const start = utcMillis(sectionStartedAt);
+    if (!Number.isFinite(start)) return;
+    const tick = () => {
+      const pauseLive = pauseStartedAt.current != null ? Date.now() - pauseStartedAt.current : 0;
+      setSectionElapsed(Math.max(0, Math.floor((Date.now() - start - pausedAccumMs.current - pauseLive) / 1000)));
+    };
+    tick();
+    const id = window.setInterval(tick, 250);
     return () => window.clearInterval(id);
   }, [paperMeta, sectionStartedAt, timeLimitSeconds]);
 
@@ -165,7 +218,71 @@ export function TestSessionPage() {
         setSectionTimingOut(false);
       }
     })();
-  }, [sectionRemaining, paperMeta, paperAttemptId, setLastPaperSummary, nav, pendingSectionNext]);
+  }, [sectionRemaining, paperMeta, paperAttemptId, setLastPaperSummary, nav, pendingSectionNext, structuredKind, sectionTimingOut]);
+
+  useEffect(() => {
+    if (!sessionReady || paperMeta || !attemptId) return;
+    if (remaining == null || remaining > 0) return;
+    if (practiceTimeoutOnce.current || ending || submitting) return;
+    practiceTimeoutOnce.current = true;
+    setEnding(true);
+    void (async () => {
+      try {
+        const summary = await endTest(attemptId);
+        setAfterSubmit({
+          nextQuestion: null,
+          questionIndex: null,
+          summary,
+        });
+        nav("/result");
+      } catch (err: unknown) {
+        practiceTimeoutOnce.current = false;
+        const msg =
+          err && typeof err === "object" && "response" in err
+            ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+            : undefined;
+        toast.error(typeof msg === "string" ? msg : "Time expired — could not save the test");
+      } finally {
+        setEnding(false);
+      }
+    })();
+  }, [sessionReady, remaining, paperMeta, attemptId, ending, submitting, setAfterSubmit, nav]);
+
+  const headerTabs = useMemo(() => {
+    if (paperMeta) {
+      return Array.from({ length: paperMeta.total_sections }, (_, i) => ({
+        key: `sec-${i}`,
+        label: `S${i + 1}`,
+        active: i === paperMeta.section_index,
+        title:
+          i === paperMeta.section_index && paperMeta.section_title
+            ? paperMeta.section_title
+            : `Section ${i + 1}`,
+      }));
+    }
+    const raw = [attemptFilters?.subject, attemptFilters?.topic, attemptFilters?.exam_tag].filter(
+      (x): x is string => Boolean(x?.trim()),
+    );
+    const labels = raw.length > 0 ? raw : ["Adaptive"];
+    const subj = question?.subject?.trim();
+    const topic = question?.topic?.trim();
+    let activePos = labels.findIndex((l) => l === subj);
+    if (activePos < 0) activePos = labels.findIndex((l) => l === topic);
+    if (activePos < 0) activePos = 0;
+    return labels.slice(0, 5).map((label, i) => ({
+      key: `fl-${i}`,
+      label: label.length > 14 ? `${label.slice(0, 12)}…` : label,
+      active: i === activePos,
+      title: label,
+    }));
+  }, [
+    paperMeta,
+    attemptFilters?.subject,
+    attemptFilters?.topic,
+    attemptFilters?.exam_tag,
+    question?.subject,
+    question?.topic,
+  ]);
 
   useEffect(() => {
     if (isQuestionPaperSession) {
@@ -265,6 +382,10 @@ export function TestSessionPage() {
     questionShownAtMs.current = Date.now();
   }
 
+  if (!sessionReady) {
+    return <div className="page">Loading…</div>;
+  }
+
   if (paperMeta && pendingSectionNext) {
     const completedN = paperMeta.section_index + 1;
     const nextN = pendingSectionNext.paper.section_index + 1;
@@ -294,15 +415,22 @@ export function TestSessionPage() {
     );
   }
 
+  if (lastSummary || lastPaperSummary) {
+    return <Navigate to="/result" replace />;
+  }
+
   if (!attemptId || !question) {
-    return <Navigate to="/" replace />;
+    if (structuredKind === "challenge") return <Navigate to="/" replace />;
+    if (structuredKind === "paper") return <Navigate to="/papers" replace />;
+    return <Navigate to="/take-test" replace />;
   }
 
   const stableAttemptId = attemptId;
   const currentQuestion = question;
 
   async function goToQuestion(idx: number) {
-    if (idx < 1 || idx > maxReachableIndex) return;
+    const reach = adaptiveDisabled ? totalQuestions : maxReachableIndex;
+    if (idx < 1 || idx > reach) return;
     if (idx === currentIndex) return;
     setLoadingIndex(idx);
     try {
@@ -314,9 +442,11 @@ export function TestSessionPage() {
         maxReachableIndex: res.max_reachable_index,
         markedForReview: res.marked_for_review,
         canSubmit: res.can_submit,
+        adaptiveDisabled: res.adaptive_disabled,
+        answeredIndices: res.answered_indices,
       });
-      if (res.can_submit) {
-        setSelected(draftByIndex.current[idx] ?? null);
+      if (adaptiveDisabled || res.can_submit) {
+        setSelected(draftByIndex.current[idx] ?? res.chosen_answer ?? null);
       } else {
         setSelected(res.chosen_answer ?? null);
       }
@@ -384,15 +514,38 @@ export function TestSessionPage() {
         return;
       }
     }
-    if (currentIndex < maxReachableIndex) {
+    if (currentIndex < (adaptiveDisabled ? totalQuestions : maxReachableIndex)) {
       await goToQuestion(currentIndex + 1);
     }
   }
 
-  function onClearResponse() {
-    if (!canSubmit || loadingIndex != null || sectionTimingOut) return;
+  async function onClearResponse() {
+    if (loadingIndex != null || sectionTimingOut) return;
+    if (!adaptiveDisabled && !canSubmit) return;
     setSelected(null);
     delete draftByIndex.current[currentIndex];
+    if (!adaptiveDisabled) return;
+    setSubmitting(true);
+    try {
+      const res = await submitAnswer(stableAttemptId, {
+        question_id: currentQuestion.id,
+        chosen_answer: "",
+      });
+      applyNavigate({
+        question: currentQuestion,
+        questionIndex: currentIndex,
+        questionsAnswered: res.questions_answered ?? 0,
+        maxReachableIndex: res.max_reachable_index ?? totalQuestions,
+        markedForReview: res.marked_for_review ?? markedForReview,
+        canSubmit: true,
+        adaptiveDisabled: true,
+        answeredIndices: res.answered_indices,
+      });
+    } catch {
+      toast.error("Could not clear response");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function onEndTest() {
@@ -434,8 +587,16 @@ export function TestSessionPage() {
 
   const isTita = currentQuestion.question_type === "tita";
   const isLastQuestion = currentIndex >= totalQuestions;
-  const primaryActionLabel =
-    submitting ? "Checking…" : paperMeta && isLastQuestion ? "Submit paper" : "Save & next";
+  const hasMoreSections = Boolean(paperMeta && paperMeta.section_index + 1 < paperMeta.total_sections);
+  const primaryActionLabel = submitting
+    ? "Checking…"
+    : adaptiveDisabled
+      ? isLastQuestion
+        ? "Save"
+        : "Save & next"
+      : paperMeta && isLastQuestion
+        ? "Submit paper"
+        : "Save & next";
 
   async function navigateToStructuredResult(summary?: PaperResultSummary | null) {
     if (summary) {
@@ -483,6 +644,47 @@ export function TestSessionPage() {
     }
   }
 
+  async function applySectionFinish(res: Awaited<ReturnType<typeof finishTestSection>>) {
+    if (res.paper_summary) {
+      setLastPaperSummary(res.paper_summary);
+      nav("/result");
+      return;
+    }
+    if (res.paper_next) {
+      setPendingSectionNext(res.paper_next);
+      setSectionGateReason("submit");
+      setSelected(null);
+      draftByIndex.current = {};
+      return;
+    }
+    if (paperMeta && paperAttemptId) {
+      await finalizeStructuredSessionAfterSubmit();
+    }
+  }
+
+  async function onFinishSection() {
+    if (loadingIndex != null || sectionTimingOut || submitting) return;
+    const ok = window.confirm(
+      hasMoreSections
+        ? "Submit this section and continue? You cannot return to these questions."
+        : "Submit this section and finish the test?",
+    );
+    if (!ok) return;
+    setSubmitting(true);
+    try {
+      const res = await finishTestSection(stableAttemptId);
+      await applySectionFinish(res);
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === "object" && "response" in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
+      toast.error(typeof msg === "string" ? msg : "Could not submit section");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function onSubmit() {
     if (isTita) {
       if (selected == null || !selected.trim()) {
@@ -493,7 +695,7 @@ export function TestSessionPage() {
       toast.error("Select an answer");
       return;
     }
-    if (!canSubmit) {
+    if (!adaptiveDisabled && !canSubmit) {
       toast.error("You can only submit on the current active question");
       return;
     }
@@ -506,6 +708,25 @@ export function TestSessionPage() {
         elapsed_seconds: secondsOnQuestion,
       });
       delete draftByIndex.current[currentIndex];
+
+      if (adaptiveDisabled) {
+        setAfterSubmit({
+          nextQuestion: currentQuestion,
+          questionIndex: currentIndex,
+          summary: null,
+          markedForReview: res.marked_for_review,
+          questionsAnswered: res.questions_answered,
+          maxReachableIndex: res.max_reachable_index,
+          adaptiveDisabled: true,
+          answeredIndices: res.answered_indices,
+        });
+        if (isLastQuestion) {
+          toast.success("Saved");
+        } else {
+          await goToQuestion(currentIndex + 1);
+        }
+        return;
+      }
 
       if (res.paper_summary) {
         setLastPaperSummary(res.paper_summary);
@@ -561,43 +782,7 @@ export function TestSessionPage() {
   }
 
   const progress = totalQuestions > 0 ? (questionsAnswered / totalQuestions) * 100 : 0;
-  const optionsDisabled = !canSubmit || loadingIndex != null || sectionTimingOut;
-
-  const headerTabs = useMemo(() => {
-    if (paperMeta) {
-      return Array.from({ length: paperMeta.total_sections }, (_, i) => ({
-        key: `sec-${i}`,
-        label: `S${i + 1}`,
-        active: i === paperMeta.section_index,
-        title:
-          i === paperMeta.section_index && paperMeta.section_title
-            ? paperMeta.section_title
-            : `Section ${i + 1}`,
-      }));
-    }
-    const raw = [attemptFilters?.subject, attemptFilters?.topic, attemptFilters?.exam_tag].filter(
-      (x): x is string => Boolean(x?.trim())
-    );
-    const labels = raw.length > 0 ? raw : ["Adaptive"];
-    const subj = currentQuestion.subject?.trim();
-    const topic = currentQuestion.topic?.trim();
-    let activePos = labels.findIndex((l) => l === subj);
-    if (activePos < 0) activePos = labels.findIndex((l) => l === topic);
-    if (activePos < 0) activePos = 0;
-    return labels.slice(0, 5).map((label, i) => ({
-      key: `fl-${i}`,
-      label: label.length > 14 ? `${label.slice(0, 12)}…` : label,
-      active: i === activePos,
-      title: label,
-    }));
-  }, [
-    paperMeta,
-    attemptFilters?.subject,
-    attemptFilters?.topic,
-    attemptFilters?.exam_tag,
-    currentQuestion.subject,
-    currentQuestion.topic,
-  ]);
+  const optionsDisabled = (!adaptiveDisabled && !canSubmit) || loadingIndex != null || sectionTimingOut;
 
   const timerSeconds = sectionRemaining ?? remaining;
   const timerWarn = timerSeconds != null && timerSeconds < 120;
@@ -607,8 +792,12 @@ export function TestSessionPage() {
   const marksLine = paperMeta
     ? `Marks for correct answer ${paperMeta.marks_per_correct} | Negative marks ${paperMeta.marks_per_incorrect}`
     : "Marks follow your course settings";
-  const notVisitedCount = Math.max(0, totalQuestions - maxReachableIndex);
-  const pendingInReach = Math.max(0, maxReachableIndex - questionsAnswered);
+  const answeredCount = adaptiveDisabled ? answeredIndices.length : questionsAnswered;
+  const reach = adaptiveDisabled ? totalQuestions : maxReachableIndex;
+  const notVisitedCount = adaptiveDisabled
+    ? Math.max(0, totalQuestions - new Set([...visitedIndices, ...answeredIndices]).size)
+    : Math.max(0, totalQuestions - maxReachableIndex);
+  const pendingInReach = Math.max(0, reach - answeredCount);
   const displayName = studentName.trim() || "Student";
   const initials = displayName
     .split(/\s+/)
@@ -670,7 +859,7 @@ export function TestSessionPage() {
           type="button"
           className="test-exam-section-bar__nav"
           aria-label="Next question"
-          disabled={currentIndex >= maxReachableIndex || loadingIndex != null || sectionTimingOut}
+          disabled={currentIndex >= reach || loadingIndex != null || sectionTimingOut}
           onClick={() => goToQuestion(currentIndex + 1)}
         >
           ›
@@ -678,7 +867,7 @@ export function TestSessionPage() {
       </div>
 
       <div className="test-exam-progress">
-        <div className="test-exam-progress__fill" style={{ width: `${progress}%` }} />
+        <div className="test-exam-progress__fill" style={{ width: `${totalQuestions > 0 ? (answeredCount / totalQuestions) * 100 : 0}%` }} />
       </div>
 
       <div className="test-exam-body">
@@ -788,6 +977,11 @@ export function TestSessionPage() {
               {currentQuestion.sub_question_index && currentQuestion.passage
                 ? ` · RC ${currentQuestion.sub_question_index}`
                 : ""}
+              {currentQuestion.is_ai_generated ? (
+                <span className="test-exam-ai-badge" title="This question was generated by AI for this exam category">
+                  AI generated
+                </span>
+              ) : null}
             </h2>
             <p className="test-exam-stem">{currentQuestion.question_text}</p>
             <div className="test-exam-options">
@@ -839,11 +1033,25 @@ export function TestSessionPage() {
                 className="test-exam-footer__btn test-exam-footer__btn--primary"
                 onClick={onSubmit}
                 disabled={
-                  submitting || !canSubmit || loadingIndex != null || sectionTimingOut || (isTita ? !selected?.trim() : selected == null)
+                  submitting ||
+                  (!adaptiveDisabled && !canSubmit) ||
+                  loadingIndex != null ||
+                  sectionTimingOut ||
+                  (isTita ? !selected?.trim() : selected == null)
                 }
               >
                 {primaryActionLabel}
               </button>
+              {adaptiveDisabled && paperMeta ? (
+                <button
+                  type="button"
+                  className="test-exam-footer__btn"
+                  onClick={() => void onFinishSection()}
+                  disabled={submitting || loadingIndex != null || sectionTimingOut}
+                >
+                  {hasMoreSections ? "Submit section" : "Submit paper"}
+                </button>
+              ) : null}
               <div className="test-exam-question-actions__row">
                 <button
                   type="button"
@@ -856,15 +1064,15 @@ export function TestSessionPage() {
                 <button
                   type="button"
                   className="test-exam-footer__btn"
-                  onClick={onClearResponse}
-                  disabled={!canSubmit || loadingIndex != null || sectionTimingOut}
+                  onClick={() => void onClearResponse()}
+                  disabled={(!adaptiveDisabled && !canSubmit) || loadingIndex != null || sectionTimingOut}
                 >
                   Clear response
                 </button>
               </div>
             </div>
 
-            {!canSubmit ? (
+            {!canSubmit && !adaptiveDisabled ? (
               <p className="test-exam-review-note">You are reviewing a submitted answer. Only the active question can be changed.</p>
             ) : null}
           </div>
@@ -882,7 +1090,7 @@ export function TestSessionPage() {
           <div className="test-exam-legend-counts" aria-label="Question status summary">
             <span>
               <span>Answered</span>
-              <strong>{questionsAnswered}</strong>
+              <strong>{answeredCount}</strong>
             </span>
             <span>
               <span>Not answered (in reach)</span>
@@ -905,6 +1113,9 @@ export function TestSessionPage() {
             markedForReview={markedForReview}
             loadingIndex={loadingIndex}
             onSelect={goToQuestion}
+            freeNavigation={adaptiveDisabled}
+            answeredIndices={answeredIndices}
+            visitedIndices={visitedIndices}
             embedded
             compact
           />
@@ -934,17 +1145,31 @@ export function TestSessionPage() {
           <button type="button" className="test-exam-footer__btn" onClick={onMarkReviewAndNext} disabled={loadingIndex != null || sectionTimingOut}>
             Mark for review &amp; next
           </button>
-          <button type="button" className="test-exam-footer__btn" onClick={onClearResponse} disabled={!canSubmit || loadingIndex != null || sectionTimingOut}>
+          <button type="button" className="test-exam-footer__btn" onClick={() => void onClearResponse()} disabled={(!adaptiveDisabled && !canSubmit) || loadingIndex != null || sectionTimingOut}>
             Clear response
           </button>
         </div>
         <div className="test-exam-footer__right">
+          {adaptiveDisabled && paperMeta ? (
+            <button
+              type="button"
+              className="test-exam-footer__btn"
+              onClick={() => void onFinishSection()}
+              disabled={submitting || loadingIndex != null || sectionTimingOut}
+            >
+              {hasMoreSections ? "Submit section" : "Submit paper"}
+            </button>
+          ) : null}
           <button
             type="button"
             className="test-exam-footer__btn test-exam-footer__btn--primary"
             onClick={onSubmit}
             disabled={
-              submitting || !canSubmit || loadingIndex != null || sectionTimingOut || (isTita ? !selected?.trim() : selected == null)
+              submitting ||
+              (!adaptiveDisabled && !canSubmit) ||
+              loadingIndex != null ||
+              sectionTimingOut ||
+              (isTita ? !selected?.trim() : selected == null)
             }
           >
             {primaryActionLabel}

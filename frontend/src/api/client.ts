@@ -210,6 +210,11 @@ export async function listQuestions(
   return data;
 }
 
+export async function listQuestionsByIds(question_ids: string[]) {
+  const { data } = await api.post<QuestionAdmin[]>("/questions/by-ids", { question_ids });
+  return data;
+}
+
 export async function countQuestions() {
   const { data } = await api.get<{ total: number }>("/questions/count");
   return data.total;
@@ -530,7 +535,9 @@ export async function getTestSubjects() {
 }
 
 export async function submitAnswer(attemptId: string, body: { question_id: string; chosen_answer: string; elapsed_seconds?: number }) {
-  const { data } = await api.post<SubmitAnswerResponse>(`/tests/${attemptId}/answer`, body);
+  const { data } = await api.post<SubmitAnswerResponse>(`/tests/${attemptId}/answer`, body, {
+    timeout: 120_000,
+  });
   return data;
 }
 
@@ -539,6 +546,11 @@ export async function postCoachExplanationHint(attemptId: string, body: { questi
     `/tests/${encodeURIComponent(attemptId)}/coach-explanation-hint`,
     body,
   );
+  return data;
+}
+
+export async function finishTestSection(attemptId: string) {
+  const { data } = await api.post<SubmitAnswerResponse>(`/tests/${attemptId}/finish-section`);
   return data;
 }
 

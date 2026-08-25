@@ -10,13 +10,23 @@ function kindForIndex(
   totalQuestions: number,
   maxReachableIndex: number,
   questionsAnswered: number,
-  markedForReview: Set<number>
+  markedForReview: Set<number>,
+  answeredIndices?: Set<number>,
+  visitedIndices?: Set<number>,
+  freeNavigation?: boolean,
 ): NumpadCellVisual {
   if (index > totalQuestions) return "locked";
-  if (index > maxReachableIndex) return "locked";
+  if (!freeNavigation && index > maxReachableIndex) return "locked";
   const marked = markedForReview.has(index);
-  if (index <= questionsAnswered) {
+  const answered = answeredIndices ? answeredIndices.has(index) : index <= questionsAnswered;
+  if (answered) {
     return marked ? "answeredMarked" : "answered";
+  }
+  if (freeNavigation) {
+    if (visitedIndices?.has(index) || marked) {
+      return marked ? "markedUnanswered" : "visitedUnanswered";
+    }
+    return "locked";
   }
   if (index === questionsAnswered + 1) {
     return marked ? "markedUnanswered" : "visitedUnanswered";
@@ -36,6 +46,9 @@ export function QuestionNumpad(props: {
   embedded?: boolean;
   /** Smaller cells for dense sidebar */
   compact?: boolean;
+  freeNavigation?: boolean;
+  answeredIndices?: number[];
+  visitedIndices?: number[];
 }) {
   const {
     totalQuestions,
@@ -47,8 +60,13 @@ export function QuestionNumpad(props: {
     onSelect,
     embedded = false,
     compact = false,
+    freeNavigation = false,
+    answeredIndices,
+    visitedIndices,
   } = props;
   const marked = new Set(markedForReview);
+  const answeredSet = answeredIndices ? new Set(answeredIndices) : undefined;
+  const visitedSet = visitedIndices ? new Set(visitedIndices) : undefined;
 
   const cells = Array.from({ length: totalQuestions }, (_, i) => i + 1);
 
@@ -62,8 +80,17 @@ export function QuestionNumpad(props: {
       <p className="qnp-title">Question palette</p>
       <div className="qnp-grid">
         {cells.map((n) => {
-          const kind = kindForIndex(n, totalQuestions, maxReachableIndex, questionsAnswered, marked);
-          const enabled = n <= maxReachableIndex && n >= 1;
+          const kind = kindForIndex(
+            n,
+            totalQuestions,
+            maxReachableIndex,
+            questionsAnswered,
+            marked,
+            answeredSet,
+            visitedSet,
+            freeNavigation,
+          );
+          const enabled = n >= 1 && n <= (freeNavigation ? totalQuestions : maxReachableIndex);
           const isCurrent = n === currentIndex;
           const loading = loadingIndex === n;
           return (

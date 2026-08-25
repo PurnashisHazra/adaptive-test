@@ -21,6 +21,7 @@ from app.schemas.question import (
     QuestionAdmin,
     QuestionBankFolderTree,
     QuestionCreate,
+    QuestionIdsLookupRequest,
     QuestionListRequest,
     QuestionUpdate,
 )
@@ -119,6 +120,18 @@ async def list_questions_post(
         page_size=body.page_size,
     )
     return Paginated(items=[QuestionAdmin.model_validate(i) for i in items], total=total, page=body.page, page_size=body.page_size)
+
+
+@router.post("/by-ids", response_model=List[QuestionAdmin])
+async def list_questions_by_ids(
+    body: QuestionIdsLookupRequest,
+    svc: QuestionService = Depends(get_question_service),
+    claims: dict = Depends(require_admin),
+) -> List[QuestionAdmin]:
+    """Return questions in the given id order (missing or disallowed ids are omitted)."""
+    admin = str(claims.get("sub", ""))
+    items = await svc.list_admin_by_ids(admin, body.question_ids)
+    return [QuestionAdmin.model_validate(i) for i in items]
 
 
 @router.get("/count")

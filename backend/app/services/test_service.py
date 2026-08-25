@@ -19,12 +19,13 @@ from app.schemas.attempt import (
     SubmitAnswerResponse,
     TestStartResponse,
 )
-from app.services.ai_question_generator import AIQuestionGenerator
+from app.services.ai_question_generator import AIQuestionGenerator, resolve_folder_admin_username
 from app.services.adaptive_engine import get_next_difficulty, get_next_question_id
+from app.utils.exam_tags import exam_folder_for_tags
 from app.services.explanation_hint_openai import request_openai_explanation_hint
 from app.services.rc_set_service import RcSetService
 from app.utils.ids import oid_str
-from app.utils.attempt_scoring import standalone_accuracy_stats
+from app.utils.attempt_scoring import classify_answers, is_answer_attempted, standalone_accuracy_stats
 
 
 def _utc_now() -> datetime:
@@ -47,6 +48,7 @@ def _base_student_payload(doc: Dict[str, Any]) -> QuestionPayload:
         image_url=img or None,
         difficulty=diff or None,
         sub_question_index=int(sub_idx) if sub_idx is not None else None,
+        is_ai_generated=bool(doc.get("is_ai_generated", False)),
     )
 
 
@@ -60,6 +62,15 @@ async def _to_student_payload(doc: Dict[str, Any], rc_svc: Optional[RcSetService
     return payload
 
 
+def _exam_tag_for_generation(att: Dict[str, Any], qdoc: Optional[Dict[str, Any]] = None) -> Optional[str]:
+    et = att.get("exam_tag_filter")
+    if et and str(et).strip():
+        return str(et).strip()
+    if qdoc:
+        return exam_folder_for_tags(qdoc.get("tags") or [])
+    return None
+
+
 def _attempt_filters_from_doc(doc: Dict[str, Any]) -> AttemptSessionFilters:
     et = doc.get("exam_tag_filter")
     exam = str(et).strip().upper() if et else None
@@ -68,6 +79,40 @@ def _attempt_filters_from_doc(doc: Dict[str, Any]) -> AttemptSessionFilters:
         topic=str(doc["topic_filter"]).strip() if doc.get("topic_filter") else None,
         exam_tag=exam or None,
     )
+
+
+def _non_adaptive_qids(att: Dict[str, Any]) -> List[str]:
+    seq = att.get("pool_sequence")
+    if isinstance(seq, list) and seq:
+        out = [str(x).strip() for x in seq if str(x).strip()]
+        if out:
+            return out
+    return [str(x).strip() for x in (att.get("question_ids") or []) if str(x).strip()]
+
+
+def _answers_by_qid(answers: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    out: Dict[str, Dict[str, Any]] = {}
+    for a in answers:
+        qid = str(a.get("question_id") or "").strip()
+        if qid:
+            out[qid] = a
+    return out
+
+
+def _answered_indices(qids: List[str], answers: List[Dict[str, Any]]) -> List[int]:
+    by_qid = _answers_by_qid(answers)
+    return [i for i, qid in enumerate(qids, 1) if is_answer_attempted(by_qid.get(qid) or {})]
+
+
+def _resume_question_index(att: Dict[str, Any]) -> int:
+    qids = _non_adaptive_qids(att)
+    if not qids:
+        return 1
+    answered = set(_answered_indices(qids, list(att.get("answers") or [])))
+    for i in range(1, len(qids) + 1):
+        if i not in answered:
+            return i
+    return 1
 
 
 def _answers_equal(correct: str, chosen: str, question_type: str) -> bool:
@@ -159,6 +204,7 @@ class TestService:
         question_pool_ids: Optional[List[str]] = None,
         student_username: Optional[str] = None,
         adaptive_disabled: bool = False,
+        preserve_pool_order: bool = False,
     ) -> TestStartResponse:
         profile_svc = StudentProfileService()
         if student_username:
@@ -182,13 +228,15 @@ class TestService:
             time_limit_seconds = int(cfg.get("default_time_limit_seconds", 1800))
 
         pool_sequence: Optional[List[str]] = None
+        first_diff = Difficulty.EASY
         if adaptive_disabled and pool:
-            import random
+            sequence = list(pool)
+            if not preserve_pool_order:
+                import random
 
-            shuffled = list(pool)
-            random.shuffle(shuffled)
-            take = min(int(total_questions), len(shuffled))
-            pool_sequence = shuffled[:take]
+                random.shuffle(sequence)
+            take = min(int(total_questions), len(sequence))
+            pool_sequence = sequence[:take]
             first_id = pool_sequence[0] if pool_sequence else None
         else:
             seq = _parse_difficulty_sequence(cfg)
@@ -203,6 +251,15 @@ class TestService:
                 exam_tag,
                 pool,
             )
+        if not first_id and not adaptive_disabled and not pool:
+            folder_admin = await resolve_folder_admin_username(student_username)
+            first_id = await self._ai_generator.generate_and_store_question(
+                subject,
+                topic,
+                difficulty=first_diff,
+                exam_tag=exam_tag,
+                folder_admin_username=folder_admin,
+            )
         if not first_id:
             raise ValueError(
                 "No questions available for this section (check filters or question set and difficulty mix)."
@@ -215,7 +272,7 @@ class TestService:
             "planned_total_questions": total_questions,
             "questions_answered": 0,
             "score": 0,
-            "question_ids": [first_id],
+            "question_ids": list(pool_sequence) if (adaptive_disabled and pool_sequence) else [first_id],
             "answers": [],
             "marked_for_review": [],
             "subject_filter": subject,
@@ -240,19 +297,36 @@ class TestService:
         aid = await self._attempts.insert(doc)
         qdoc = await self._questions.get_by_id(first_id)
         assert qdoc is not None
+        reachable = len(doc["question_ids"]) if adaptive_disabled else 1
+        started_at = doc.get("started_at") or _utc_now()
+        if getattr(started_at, "tzinfo", None) is None:
+            started_at = started_at.replace(tzinfo=timezone.utc)
         return TestStartResponse(
             attempt_id=aid,
             question=await _to_student_payload(qdoc, self._rc_sets),
             question_index=1,
             total_questions=total_questions,
             time_limit_seconds=time_limit_seconds,
-            started_at=doc["started_at"],
+            started_at=started_at,
             marked_for_review=[],
             questions_answered=0,
-            max_reachable_index=1,
+            max_reachable_index=reachable,
             can_submit=True,
+            adaptive_disabled=adaptive_disabled,
+            answered_indices=[],
             attempt_filters=_attempt_filters_from_doc(doc),
         )
+
+    async def _ensure_non_adaptive_sequence(self, attempt_id: str, att: Dict[str, Any]) -> Dict[str, Any]:
+        if not att.get("adaptive_disabled"):
+            return att
+        sequence = _non_adaptive_qids(att)
+        served = [str(x).strip() for x in (att.get("question_ids") or []) if str(x).strip()]
+        if not sequence or served == sequence:
+            return att
+        await self._attempts.update(attempt_id, {"question_ids": sequence})
+        att["question_ids"] = sequence
+        return att
 
     async def submit_answer(
         self,
@@ -267,6 +341,10 @@ class TestService:
             raise ValueError("Attempt not found")
         if att.get("status") != AttemptStatus.IN_PROGRESS.value:
             raise ValueError("Attempt already completed")
+        if att.get("adaptive_disabled"):
+            return await self._submit_non_adaptive_answer(
+                attempt_id, att, question_id, chosen_answer, time_spent_seconds
+            )
 
         total = int(att["total_questions"])
         answered = int(att.get("questions_answered", 0))
@@ -355,21 +433,23 @@ class TestService:
         should_generate_expert = not non_adaptive and not pool_active and (
             (last_diff == Difficulty.EXPERT and is_correct) or (hard_pair_topic is not None)
         )
+        folder_admin = await resolve_folder_admin_username(
+            str(att.get("student_username") or "").strip() or None
+        )
+        gen_exam = _exam_tag_for_generation(att, qdoc)
+        gen_subject = att.get("subject_filter") or qdoc.get("subject")
+        gen_topic = hard_pair_topic or att.get("topic_filter") or qdoc.get("topic")
         if should_generate_expert:
             # If student succeeds at EXPERT OR solves two HARD questions in same topic,
             # create a fresh EXPERT question via AI.
-            next_qid = await self._ai_generator.generate_and_store_expert_question(
-                subject=att.get("subject_filter") or qdoc.get("subject"),
-                topic=hard_pair_topic or att.get("topic_filter") or qdoc.get("topic"),
+            next_qid = await self._ai_generator.generate_and_store_question(
+                gen_subject,
+                gen_topic,
+                difficulty=Difficulty.EXPERT,
+                exam_tag=gen_exam,
+                folder_admin_username=folder_admin,
             )
             generated = bool(next_qid)
-
-        generation_seconds = int(max(0.0, perf_counter() - generation_started))
-        if generated and generation_seconds > 0:
-            base = int(answer_entry.get("time_spent_seconds", 0) or 0)
-            answer_entry["time_spent_seconds"] = base + generation_seconds
-            answers[-1] = answer_entry
-            patch["answers"] = answers
 
         if not next_qid:
             pool_for_next: Optional[List[str]] = None
@@ -385,6 +465,23 @@ class TestService:
                 att.get("exam_tag_filter"),
                 pool_for_next,
             )
+        if not next_qid and not pool_active:
+            next_qid = await self._ai_generator.generate_and_store_question(
+                gen_subject,
+                gen_topic,
+                difficulty=next_diff,
+                exam_tag=gen_exam,
+                folder_admin_username=folder_admin,
+            )
+            generated = generated or bool(next_qid)
+
+        generation_seconds = int(max(0.0, perf_counter() - generation_started))
+        if generated and generation_seconds > 0:
+            base = int(answer_entry.get("time_spent_seconds", 0) or 0)
+            answer_entry["time_spent_seconds"] = base + generation_seconds
+            answers[-1] = answer_entry
+            patch["answers"] = answers
+
         if not next_qid:
             patch["status"] = AttemptStatus.COMPLETED.value
             patch["completed_at"] = _utc_now()
@@ -425,6 +522,116 @@ class TestService:
             max_reachable_index=len(qids_after),
             paper_next=None,
             paper_summary=None,
+        )
+
+    async def _submit_non_adaptive_answer(
+        self,
+        attempt_id: str,
+        att: Dict[str, Any],
+        question_id: str,
+        chosen_answer: str,
+        time_spent_seconds: Optional[int] = None,
+    ) -> SubmitAnswerResponse:
+        att = await self._ensure_non_adaptive_sequence(attempt_id, att)
+        qids = [str(x).strip() for x in (att.get("question_ids") or []) if str(x).strip()]
+        qid = str(question_id).strip()
+        try:
+            pos = qids.index(qid)
+        except ValueError as exc:
+            raise ValueError("Question is not part of this test") from exc
+
+        qdoc = await self._questions.get_by_id(qid)
+        if not qdoc:
+            raise ValueError("Question not found")
+
+        chosen = (chosen_answer or "").strip()
+        last_diff = Difficulty(qdoc["difficulty"])
+        is_attempted = bool(chosen)
+        is_correct = _answers_equal(qdoc["correct_answer"], chosen, qdoc["question_type"]) if is_attempted else False
+        answer_entry: Dict[str, Any] = {
+            "question_id": qid,
+            "chosen_answer": chosen,
+            "is_correct": is_correct,
+            "is_attempted": is_attempted,
+            "difficulty_when_served": last_diff.value,
+            "topic_when_served": str(qdoc.get("topic", "")).strip() or None,
+            "target_difficulty_after": last_diff.value,
+        }
+        if time_spent_seconds is not None:
+            answer_entry["time_spent_seconds"] = int(time_spent_seconds)
+
+        answers = list(att.get("answers") or [])
+        replaced = False
+        for i, row in enumerate(answers):
+            if str(row.get("question_id") or "").strip() == qid:
+                answers[i] = answer_entry
+                replaced = True
+                break
+        if not replaced:
+            answers.append(answer_entry)
+
+        correct, _wrong = classify_answers(answers)
+        questions_answered = correct + _wrong
+        await self._attempts.update(
+            attempt_id,
+            {
+                "answers": answers,
+                "questions_answered": questions_answered,
+                "score": correct,
+            },
+        )
+
+        next_pos = pos + 1 if pos + 1 < len(qids) else pos
+        next_qid = qids[next_pos]
+        nq = await self._questions.get_by_id(next_qid)
+        assert nq is not None
+        mf = [int(x) for x in (att.get("marked_for_review") or [])]
+        return SubmitAnswerResponse(
+            is_correct=is_correct,
+            explanation=qdoc.get("explanation") if is_attempted else None,
+            completed=False,
+            next_question=await _to_student_payload(nq, self._rc_sets),
+            question_index=next_pos + 1,
+            summary=None,
+            marked_for_review=mf,
+            questions_answered=questions_answered,
+            max_reachable_index=len(qids),
+            paper_next=None,
+            paper_summary=None,
+            adaptive_disabled=True,
+            answered_indices=_answered_indices(qids, answers),
+        )
+
+    async def finish_section_attempt(self, attempt_id: str) -> SubmitAnswerResponse:
+        att = await self._attempts.get(attempt_id)
+        if not att:
+            raise ValueError("Attempt not found")
+        if att.get("status") != AttemptStatus.IN_PROGRESS.value:
+            raise ValueError("Attempt already completed")
+        if not (att.get("paper_attempt_id") or att.get("challenge_attempt_id")):
+            raise ValueError("This attempt is not part of a sectioned test")
+        att = await self._ensure_non_adaptive_sequence(attempt_id, att)
+        answers = list(att.get("answers") or [])
+        correct, _wrong = classify_answers(answers)
+        patch: Dict[str, Any] = {
+            "status": AttemptStatus.COMPLETED.value,
+            "completed_at": _utc_now(),
+            "questions_answered": correct + _wrong,
+            "score": correct,
+            "completion_reason": "section_submitted",
+        }
+        await self._attempts.update(attempt_id, patch)
+        att_done = await self._attempts.get(attempt_id) or att
+        mf = [int(x) for x in (att_done.get("marked_for_review") or [])]
+        return await self._submit_completed_response(
+            att_done=att_done,
+            attempt_id=attempt_id,
+            is_correct=False,
+            explanation=None,
+            new_answered=correct + _wrong,
+            answers=answers,
+            new_score=correct,
+            mf=mf,
         )
 
     async def force_complete_attempt_timeout(self, attempt_id: str) -> None:
@@ -501,7 +708,9 @@ class TestService:
             raise ValueError("Attempt not found")
         if att.get("status") != AttemptStatus.IN_PROGRESS.value:
             raise ValueError("Attempt already completed")
-        served_ids = list(att.get("question_ids", []))
+        if att.get("adaptive_disabled"):
+            att = await self._ensure_non_adaptive_sequence(attempt_id, att)
+        served_ids = [str(x).strip() for x in (att.get("question_ids") or []) if str(x).strip()]
         if question_index < 1 or question_index > len(served_ids):
             raise ValueError("Question does not exist yet")
         answered = int(att.get("questions_answered", 0))
@@ -511,20 +720,30 @@ class TestService:
             raise ValueError("Question not found")
         answers = list(att.get("answers", []))
         chosen_answer: Optional[str] = None
-        if question_index <= answered and answers:
+        free_nav = bool(att.get("adaptive_disabled"))
+        if free_nav:
+            row = _answers_by_qid(answers).get(qid)
+            raw = row.get("chosen_answer") if row else None
+            chosen_answer = None if raw is None else str(raw)
+            if chosen_answer is not None and not str(chosen_answer).strip():
+                chosen_answer = None
+        elif question_index <= answered and answers:
             raw = answers[question_index - 1].get("chosen_answer")
             chosen_answer = None if raw is None else str(raw)
-        can_submit = question_index == answered + 1
+        can_submit = True if free_nav else question_index == answered + 1
         mf = [int(x) for x in (att.get("marked_for_review") or [])]
+        answered_n = len(_answered_indices(served_ids, answers)) if free_nav else answered
         return QuestionAtIndexResponse(
             question=await _to_student_payload(qdoc, self._rc_sets),
             question_index=question_index,
             chosen_answer=chosen_answer,
             can_submit=can_submit,
             total_questions=int(att["total_questions"]),
-            max_reachable_index=len(served_ids),
-            questions_answered=answered,
+            max_reachable_index=len(served_ids) if free_nav else len(served_ids),
+            questions_answered=answered_n,
             marked_for_review=mf,
+            adaptive_disabled=free_nav,
+            answered_indices=_answered_indices(served_ids, answers) if free_nav else list(range(1, answered + 1)),
         )
 
     async def coach_explanation_hint(self, attempt_id: str, question_id: str) -> CoachExplanationHintResponse:
@@ -567,6 +786,8 @@ class TestService:
             raise ValueError("Attempt not found")
         if att.get("status") != AttemptStatus.IN_PROGRESS.value:
             raise ValueError("Attempt already completed")
+        if att.get("adaptive_disabled"):
+            att = await self._ensure_non_adaptive_sequence(attempt_id, att)
         served_ids = list(att.get("question_ids", []))
         if question_index < 1 or question_index > len(served_ids):
             raise ValueError("Invalid question index")

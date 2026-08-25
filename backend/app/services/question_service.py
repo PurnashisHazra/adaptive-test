@@ -171,6 +171,26 @@ class QuestionService:
     async def list_page(self, **kwargs: Any) -> Tuple[List[Dict[str, Any]], int]:
         return await self._repo.list_paginated(**kwargs)
 
+    async def list_admin_by_ids(self, admin_username: str, question_ids: List[str]) -> List[Dict[str, Any]]:
+        from app.services.admin_limits_service import AdminLimitsService
+
+        extra = await AdminLimitsService().build_mongo_filter_for_admin(admin_username)
+        docs = await self._repo.list_by_ids(question_ids)
+        if extra:
+            oids = [doc["_id"] for doc in docs.values()]
+            allowed: Dict[str, Dict[str, Any]] = {}
+            if oids:
+                query: Dict[str, Any] = {"_id": {"$in": oids}, **extra}
+                async for row in self._repo._col.find(query):
+                    allowed[oid_str(row["_id"])] = row
+            docs = allowed
+        out: List[Dict[str, Any]] = []
+        for qid in question_ids:
+            doc = docs.get(qid)
+            if doc:
+                out.append(self._repo._doc_to_admin(doc))
+        return out
+
     async def list_page_for_admin(self, admin_username: str, **kwargs: Any) -> Tuple[List[Dict[str, Any]], int]:
         from app.services.admin_limits_service import AdminLimitsService
         from app.services.question_bank_folder_service import QuestionBankFolderService
