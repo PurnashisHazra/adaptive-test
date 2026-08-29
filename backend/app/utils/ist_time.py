@@ -1,6 +1,6 @@
 """Platform timezone: Indian Standard Time (Asia/Kolkata). Instants are stored in UTC."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple
 from zoneinfo import ZoneInfo
 
@@ -31,4 +31,13 @@ def month_bounds_ist(now: Optional[datetime] = None) -> Tuple[datetime, datetime
         end_ist = datetime(ref_ist.year + 1, 1, 1, tzinfo=IST)
     else:
         end_ist = datetime(ref_ist.year, ref_ist.month + 1, 1, tzinfo=IST)
+    return start_ist.astimezone(timezone.utc), end_ist.astimezone(timezone.utc)
+
+
+def ist_day_bounds(now: Optional[datetime] = None) -> Tuple[datetime, datetime]:
+    """UTC range [start, end) for the current calendar day in IST."""
+    ref = ensure_utc(now) if now is not None else utc_now()
+    ref_ist = ref.astimezone(IST)
+    start_ist = datetime(ref_ist.year, ref_ist.month, ref_ist.day, tzinfo=IST)
+    end_ist = start_ist + timedelta(days=1)
     return start_ist.astimezone(timezone.utc), end_ist.astimezone(timezone.utc)

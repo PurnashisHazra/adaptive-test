@@ -347,7 +347,7 @@ export interface QuestionPaperSection {
   order: number;
   subject?: string | null;
   topic?: string | null;
-  exam_tag?: ExamTag | null;
+  exam_tag?: string | null;
   total_questions: number;
   time_limit_seconds: number;
   /** When non-empty, the section only serves these questions. Non-adaptive papers use this list in order. */
@@ -453,6 +453,24 @@ export interface PublicProfile {
   display_name: string;
   bio: string;
   updated_at?: string | null;
+}
+
+export interface TodaysTopper {
+  display_name: string;
+  profile_slug: string;
+  percentage: number;
+  total_marks: number;
+  max_marks: number;
+  challenge_id: string;
+  challenge_title: string;
+}
+
+export interface ExamNewsItem {
+  title: string;
+  url: string;
+  excerpt: string;
+  category?: string | null;
+  published_at?: string | null;
 }
 
 export interface PublicProfileUpdate {
@@ -612,6 +630,8 @@ export interface StudentHistoryStats {
     score: number;
     total_questions: number;
     percentage: number;
+    total_marks?: number;
+    max_marks?: number;
     cohort_percentile?: number | null;
     cohort_ranked_count?: number;
     subject?: string | null;

@@ -7,6 +7,7 @@ from motor.motor_asyncio import AsyncIOMotorCollection
 
 from app.db.mongodb import get_database
 from app.models.domain import AttemptStatus
+from app.utils.attempt_scoring import standalone_accuracy_stats
 from app.utils.ids import oid_str
 
 
@@ -175,13 +176,20 @@ class AttemptRepository:
 
         cursor = self._col.find(
             filt,
-            {"score": 1, "total_questions": 1},
+            {
+                "score": 1,
+                "total_questions": 1,
+                "planned_total_questions": 1,
+                "answers": 1,
+                "questions_answered": 1,
+                "question_ids": 1,
+                "completion_reason": 1,
+            },
         ).limit(limit)
         out: List[float] = []
         async for doc in cursor:
-            score = int(doc.get("score", 0))
-            total = max(1, int(doc.get("total_questions", 1)))
-            out.append(round(score / total * 100.0, 4))
+            _, _, pct = standalone_accuracy_stats(list(doc.get("answers") or []), doc)
+            out.append(float(pct))
         return out
 
     async def list_completed_by_student(self, student_name: str) -> List[Dict[str, Any]]:

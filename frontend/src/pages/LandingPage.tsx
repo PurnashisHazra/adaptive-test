@@ -1,8 +1,10 @@
 import { Link } from "react-router-dom";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { listExamShowcasePapers } from "../api/client";
-import type { ExamShowcasePaper } from "../api/types";
+import { listExamShowcasePapers, getExamNews, getTodaysTopper } from "../api/client";
+import type { ExamNewsItem, ExamShowcasePaper, TodaysTopper } from "../api/types";
+import { ExamNewsCarousel } from "../components/ExamNewsCarousel";
+import { HeroImageCarousel } from "../components/HeroImageCarousel";
 import { useAuthStore } from "../store/authStore";
 import { TopperBookingModal } from "../components/TopperBookingModal";
 import { FreeConsultationModal } from "../components/FreeConsultationModal";
@@ -11,7 +13,23 @@ import { PaperUnlockModal } from "../components/PaperUnlockModal";
 import { PRIMARY_LEADER_COMPANIES, STACKED_LEADER_COMPANIES } from "../data/leaderCompanies";
 import "../styles/landing.css";
 
-type ExamCategoryId = "mba" | "law" | "banking" | "railways" | "defense";
+type ShowcaseCategoryId = "mba" | "law" | "banking" | "railways" | "defense";
+
+type ExamCategoryId =
+  | "cat"
+  | "gmat"
+  | "gre"
+  | "ielts"
+  | "clat"
+  | "banking"
+  | "ssc"
+  | "railway"
+  | "nda"
+  | "upsc"
+  | "mpsc"
+  | "ugc-net"
+  | "ctet"
+  | "mh-cet";
 
 type ExamCategory = {
   id: ExamCategoryId;
@@ -20,86 +38,9 @@ type ExamCategory = {
   description: string;
   exams: string;
   href: string;
-  icon: ReactNode;
+  logo: string;
+  showcaseId: ShowcaseCategoryId;
 };
-
-function MbaIcon() {
-  return (
-    <svg width="44" height="44" viewBox="0 0 48 48" fill="none" aria-hidden>
-      <path
-        d="M8 18 24 10l16 8v4H8v-4Z"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinejoin="round"
-      />
-      <path d="M24 10v28M14 22v12M34 22v12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-      <rect x="10" y="34" width="28" height="6" rx="2" stroke="currentColor" strokeWidth="2.2" />
-      <path d="M14 37h20" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function LawIcon() {
-  return (
-    <svg width="44" height="44" viewBox="0 0 48 48" fill="none" aria-hidden>
-      <path
-        d="M10 36h28M24 8v28"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M14 8 24 18l10-10M14 36l-6 4M34 36l6 4"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <rect x="18" y="32" width="12" height="4" rx="1" fill="currentColor" />
-    </svg>
-  );
-}
-
-function BankingIcon() {
-  return (
-    <svg width="44" height="44" viewBox="0 0 48 48" fill="none" aria-hidden>
-      <path
-        d="M24 8 6 18v4h36v-4L24 8Z"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinejoin="round"
-      />
-      <path d="M10 22v14M18 22v14M30 22v14M38 22v14" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-      <path d="M6 36h36" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function RailwaysIcon() {
-  return (
-    <svg width="44" height="44" viewBox="0 0 48 48" fill="none" aria-hidden>
-      <rect x="10" y="14" width="28" height="20" rx="4" stroke="currentColor" strokeWidth="2.2" />
-      <path d="M10 24h28M18 14v8M30 14v8" stroke="currentColor" strokeWidth="2.2" />
-      <circle cx="16" cy="38" r="3" stroke="currentColor" strokeWidth="2.2" />
-      <circle cx="32" cy="38" r="3" stroke="currentColor" strokeWidth="2.2" />
-      <path d="M24 8v6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function DefenseIcon() {
-  return (
-    <svg width="44" height="44" viewBox="0 0 48 48" fill="none" aria-hidden>
-      <path
-        d="M24 6 8 14v12c0 10 6.5 15.5 16 18 9.5-2.5 16-8 16-18V14L24 6Z"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinejoin="round"
-      />
-      <path d="M24 16v14M18 22h12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-    </svg>
-  );
-}
 
 function CompassIcon() {
   return (
@@ -108,6 +49,15 @@ function CompassIcon() {
       <polygon points="12,5 14,12 12,19 10,12" fill="currentColor" stroke="none" opacity="0.35" />
       <path d="M12 5v14M5 12h14" />
       <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function TrophyIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z" />
+      <path d="M7 6H5a3 3 0 0 0 3 5M17 6h2a3 3 0 0 1-3 5" />
     </svg>
   );
 }
@@ -150,75 +100,180 @@ function ArrowIcon() {
 
 const EXAM_CATEGORIES: ExamCategory[] = [
   {
-    id: "mba",
-    label: "MBA",
-    title: "MBA & CAT preparation",
+    id: "cat",
+    label: "CAT",
+    title: "CAT & MBA entrance",
     description:
-      "Adaptive mock tests for CAT, XAT, and other MBA entrances. Difficulty adjusts after every answer so you drill weak topics and build exam-day speed.",
+      "Adaptive mock tests for CAT and other MBA entrances. Difficulty adjusts after every answer so you drill weak topics and build exam-day speed.",
     exams: "CAT · XAT · SNAP · NMAT",
     href: "/cat-mock-test",
-    icon: <MbaIcon />,
+    logo: "/exam-logos/cat.png",
+    showcaseId: "mba",
   },
   {
-    id: "law",
-    label: "Law",
+    id: "gmat",
+    label: "GMAT",
+    title: "GMAT preparation",
+    description:
+      "Quant and verbal practice that adapts as you improve. Use timed mocks to build the pacing you need for GMAT Focus and classic GMAT.",
+    exams: "GMAT Focus · GMAT Classic · Quant · Verbal",
+    href: "/cat-mock-test",
+    logo: "/exam-logos/gmat.png",
+    showcaseId: "mba",
+  },
+  {
+    id: "gre",
+    label: "GRE",
+    title: "GRE preparation",
+    description:
+      "Verbal, quant, and analytical practice with adaptive difficulty. Track accuracy and speed so every attempt moves your GRE score.",
+    exams: "GRE General · Verbal · Quant",
+    href: "/challenges",
+    logo: "/exam-logos/gre.png",
+    showcaseId: "mba",
+  },
+  {
+    id: "ielts",
+    label: "IELTS",
+    title: "IELTS coaching",
+    description:
+      "Build reading and language accuracy with timed practice. Adaptive items help you move from band-building drills to exam-day confidence.",
+    exams: "IELTS Academic · IELTS General Training",
+    href: "/challenges",
+    logo: "/exam-logos/ielts.png",
+    showcaseId: "mba",
+  },
+  {
+    id: "clat",
+    label: "CLAT",
     title: "Law entrance exams",
     description:
-      "Practice CLAT, AILET, and other law entrances with timed sections, negative marking, and analytics that show where to improve before the real exam.",
-    exams: "CLAT · AILET · SLAT · LSAT India",
+      "Practice CLAT, AILET, and Maharashtra Law CET with timed sections, negative marking, and analytics that show where to improve before the real exam.",
+    exams: "CLAT · AILET · MHCET Law · SLAT",
     href: "/challenges",
-    icon: <LawIcon />,
+    logo: "/exam-logos/clat.png",
+    showcaseId: "law",
   },
   {
     id: "banking",
     label: "Banking",
-    title: "Banking & insurance exams",
+    title: "Banking & IBPS exams",
     description:
       "IBPS, SBI, and RRB-style mocks with quant, reasoning, and English. Live challenges and full-length papers keep your prep structured.",
-    exams: "IBPS PO · IBPS Clerk · SBI · RRB",
+    exams: "IBPS PO · IBPS Clerk · SBI PO · RRB",
     href: "/bank-exam-mock-test",
-    icon: <BankingIcon />,
+    logo: "/exam-logos/banking.png",
+    showcaseId: "banking",
   },
   {
-    id: "railways",
+    id: "ssc",
+    label: "SSC",
+    title: "SSC CGL, CHSL & GD",
+    description:
+      "Staff Selection Commission papers with real exam timing. Adaptive difficulty helps you push from qualifying level to a competitive rank.",
+    exams: "SSC CGL · CHSL · MTS · GD",
+    href: "/ssc-mock-test",
+    logo: "/exam-logos/ssc.png",
+    showcaseId: "defense",
+  },
+  {
+    id: "railway",
     label: "Railways",
     title: "Railway recruitment exams",
     description:
       "RRB NTPC, Group D, and ALP-style practice with sectional timing. Attempt live mocks and track accuracy trends across attempts.",
     exams: "RRB NTPC · Group D · ALP · JE",
     href: "/ssc-mock-test",
-    icon: <RailwaysIcon />,
+    logo: "/exam-logos/railway.png",
+    showcaseId: "railways",
   },
   {
-    id: "defense",
-    label: "Defense",
-    title: "Defense & government exams",
+    id: "nda",
+    label: "NDA",
+    title: "NDA & defense exams",
     description:
-      "SSC CGL, CHSL, GD, and defense-oriented papers in one place. Adaptive difficulty helps you push from qualifying level to top ranks.",
-    exams: "SSC CGL · CHSL · NDA · CDS",
+      "National Defence Academy and related defense papers. Build maths and GAT accuracy with mocks that get harder as you improve.",
+    exams: "NDA · CDS · AFCAT · CAPF",
     href: "/challenges",
-    icon: <DefenseIcon />,
+    logo: "/exam-logos/nda.png",
+    showcaseId: "defense",
+  },
+  {
+    id: "upsc",
+    label: "UPSC",
+    title: "UPSC Civil Services",
+    description:
+      "Practice GS and aptitude-style papers for civil services. Timed sections and review help you see which topics still need work.",
+    exams: "UPSC CSE · Prelims · CSAT",
+    href: "/challenges",
+    logo: "/exam-logos/upsc.png",
+    showcaseId: "defense",
+  },
+  {
+    id: "mpsc",
+    label: "MPSC",
+    title: "Maharashtra Public Service Commission",
+    description:
+      "State civil services practice for MPSC. Use adaptive mocks to strengthen Rajyaseva and combined exam fundamentals.",
+    exams: "MPSC Rajyaseva · Combined · PSI / STI / ASO",
+    href: "/challenges",
+    logo: "/exam-logos/mpsc.png",
+    showcaseId: "defense",
+  },
+  {
+    id: "ugc-net",
+    label: "UGC NET",
+    title: "UGC NET & JRF",
+    description:
+      "Paper 1 teaching aptitude and reasoning practice for NET/JRF. Adaptive difficulty keeps you in the productive range.",
+    exams: "UGC NET · JRF · Paper 1",
+    href: "/challenges",
+    logo: "/exam-logos/ugc-net.png",
+    showcaseId: "mba",
+  },
+  {
+    id: "ctet",
+    label: "CTET",
+    title: "CTET & teaching exams",
+    description:
+      "Central Teacher Eligibility Test practice with pedagogy and aptitude items. Timed mocks help you finish Paper I and Paper II with confidence.",
+    exams: "CTET Paper I · Paper II · TET",
+    href: "/challenges",
+    logo: "/exam-logos/ctet.png",
+    showcaseId: "mba",
+  },
+  {
+    id: "mh-cet",
+    label: "MHT CET",
+    title: "MHT CET & Class 11–12 Science",
+    description:
+      "Maharashtra CET and board-aligned science practice. Adaptive questions help PCM/PCB students lock concepts before the entrance.",
+    exams: "MHT CET · Class 11 · Class 12 Science",
+    href: "/challenges",
+    logo: "/exam-logos/mh-cet.png",
+    showcaseId: "mba",
   },
 ];
 
 export function LandingPage() {
   const role = useAuthStore((s) => s.role);
-  const signedIn = role === "student";
-  const startHref = signedIn ? "/challenges" : "/auth";
   const [showBooking, setShowBooking] = useState(false);
   const [showConsultation, setShowConsultation] = useState(false);
   const [leaderConnectCompany, setLeaderConnectCompany] = useState<string | null>(null);
-  const [activeCategory, setActiveCategory] = useState<ExamCategoryId>("mba");
+  const [activeCategory, setActiveCategory] = useState<ExamCategoryId>("cat");
   const [showcasePapers, setShowcasePapers] = useState<ExamShowcasePaper[]>([]);
   const [showcaseLoading, setShowcaseLoading] = useState(false);
   const [unlockPaper, setUnlockPaper] = useState<{ id: string; title: string } | null>(null);
+  const [todaysTopper, setTodaysTopper] = useState<TodaysTopper | null>(null);
+  const [topperLoading, setTopperLoading] = useState(true);
+  const [examNews, setExamNews] = useState<ExamNewsItem[]>([]);
 
   const category = EXAM_CATEGORIES.find((c) => c.id === activeCategory) ?? EXAM_CATEGORIES[0];
 
-  const loadShowcase = useCallback(async (catId: ExamCategoryId) => {
+  const loadShowcase = useCallback(async (showcaseId: ShowcaseCategoryId) => {
     setShowcaseLoading(true);
     try {
-      setShowcasePapers(await listExamShowcasePapers(catId));
+      setShowcasePapers(await listExamShowcasePapers(showcaseId));
     } catch {
       setShowcasePapers([]);
     } finally {
@@ -227,8 +282,33 @@ export function LandingPage() {
   }, []);
 
   useEffect(() => {
-    void loadShowcase(activeCategory);
-  }, [activeCategory, loadShowcase, role]);
+    void loadShowcase(category.showcaseId);
+  }, [category.showcaseId, loadShowcase, role]);
+
+  useEffect(() => {
+    let alive = true;
+    setTopperLoading(true);
+    getTodaysTopper()
+      .then((row) => {
+        if (alive) setTodaysTopper(row);
+      })
+      .catch(() => {
+        if (alive) setTodaysTopper(null);
+      })
+      .finally(() => {
+        if (alive) setTopperLoading(false);
+      });
+    getExamNews()
+      .then((items) => {
+        if (alive) setExamNews(items);
+      })
+      .catch(() => {
+        if (alive) setExamNews([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   function onPaperClick(paper: ExamShowcasePaper) {
     if (!paper.locked) return;
@@ -239,48 +319,67 @@ export function LandingPage() {
     setUnlockPaper({ id: paper.id, title: paper.title });
   }
 
-  function scrollToCategory(catId: ExamCategoryId) {
-    setActiveCategory(catId);
-    window.setTimeout(() => {
-      document.getElementById(`exam-panel-${catId}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 50);
-  }
-
   return (
     <div className="landing">
       <main className="landing-main">
-        <section className="landing-hero">
-          <div>
-            <span className="landing-kicker">ADAPTIVE INTELLIGENCE • SMARTER PRACTICE</span>
-            <div className="landing-category-quick-nav" role="navigation" aria-label="Jump to exam category">
-              {EXAM_CATEGORIES.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={`landing-category-quick-btn${activeCategory === item.id ? " landing-category-quick-btn--active" : ""}`}
-                  onClick={() => scrollToCategory(item.id)}
-                >
-                  {item.label}
-                </button>
-              ))}
+        <div className="landing-spotlight">
+          <aside className="landing-topper" aria-labelledby="todays-topper-heading">
+            <div className="landing-topper-icon" aria-hidden>
+              <TrophyIcon />
             </div>
-            <h1 className="landing-headline">
-              Practice
-              <span className="landing-headline-outline">Smarter.</span>
-              Score Higher.
-            </h1>
-            <p className="landing-subhead">
-              AdapTest adapts every question to your level — so you stop wasting time and start improving where it
-              matters most.
-            </p>
-            <div className="landing-cta-row">
-              <Link to={startHref} className="landing-btn-primary landing-btn-lg">
-                Pick Your Exam
-                <ArrowIcon />
-              </Link>
-              <a href="#exam-categories" className="landing-btn-secondary landing-btn-lg">
-                Browse Exam Categories
-              </a>
+            <div className="landing-topper-body">
+              <p className="landing-topper-kicker" id="todays-topper-heading">
+                Today&apos;s topper
+              </p>
+              {topperLoading ? (
+                <p className="landing-topper-empty">Loading today&apos;s leader…</p>
+              ) : todaysTopper ? (
+                <p className="landing-topper-line">
+                  <Link to={`/u/${encodeURIComponent(todaysTopper.profile_slug)}`} className="landing-topper-name">
+                    {todaysTopper.display_name}
+                  </Link>
+                  <span className="landing-topper-score">
+                    {todaysTopper.percentage.toFixed(1)}%
+                    <span className="landing-topper-marks">
+                      {" "}
+                      · {todaysTopper.total_marks.toFixed(0)}/{todaysTopper.max_marks.toFixed(0)}
+                    </span>
+                  </span>
+                  <span className="landing-topper-challenge">{todaysTopper.challenge_title}</span>
+                </p>
+              ) : (
+                <p className="landing-topper-empty">No challenge toppers yet. Take a free mock and claim the spot.</p>
+              )}
+            </div>
+          </aside>
+          <ExamNewsCarousel items={examNews} />
+        </div>
+
+        <section className="landing-hero">
+          <div className="landing-hero-copy">
+            <div className="landing-hero-intro">
+              <div className="landing-hero-intro-text">
+                <span className="landing-kicker">ADAPTIVE INTELLIGENCE • SMARTER PRACTICE</span>
+                <h1 className="landing-headline">
+                  Practice
+                  <span className="landing-headline-outline">Smarter.</span>
+                  Score Higher.
+                </h1>
+                <p className="landing-subhead">
+                  AdapTest adapts every question to your level — so you stop wasting time and start improving where it
+                  matters most.
+                </p>
+                <div className="landing-cta-row">
+                  <Link to="/challenges" className="landing-btn-primary landing-btn-lg landing-btn-mock">
+                    <span className="landing-btn-mock-title">Free Mock Tests</span>
+                    <span className="landing-btn-mock-sub">Compete with other brilliant students</span>
+                  </Link>
+                  <a href="#exam-categories" className="landing-btn-secondary landing-btn-lg">
+                    Browse exam categories
+                  </a>
+                </div>
+              </div>
+              <HeroImageCarousel />
             </div>
 
             <div className="landing-trust-panel">
@@ -317,7 +416,9 @@ export function LandingPage() {
             </div>
           </div>
 
-          <div className="landing-cards">
+          <div className="landing-hero-aside">
+            <h2 className="landing-aside-heading">Mentorship &amp; network</h2>
+            <div className="landing-cards">
             <article className="landing-card landing-card--light" id="mentorship">
               <span className="landing-card-badge landing-card-badge--light">CAREER STRATEGY</span>
               <div className="landing-card-body">
@@ -372,9 +473,9 @@ export function LandingPage() {
                   <BriefcaseIcon />
                 </div>
                 <div className="landing-card-leaders-copy">
-                  <h2 className="landing-card-title">Listen from current business leaders</h2>
+                  <h2 className="landing-card-title">Connect with current business leaders</h2>
                   <p className="landing-card-text landing-card-text--flush">
-                    Connect with ex-students now at Apple, NVIDIA, Visa, AmEx, McKinsey, and other global firms.
+                    Connect with ex-students now at Apple, NVIDIA and other global firms.
                   </p>
                 </div>
               </div>
@@ -442,11 +543,15 @@ export function LandingPage() {
               </div>
             </article>
           </div>
+          </div>
         </section>
 
         <section className="landing-section landing-exams" id="exam-categories">
           <h2 className="landing-exams-heading">Choose your exam category</h2>
-          <p className="landing-exams-lead">Tap a category to see how AdapTest helps you prepare.</p>
+          <p className="landing-exams-lead">
+            CAT, GMAT, GRE, IELTS, CLAT, banking, SSC, railways, NDA, UPSC, MPSC, UGC NET, CTET, and MHT CET — tap a
+            logo to see how AdapTest helps you prepare.
+          </p>
 
           <div className="landing-exam-tabs" role="tablist" aria-label="Exam categories">
             {EXAM_CATEGORIES.map((item) => (
@@ -460,7 +565,9 @@ export function LandingPage() {
                 className={`landing-exam-tab${activeCategory === item.id ? " landing-exam-tab--active" : ""}`}
                 onClick={() => setActiveCategory(item.id)}
               >
-                <span className="landing-exam-tab-icon">{item.icon}</span>
+                <span className="landing-exam-tab-icon">
+                  <img src={item.logo} alt="" className="landing-exam-tab-logo" />
+                </span>
                 <span className="landing-exam-tab-label">{item.label}</span>
               </button>
             ))}
@@ -472,7 +579,10 @@ export function LandingPage() {
             id={`exam-panel-${category.id}`}
             aria-labelledby={`exam-tab-${category.id}`}
           >
-            <h3 className="landing-exam-panel-title">{category.title}</h3>
+            <div className="landing-exam-panel-head">
+              <img src={category.logo} alt="" className="landing-exam-panel-logo" />
+              <h3 className="landing-exam-panel-title">{category.title}</h3>
+            </div>
             <p className="landing-exam-panel-text">{category.description}</p>
             <p className="landing-exam-panel-exams">
               <strong>Covers:</strong> {category.exams}
@@ -555,7 +665,7 @@ export function LandingPage() {
           paperId={unlockPaper.id}
           paperTitle={unlockPaper.title}
           onClose={() => setUnlockPaper(null)}
-          onUnlocked={() => void loadShowcase(activeCategory)}
+          onUnlocked={() => void loadShowcase(category.showcaseId)}
         />
       ) : null}
     </div>

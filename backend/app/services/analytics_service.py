@@ -3,7 +3,7 @@ from typing import Any, Dict, List
 
 from app.repositories.attempt_repository import AttemptRepository
 from app.repositories.question_repository import QuestionRepository
-from app.utils.attempt_scoring import is_answer_attempted
+from app.utils.attempt_scoring import is_answer_attempted, standalone_accuracy_stats
 from app.schemas.analytics import (
     AnalyticsOverview,
     AttemptBreakdown,
@@ -32,11 +32,12 @@ class AnalyticsService:
         completed_attempts = len(completed)
 
         scores = [int(a.get("score", 0)) for a in completed]
-        totals = [int(a.get("total_questions", 1)) for a in completed]
+        pcts: List[float] = []
+        for a in completed:
+            _, _, pct = standalone_accuracy_stats(list(a.get("answers") or []), a)
+            pcts.append(pct)
         avg_score = sum(scores) / len(scores) if scores else 0.0
-        avg_pct = (
-            sum(s / t for s, t in zip(scores, totals) if t) / len(completed) if completed else 0.0
-        )
+        avg_pct = (sum(pcts) / len(pcts)) if pcts else 0.0
 
         diff_correct: Dict[str, int] = defaultdict(int)
         diff_total: Dict[str, int] = defaultdict(int)
@@ -94,7 +95,9 @@ class AnalyticsService:
         for a in recent:
             tq = int(a.get("total_questions", 0))
             sc = int(a.get("score", 0))
-            pct = (sc / tq * 100.0) if tq else 0.0
+            _, total, pct = standalone_accuracy_stats(list(a.get("answers") or []), a)
+            if total > 0:
+                tq = total
             recent_brief.append(
                 AttemptListBrief(
                     id=str(a["_id"]),
@@ -116,7 +119,7 @@ class AnalyticsService:
             total_attempts=total_attempts,
             completed_attempts=completed_attempts,
             average_score=round(avg_score, 4),
-            average_percentage=round(avg_pct * 100.0, 2),
+            average_percentage=round(avg_pct, 2),
             accuracy_by_difficulty=diff_stats,
             accuracy_by_topic=topic_stats[:20],
             most_missed_questions=missed_out,
@@ -154,7 +157,9 @@ class AnalyticsService:
                 )
             tq = int(att.get("total_questions", 1))
             sc = int(att.get("score", 0))
-            pct = (sc / tq * 100.0) if tq else 0.0
+            _, total, pct = standalone_accuracy_stats(answers, att)
+            if total > 0:
+                tq = total
             out.append(
                 AttemptBreakdown(
                     attempt_id=aid,
@@ -182,14 +187,13 @@ class AnalyticsService:
             if not name:
                 continue
             scores = [int(x.get("score", 0)) for x in arr]
-            totals = [int(x.get("total_questions", 1)) for x in arr]
-            pcts = [s / t for s, t in zip(scores, totals) if t]
+            pcts = [standalone_accuracy_stats(list(x.get("answers") or []), x)[2] for x in arr]
             rows.append(
                 TopPerformer(
                     student_name=name,
                     attempts=len(arr),
                     average_score=sum(scores) / len(scores) if scores else 0.0,
-                    best_percentage=round(max(pcts) * 100.0, 2) if pcts else 0.0,
+                    best_percentage=round(max(pcts), 2) if pcts else 0.0,
                 )
             )
         rows.sort(key=lambda x: (-x.best_percentage, -x.average_score))

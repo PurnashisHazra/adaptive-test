@@ -12,6 +12,7 @@ from app.schemas.challenge import (
     ChallengeGuestStartBody,
     ChallengeParticipantsPage,
     ChallengeRecapResponse,
+    TodaysTopperResponse,
 )
 from app.services.challenge_service import ChallengeService
 from app.utils.guest import GUEST_EMAIL_REQUIRED
@@ -29,6 +30,13 @@ async def list_challenge_catalog(
 ) -> ChallengeCatalogPage:
     username, _is_guest = actor
     return await svc.list_catalog(username, page=page, page_size=page_size)
+
+
+@router.get("/todays-topper", response_model=TodaysTopperResponse)
+async def get_todays_topper(
+    svc: ChallengeService = Depends(get_challenge_service),
+) -> TodaysTopperResponse:
+    return await svc.todays_topper()
 
 
 @router.get("/{challenge_id}/participants", response_model=ChallengeParticipantsPage)

@@ -1,11 +1,27 @@
-import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { createQuestion, getQuestion, updateQuestion, uploadQuestionImage } from "../../api/client";
 import { AdminPanel } from "../../components/AdminPanel";
 import type { Difficulty, ExamTag, QuestionOption, QuestionType } from "../../api/types";
+import {
+  FALLBACK_EXAM_TAGS,
+  NEW_EXAM_VALUE,
+  NEW_TOPIC_VALUE,
+  examOptionsFromTree,
+  folderExamKey,
+  topicsForFolder,
+  useQuestionFolderTree,
+} from "../../lib/questionFolders";
 
-const EXAM_TAGS: ExamTag[] = ["CAT", "SSC", "BANK", "RAILWAY", "DEFENCE", "STATE", "OTHER"];
+function questionsBankHref(exam?: string, subject?: string, topic?: string): string {
+  const p = new URLSearchParams();
+  if (exam?.trim()) p.set("exam", folderExamKey(exam));
+  if (subject?.trim()) p.set("subject", subject.trim());
+  if (topic?.trim()) p.set("topic", topic.trim());
+  const q = p.toString();
+  return q ? `/admin/questions?${q}` : "/admin/questions";
+}
 
 const MCQ_MAX_OPTIONS = 40;
 
@@ -46,7 +62,11 @@ function applyQuestionTypeChange(next: QuestionType, setOptions: (o: QuestionOpt
 export function QuestionFormPage() {
   const { id } = useParams();
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
   const isEdit = Boolean(id);
+  const paramExam = (searchParams.get("exam") || "").trim().toUpperCase();
+  const paramSubject = (searchParams.get("subject") || "").trim();
+  const paramTopic = (searchParams.get("topic") || "").trim();
 
   const [questionText, setQuestionText] = useState("");
   const [questionType, setQuestionType] = useState<QuestionType>("mcq_single");
@@ -54,12 +74,17 @@ export function QuestionFormPage() {
   const [correctAnswer, setCorrectAnswer] = useState("a");
   const [explanation, setExplanation] = useState("");
   const [difficulty, setDifficulty] = useState<Difficulty>("EASY");
-  const [subject, setSubject] = useState("General");
-  const [topic, setTopic] = useState("");
-  const [examTag, setExamTag] = useState<ExamTag>("CAT");
+  const [subject, setSubject] = useState(paramSubject || "General");
+  const [topic, setTopic] = useState(paramTopic);
+  const [addingNewTopic, setAddingNewTopic] = useState(false);
+  const [examTag, setExamTag] = useState<string>(
+    paramExam ? (paramExam === "OTHERS" ? "OTHER" : paramExam) : "CAT",
+  );
+  const [addingNewExam, setAddingNewExam] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
   const [imageUploading, setImageUploading] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { tree: folderTree } = useQuestionFolderTree();
 
   useEffect(() => {
     if (!id) return;
@@ -75,7 +100,9 @@ export function QuestionFormPage() {
         setSubject(q.subject);
         setTopic(q.topic);
         const firstTag = (q.tags[0] || "OTHER").toUpperCase();
-        setExamTag((EXAM_TAGS.includes(firstTag as ExamTag) ? firstTag : "OTHER") as ExamTag);
+        setExamTag(FALLBACK_EXAM_TAGS.includes(firstTag as ExamTag) ? firstTag : firstTag === "OTHERS" ? "OTHER" : firstTag);
+        setAddingNewExam(false);
+        setAddingNewTopic(false);
         setImageUrl(q.image_url?.trim() ?? "");
       })
       .catch(() => toast.error("Failed to load"))
@@ -84,6 +111,14 @@ export function QuestionFormPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!examTag.trim()) {
+      toast.error("Choose an exam category or add a new one");
+      return;
+    }
+    if (!topic.trim()) {
+      toast.error("Choose a topic or add a new one");
+      return;
+    }
     const optsPayload =
       questionType === "mcq_single"
         ? options.filter((o) => o.label.trim())
@@ -98,8 +133,8 @@ export function QuestionFormPage() {
       explanation: explanation || null,
       difficulty,
       subject,
-      topic,
-      tags: [examTag],
+      topic: topic.trim(),
+      tags: [examTag.trim().toUpperCase()],
       image_url: imageUrl.trim() || null,
     };
     try {
@@ -110,12 +145,24 @@ export function QuestionFormPage() {
         await createQuestion(body);
         toast.success("Created");
       }
-      nav("/admin/questions");
+      nav(questionsBankHref(examTag, subject, topic.trim()));
     } catch (err: unknown) {
       const msg = err && typeof err === "object" && "response" in err ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail : undefined;
       toast.error(typeof msg === "string" ? msg : "Save failed");
     }
   }
+
+  const topicOptions = useMemo(
+    () => topicsForFolder(folderTree, examTag, subject),
+    [folderTree, examTag, subject],
+  );
+
+  const examOptions = useMemo(
+    () => examOptionsFromTree(folderTree, addingNewExam ? undefined : examTag),
+    [folderTree, examTag, addingNewExam],
+  );
+
+  const backHref = questionsBankHref(paramExam || examTag, paramSubject || undefined, paramTopic || undefined);
 
   if (loading && isEdit) {
     return (
@@ -129,7 +176,7 @@ export function QuestionFormPage() {
     <AdminPanel
       title={isEdit ? "Edit question" : "New question"}
       actions={
-        <Link to="/admin/questions" className="btn btn-ghost">
+        <Link to={backHref} className="btn btn-ghost">
           ← Question bank
         </Link>
       }
@@ -319,31 +366,108 @@ export function QuestionFormPage() {
           <label className="label">Explanation (optional)</label>
           <textarea className="input" rows={2} value={explanation} onChange={(e) => setExplanation(e.target.value)} />
         </div>
+        <div style={{ marginTop: "1rem" }}>
+          <label className="label">Exam category</label>
+          <select
+            className="input"
+            value={addingNewExam ? NEW_EXAM_VALUE : examTag}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === NEW_EXAM_VALUE) {
+                setAddingNewExam(true);
+                setExamTag("");
+                setAddingNewTopic(false);
+                if (!isEdit) setTopic("");
+                return;
+              }
+              setAddingNewExam(false);
+              setExamTag(v);
+              setAddingNewTopic(false);
+              if (!isEdit) setTopic("");
+            }}
+          >
+            {examOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+            <option value={NEW_EXAM_VALUE}>+ New category</option>
+          </select>
+          {addingNewExam ? (
+            <input
+              className="input"
+              style={{ marginTop: "0.5rem" }}
+              value={examTag}
+              onChange={(e) => setExamTag(e.target.value.toUpperCase())}
+              placeholder="New exam category name"
+              autoFocus
+              required
+            />
+          ) : null}
+        </div>
         <div className="grid-2" style={{ marginTop: "1rem" }}>
           <div>
             <label className="label">Subject</label>
             <input className="input" value={subject} onChange={(e) => setSubject(e.target.value)} />
           </div>
           <div>
-            <label className="label">CAT Topic</label>
-            <input className="input" value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="e.g. Algebra" required />
+            <label className="label">Topic</label>
+            <select
+              className="input"
+              value={addingNewTopic ? NEW_TOPIC_VALUE : topic}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === NEW_TOPIC_VALUE) {
+                  setAddingNewTopic(true);
+                  setTopic("");
+                  return;
+                }
+                setAddingNewTopic(false);
+                setTopic(v);
+              }}
+              required={!addingNewTopic}
+            >
+              <option value="">{topicOptions.length === 0 ? "No topics yet" : "Select topic"}</option>
+              {topic && !addingNewTopic && !topicOptions.some((t) => t.toLowerCase() === topic.toLowerCase()) ? (
+                <option value={topic}>{topic}</option>
+              ) : null}
+              {topicOptions.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+              <option value={NEW_TOPIC_VALUE}>+ New topic</option>
+            </select>
+            {addingNewTopic ? (
+              <input
+                className="input"
+                style={{ marginTop: "0.5rem" }}
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                placeholder="New topic name"
+                autoFocus
+                required
+              />
+            ) : (
+              <p style={{ margin: "0.35rem 0 0", fontSize: "0.82rem", color: "var(--muted)" }}>
+                {topicOptions.length > 0
+                  ? `Showing ${topicOptions.length} topic${topicOptions.length === 1 ? "" : "s"} in this ${
+                      folderTree?.exams
+                        .find((e) => e.exam_tag === folderExamKey(examTag))
+                        ?.subjects.some((s) => s.subject.toLowerCase() === subject.trim().toLowerCase())
+                        ? "subject folder"
+                        : "exam category"
+                    }.`
+                  : "No topics in this folder yet. Choose + New topic to add one."}
+              </p>
+            )}
           </div>
-        </div>
-        <div style={{ marginTop: "1rem" }}>
-          <label className="label">Exam category</label>
-          <select className="input" value={examTag} onChange={(e) => setExamTag(e.target.value as ExamTag)}>
-            {EXAM_TAGS.map((tag) => (
-              <option key={tag} value={tag}>
-                {tag}
-              </option>
-            ))}
-          </select>
         </div>
         <div style={{ marginTop: "1.5rem", display: "flex", gap: "0.75rem" }}>
           <button type="submit" className="btn btn-primary">
             Save
           </button>
-          <Link to="/admin/questions" className="btn btn-ghost">
+          <Link to={backHref} className="btn btn-ghost">
             Cancel
           </Link>
         </div>

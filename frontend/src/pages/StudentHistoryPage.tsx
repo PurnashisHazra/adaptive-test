@@ -12,6 +12,11 @@ function formatPercentile(value: number | null | undefined): string {
   return `${Math.round(value)}%`;
 }
 
+function formatMarks(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) return "—";
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+}
+
 export function StudentHistoryPage() {
   const [data, setData] = useState<StudentHistoryStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -88,6 +93,8 @@ export function StudentHistoryPage() {
                       <th>Correct</th>
                       <th>Wrong</th>
                       <th>Not attempted</th>
+                      <th>Marks</th>
+                      <th>Max marks</th>
                       <th>Percentage</th>
                       <th>Percentile</th>
                     </tr>
@@ -109,6 +116,8 @@ export function StudentHistoryPage() {
                         <td>{a.correct ?? 0}</td>
                         <td>{a.wrong ?? 0}</td>
                         <td>{a.not_attempted ?? 0}</td>
+                        <td>{formatMarks(a.total_marks)}</td>
+                        <td>{formatMarks(a.max_marks)}</td>
                         <td>{a.percentage.toFixed(1)}%</td>
                         <td
                           title={

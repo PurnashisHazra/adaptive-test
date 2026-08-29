@@ -6,16 +6,29 @@ import {
   createQuestionPaper,
   getConfig,
   getQuestionPaper,
-  getTestSubjects,
-  getTestTopics,
   listQuestions,
   listPaperAssignments,
   listStudentUsernames,
   syncPaperAssignments,
   updateQuestionPaper,
 } from "../../api/client";
-import type { AppConfig, Difficulty, ExamTag, QuestionAdmin, QuestionPaperSection } from "../../api/types";
+import type { AppConfig, Difficulty, ExamTag, QuestionAdmin, QuestionBankFolderTree, QuestionPaperSection } from "../../api/types";
 import { PaperDraftPreview } from "../../components/PaperDraftPreview";
+import {
+  applyFolderToSection,
+  MAX_QUESTION_POOL,
+  QuestionFolderPickerModal,
+  type QuestionFolderSelection,
+} from "../../components/QuestionFolderPicker";
+import {
+  NEW_EXAM_VALUE,
+  NEW_TOPIC_VALUE,
+  examOptionsFromTree,
+  examSelectValue,
+  subjectRowsForExam,
+  topicsForFolder,
+  useQuestionFolderTree,
+} from "../../lib/questionFolders";
 
 function useDebouncedValue<T>(value: T, delayMs: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -25,17 +38,6 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
   }, [value, delayMs]);
   return debounced;
 }
-
-const EXAM_TAG_OPTIONS: Array<{ label: string; value: "" | ExamTag }> = [
-  { label: "Mixed (all exams)", value: "" },
-  { label: "CAT", value: "CAT" },
-  { label: "SSC", value: "SSC" },
-  { label: "BANK", value: "BANK" },
-  { label: "RAILWAY", value: "RAILWAY" },
-  { label: "DEFENCE", value: "DEFENCE" },
-  { label: "STATE", value: "STATE" },
-  { label: "OTHER", value: "OTHER" },
-];
 
 const POOL_DIFFICULTY_OPTIONS: Array<{ label: string; value: "" | Difficulty }> = [
   { label: "Any difficulty", value: "" },
@@ -57,46 +59,31 @@ function generateSectionId(): string {
 function SectionFilterFields({
   sec,
   cfg,
-  subjects,
-  onSubjectChange,
-  onTopicChange,
-  onExamTagChange,
+  folderTree,
+  onChange,
 }: {
   sec: QuestionPaperSection;
   cfg: AppConfig | null;
-  subjects: string[];
-  onSubjectChange: (subject: string) => void;
-  onTopicChange: (topic: string) => void;
-  onExamTagChange: (examTag: "" | ExamTag) => void;
+  folderTree: QuestionBankFolderTree | null;
+  onChange: (patch: Partial<Pick<QuestionPaperSection, "exam_tag" | "subject" | "topic">>) => void;
 }) {
-  const [topics, setTopics] = useState<string[]>([]);
-  const [loadingTopics, setLoadingTopics] = useState(false);
-
-  useEffect(() => {
-    if (!cfg?.topic_filter_enabled) {
-      setTopics([]);
-      return;
-    }
-    let alive = true;
-    setLoadingTopics(true);
-    getTestTopics(cfg.subject_filter_enabled && sec.subject ? sec.subject : undefined)
-      .then((ts) => {
-        if (!alive) return;
-        setTopics(ts);
-      })
-      .catch(() => {
-        if (alive) setTopics([]);
-      })
-      .finally(() => {
-        if (alive) setLoadingTopics(false);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [cfg?.topic_filter_enabled, cfg?.subject_filter_enabled, sec.subject]);
+  const [addingNewTopic, setAddingNewTopic] = useState(false);
+  const [addingNewExam, setAddingNewExam] = useState(false);
 
   const showSubject = Boolean(cfg?.subject_filter_enabled);
   const showTopic = Boolean(cfg?.topic_filter_enabled);
+
+  const examTag = examSelectValue(sec.exam_tag);
+  const examSelected = examTag.length > 0;
+  const subjectValue = (sec.subject ?? "").trim();
+  const subjectSelected = subjectValue.length > 0;
+
+  const examOptions = examOptionsFromTree(folderTree, addingNewExam ? undefined : examTag);
+  const subjectOptions = subjectRowsForExam(folderTree, examTag);
+  const topicReady = showSubject ? subjectSelected : examSelected;
+  const topicOptions = topicReady
+    ? topicsForFolder(folderTree, examTag, showSubject ? subjectValue : "")
+    : [];
 
   if (!showSubject && !showTopic) {
     return (
@@ -106,29 +93,43 @@ function SectionFilterFields({
     );
   }
 
-  const subjectOptions = [...subjects];
-  if (sec.subject && !subjectOptions.includes(sec.subject)) {
-    subjectOptions.push(sec.subject);
-    subjectOptions.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-  }
-
-  const topicOptions = [...topics];
-  if (sec.topic && !topicOptions.includes(sec.topic)) {
-    topicOptions.push(sec.topic);
-    topicOptions.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-  }
-
   return (
     <div style={{ marginBottom: "0.75rem" }}>
       <div style={{ marginBottom: "0.75rem" }}>
         <label className="label">Exam category</label>
-        <select className="input" value={(sec.exam_tag as "" | ExamTag | undefined) ?? ""} onChange={(e) => onExamTagChange(e.target.value as "" | ExamTag)}>
-          {EXAM_TAG_OPTIONS.map((o) => (
-            <option key={o.label} value={o.value}>
+        <select
+          className="input"
+          value={addingNewExam ? NEW_EXAM_VALUE : examTag}
+          onChange={(e) => {
+            const v = e.target.value;
+            setAddingNewTopic(false);
+            if (v === NEW_EXAM_VALUE) {
+              setAddingNewExam(true);
+              onChange({ exam_tag: null, subject: "", topic: "" });
+              return;
+            }
+            setAddingNewExam(false);
+            onChange({ exam_tag: v || null, subject: "", topic: "" });
+          }}
+        >
+          <option value="">Select exam category</option>
+          {examOptions.map((o) => (
+            <option key={o.label + o.value} value={o.value}>
               {o.label}
             </option>
           ))}
+          <option value={NEW_EXAM_VALUE}>+ New category</option>
         </select>
+        {addingNewExam ? (
+          <input
+            className="input"
+            style={{ marginTop: "0.5rem" }}
+            value={sec.exam_tag ?? ""}
+            onChange={(e) => onChange({ exam_tag: e.target.value.toUpperCase() || null })}
+            placeholder="New exam category name"
+            autoFocus
+          />
+        ) : null}
       </div>
       <div
         className="grid-2"
@@ -138,12 +139,24 @@ function SectionFilterFields({
       >
       {showSubject ? (
         <div>
-          <label className="label">Subject (optional)</label>
-          <select className="input" value={sec.subject ?? ""} onChange={(e) => onSubjectChange(e.target.value)}>
-            <option value="">Any subject</option>
+          <label className="label">Subject</label>
+          <select
+            className="input"
+            value={subjectValue}
+            disabled={!examSelected}
+            onChange={(e) => {
+              setAddingNewTopic(false);
+              onChange({ subject: e.target.value, topic: "" });
+            }}
+          >
+            <option value="">{examSelected ? "Select subject" : "Select exam category first"}</option>
+            {subjectValue &&
+            !subjectOptions.some((s) => s.value.toLowerCase() === subjectValue.toLowerCase()) ? (
+              <option value={subjectValue}>{subjectValue}</option>
+            ) : null}
             {subjectOptions.map((s) => (
-              <option key={s} value={s}>
-                {s}
+              <option key={s.value} value={s.value}>
+                {s.label}
               </option>
             ))}
           </select>
@@ -151,15 +164,55 @@ function SectionFilterFields({
       ) : null}
       {showTopic ? (
         <div>
-          <label className="label">Topic (optional)</label>
-          <select className="input" value={sec.topic ?? ""} onChange={(e) => onTopicChange(e.target.value)} disabled={loadingTopics}>
-            <option value="">{loadingTopics ? "Loading…" : "Any topic"}</option>
+          <label className="label">Topic</label>
+          <select
+            className="input"
+            value={addingNewTopic ? NEW_TOPIC_VALUE : (sec.topic ?? "")}
+            disabled={!topicReady}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === NEW_TOPIC_VALUE) {
+                setAddingNewTopic(true);
+                onChange({ topic: "" });
+                return;
+              }
+              setAddingNewTopic(false);
+              onChange({ topic: v });
+            }}
+          >
+            <option value="">
+              {!examSelected
+                ? "Select exam category first"
+                : showSubject && !subjectSelected
+                  ? "Select subject first"
+                  : topicOptions.length === 0
+                    ? "No topics yet"
+                    : "Select topic"}
+            </option>
+            {sec.topic && !addingNewTopic && !topicOptions.some((t) => t.toLowerCase() === sec.topic!.toLowerCase()) ? (
+              <option value={sec.topic}>{sec.topic}</option>
+            ) : null}
             {topicOptions.map((t) => (
               <option key={t} value={t}>
                 {t}
               </option>
             ))}
+            {topicReady ? <option value={NEW_TOPIC_VALUE}>+ New topic</option> : null}
           </select>
+          {addingNewTopic ? (
+            <input
+              className="input"
+              style={{ marginTop: "0.5rem" }}
+              value={sec.topic ?? ""}
+              onChange={(e) => onChange({ topic: e.target.value })}
+              placeholder="New topic name"
+              autoFocus
+            />
+          ) : topicReady ? (
+            <p style={{ margin: "0.35rem 0 0", fontSize: "0.82rem", color: "var(--muted)" }}>
+              Topics in this exam category / subject folder. Choose + New topic to add one.
+            </p>
+          ) : null}
         </div>
       ) : null}
       </div>
@@ -167,17 +220,20 @@ function SectionFilterFields({
   );
 }
 
-const MAX_QUESTION_POOL = 2000;
 const POOL_PAGE_SIZE = 40;
 
 function SectionQuestionPoolEditor({
   sec,
   setSection,
   isAdaptive,
+  onPickFolder,
+  folderTree,
 }: {
   sec: QuestionPaperSection;
   setSection: (next: QuestionPaperSection) => void;
   isAdaptive: boolean;
+  onPickFolder: () => void;
+  folderTree: QuestionBankFolderTree | null;
 }) {
   const pool = sec.question_pool_ids ?? [];
   const [search, setSearch] = useState("");
@@ -307,8 +363,8 @@ function SectionQuestionPoolEditor({
       <label className="label">{isAdaptive ? "Question set (optional)" : "Question sequence (required)"}</label>
       <p style={{ margin: "0 0 0.5rem", fontSize: "0.82rem", color: "var(--muted)" }}>
         {isAdaptive
-          ? "Leave empty to use the full bank with the section filters above. Use the bank browser to pick questions; the section can still adapt difficulty within the selected set."
-          : "Select questions in the order students should see them. The first N questions (section length) are the paper sequence. Use the arrows to reorder."}
+          ? "Leave empty to use the full bank with the section filters above. Use a folder, or browse the bank, to restrict this section to specific questions."
+          : "Select questions in the order students should see them. The first N questions (section length) are the paper sequence. Use a folder to load every question in that folder, then reorder if needed."}
       </p>
       {poolTooSmall ? (
         <p style={{ margin: "0 0 0.5rem", fontSize: "0.82rem", color: "#b45309" }}>
@@ -320,6 +376,9 @@ function SectionQuestionPoolEditor({
         <span style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
           {pool.length === 0 ? "Using full bank" : `${pool.length} selected`}
         </span>
+        <button type="button" className="btn btn-ghost" onClick={onPickFolder}>
+          From folder
+        </button>
         <button type="button" className="btn btn-ghost" onClick={selectPage} disabled={loading || rows.length === 0}>
           Select page
         </button>
@@ -384,8 +443,8 @@ function SectionQuestionPoolEditor({
               setPage(1);
             }}
           >
-            {EXAM_TAG_OPTIONS.map((o) => (
-              <option key={o.label} value={o.value}>
+            {examOptionsFromTree(folderTree, browseExamTag, { includeMixed: true }).map((o) => (
+              <option key={o.label + o.value} value={o.value}>
                 {o.value === "" ? "Any category" : o.label}
               </option>
             ))}
@@ -532,7 +591,8 @@ export function QuestionPaperFormPage() {
   const [checkedStudents, setCheckedStudents] = useState<Set<string>>(new Set());
   const [assignmentSaving, setAssignmentSaving] = useState(false);
   const [cfg, setCfg] = useState<AppConfig | null>(null);
-  const [subjects, setSubjects] = useState<string[]>([]);
+  const [folderPickerFor, setFolderPickerFor] = useState<null | "paper" | string>(null);
+  const { tree: folderTree } = useQuestionFolderTree();
 
   useEffect(() => {
     listStudentUsernames()
@@ -544,12 +604,6 @@ export function QuestionPaperFormPage() {
     getConfig()
       .then(setCfg)
       .catch(() => toast.error("Could not load settings"));
-  }, []);
-
-  useEffect(() => {
-    getTestSubjects()
-      .then(setSubjects)
-      .catch(() => setSubjects([]));
   }, []);
 
   useEffect(() => {
@@ -591,6 +645,24 @@ export function QuestionPaperFormPage() {
     assignments.forEach((a) => s.add(a.student_username));
     return Array.from(s).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
   }, [students, assignments]);
+
+  function applyFolderSelection(sel: QuestionFolderSelection, target: "paper" | string) {
+    const truncated = sel.questionIds.length > MAX_QUESTION_POOL;
+    const applyTo = (sec: QuestionPaperSection) => applyFolderToSection(sec, sel);
+    if (target === "paper") {
+      const first = sections[0] ?? newSection();
+      setSections([applyTo(first), ...sections.slice(1)]);
+      if (!title.trim()) setTitle(sel.pathLabel);
+    } else {
+      setSections(sections.map((s) => (s.id === target ? applyTo(s) : s)));
+    }
+    if (truncated) {
+      toast(`Loaded the first ${MAX_QUESTION_POOL} questions from ${sel.pathLabel} (maximum per section).`);
+    } else {
+      const n = Math.min(sel.questionIds.length, MAX_QUESTION_POOL);
+      toast.success(`Loaded ${n} question${n === 1 ? "" : "s"} from ${sel.pathLabel}`);
+    }
+  }
 
   async function onSave(e: React.FormEvent) {
     e.preventDefault();
@@ -716,9 +788,30 @@ export function QuestionPaperFormPage() {
         <h3 style={{ marginBottom: "0.75rem" }}>Sections</h3>
         <p style={{ color: "var(--muted)", fontSize: "0.9rem", marginTop: 0 }}>
           {isAdaptive
-            ? "Each section is an adaptive test with its own length and time limit. Use subject/topic filters for the whole bank, or pick a question set below to restrict the section to specific questions."
-            : "Each section has a fixed question sequence, length, and time limit. Select questions in order — the first N in the list are what the student gets."}
+            ? "Each section is an adaptive test with its own length and time limit. Load questions from a folder, use subject/topic filters for the whole bank, or pick a question set below."
+            : "Each section has a fixed question sequence, length, and time limit. Load a folder, or select questions in order — the first N in the list are what the student gets."}
         </p>
+        <div className="paper-folder-source">
+          <label className="label">Create from a folder</label>
+          <p style={{ margin: "0 0 0.65rem", fontSize: "0.85rem", color: "var(--muted)" }}>
+            Use every question in an exam category, subject folder, or topic subfolder as this paper&apos;s first
+            section. You can add more sections from other folders after that.
+          </p>
+          <div className="paper-folder-source__row">
+            <button type="button" className="btn btn-primary" onClick={() => setFolderPickerFor("paper")}>
+              Choose folder
+            </button>
+            {sections[0]?.question_pool_ids?.length ? (
+              <span className="paper-folder-source__path">
+                First section: {sections[0].question_pool_ids.length} question
+                {sections[0].question_pool_ids.length === 1 ? "" : "s"}
+                {sections[0].exam_tag || sections[0].subject || sections[0].topic
+                  ? ` · ${[sections[0].exam_tag, sections[0].subject, sections[0].topic].filter(Boolean).join(" / ")}`
+                  : ""}
+              </span>
+            ) : null}
+          </div>
+        </div>
         {sections.map((sec, idx) => (
           <div key={sec.id} className="card" style={{ marginBottom: "1rem", background: "#f8fafc" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
@@ -740,17 +833,17 @@ export function QuestionPaperFormPage() {
             <SectionFilterFields
               sec={sec}
               cfg={cfg}
-              subjects={subjects}
-              onSubjectChange={(v) =>
-                setSections(sections.map((s) => (s.id === sec.id ? { ...s, subject: v, topic: "" } : s)))
+              folderTree={folderTree}
+              onChange={(patch) =>
+                setSections((prev) => prev.map((s) => (s.id === sec.id ? { ...s, ...patch } : s)))
               }
-              onTopicChange={(v) => setSections(sections.map((s) => (s.id === sec.id ? { ...s, topic: v } : s)))}
-              onExamTagChange={(v) => setSections(sections.map((s) => (s.id === sec.id ? { ...s, exam_tag: v || null } : s)))}
             />
             <SectionQuestionPoolEditor
               sec={sec}
               isAdaptive={isAdaptive}
+              folderTree={folderTree}
               setSection={(next) => setSections(sections.map((s) => (s.id === sec.id ? next : s)))}
+              onPickFolder={() => setFolderPickerFor(sec.id)}
             />
             <div className="grid-2">
               <div>
@@ -794,6 +887,14 @@ export function QuestionPaperFormPage() {
           </button>
         </div>
       </form>
+
+      {folderPickerFor ? (
+        <QuestionFolderPickerModal
+          title={folderPickerFor === "paper" ? "Create paper from folder" : "Load section from folder"}
+          onClose={() => setFolderPickerFor(null)}
+          onUse={(sel) => applyFolderSelection(sel, folderPickerFor)}
+        />
+      ) : null}
 
       {previewOpen ? (
         <PaperDraftPreview

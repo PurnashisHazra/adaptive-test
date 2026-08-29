@@ -19,6 +19,8 @@ from app.schemas.challenge import (
     ChallengeParticipantBrief,
     ChallengeParticipantsPage,
     ChallengeUpdate,
+    TodaysTopperOut,
+    TodaysTopperResponse,
 )
 from app.utils.cohort_percentile import percentile_among_ranked_attempts
 from app.utils.guest import GUEST_EMAIL_REQUIRED, is_guest_username
@@ -200,6 +202,45 @@ class ChallengeService:
     async def list_challenges(self) -> List[ChallengeOut]:
         rows = await self._challenges.list_challenges()
         return [self._out_challenge(r) for r in rows]
+
+    async def todays_topper(self) -> TodaysTopperResponse:
+        latest = await self._challenges.find_latest_completed_attempt()
+        if not latest:
+            return TodaysTopperResponse(topper=None)
+        cid = str(latest.get("challenge_id") or "").strip()
+        rows = await self._challenges.find_top_completed_for_challenge(cid, limit=16)
+        preferred = [r for r in rows if not is_guest_username(str(r.get("student_username") or ""))]
+        candidates = preferred or rows
+        for att in candidates:
+            uname = str(att.get("student_username") or "").strip()
+            if not uname or not cid:
+                continue
+            challenge = await self._challenges.get_challenge(cid)
+            if not challenge:
+                continue
+            mpc = float(challenge.get("marks_per_correct", 1))
+            max_m = _max_marks(challenge, mpc)
+            total_marks = float(att.get("total_marks") or 0)
+            pct = percentage_from_marks(total_marks, max_m)
+            try:
+                profile = await PublicProfileService().ensure_for_student(uname)
+                slug = profile.profile_slug
+                display = profile.display_name or self._display_name(att)
+            except ValueError:
+                slug = uname
+                display = self._display_name(att)
+            return TodaysTopperResponse(
+                topper=TodaysTopperOut(
+                    display_name=display,
+                    profile_slug=slug,
+                    percentage=pct,
+                    total_marks=round(total_marks, 2),
+                    max_marks=round(max_m, 2),
+                    challenge_id=cid,
+                    challenge_title=str(challenge.get("title") or "Challenge"),
+                )
+            )
+        return TodaysTopperResponse(topper=None)
 
     async def assign(self, challenge_id: str, student_username: str) -> None:
         got = await self._challenges.get_challenge(challenge_id)
@@ -615,11 +656,6 @@ class ChallengeService:
                 paper_next=pn,
                 paper_summary=None,
             )
-
-        total_marks = sum(float(r["marks"]) for r in prev_results)
-        max_m = _max_marks(challenge, mpc)
-        pct = (total_marks / max_m * 100.0) if max_m > 0 else 0.0
-        pct = max(0.0, min(100.0, round(pct, 2)))
 
         c_att = await self._challenges.get_challenge_attempt(ca_id) or c_att
         pr = await self._finalize_result(c_att, challenge, ended_early=False)

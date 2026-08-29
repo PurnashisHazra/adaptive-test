@@ -132,16 +132,45 @@ def standalone_test_name(att: Dict[str, Any]) -> str:
     return "Adaptive test"
 
 
-def standalone_accuracy_stats(answers: List[Dict[str, Any]]) -> Tuple[int, int, float]:
-    """Return (correct, attempted, percentage) for standalone adaptive tests.
+def scored_marks(correct: int, wrong: int, mpc: float, mpi: float) -> float:
+    """Marks earned: correct * mpc − wrong * mpi. Not attempted adds 0."""
+    return float(correct) * float(mpc) - float(wrong) * float(mpi)
 
-    Not-attempted answers are excluded from the denominator (no penalty).
+
+def max_marks_for_count(total_questions: int, mpc: float) -> float:
+    return float(max(0, int(total_questions))) * float(mpc)
+
+
+def percentage_from_counts(
+    correct: int,
+    wrong: int,
+    not_attempted: int,
+    mpc: float,
+    mpi: float,
+) -> float:
+    """Percentage = scored marks / max marks."""
+    total_q = int(correct) + int(wrong) + int(not_attempted)
+    return percentage_from_marks(scored_marks(correct, wrong, mpc, mpi), max_marks_for_count(total_q, mpc))
+
+
+def standalone_accuracy_stats(
+    answers: List[Dict[str, Any]],
+    att: Optional[Dict[str, Any]] = None,
+    mpc: float = 1.0,
+    mpi: float = 0.0,
+) -> Tuple[int, int, float]:
+    """Return (correct, total_questions, percentage) using scored marks / max marks.
+
+    Max marks include not-attempted questions (they contribute 0 to the score).
     """
-    attempted_rows = [a for a in answers if is_answer_attempted(a)]
-    correct = sum(1 for a in attempted_rows if a.get("is_correct"))
-    attempted = len(attempted_rows)
-    pct = (correct / attempted * 100.0) if attempted else 0.0
-    return correct, attempted, pct
+    if att is not None:
+        correct, wrong, not_attempted = standalone_result_counts(att, answers)
+    else:
+        correct, wrong = classify_answers(answers)
+        not_attempted = sum(1 for a in answers if not is_answer_attempted(a))
+    total = correct + wrong + not_attempted
+    pct = percentage_from_counts(correct, wrong, not_attempted, mpc, mpi)
+    return correct, total, pct
 
 
 def max_marks_from_section_results(
@@ -151,17 +180,16 @@ def max_marks_from_section_results(
     ended_early: bool,
     full_max: float,
 ) -> float:
-    """When a structured test ends early, max marks reflect only attempted questions."""
-    if not ended_early:
-        return full_max
-    attempted = sum(int(r.get("correct", 0)) + int(r.get("wrong", 0)) for r in section_results)
-    return float(attempted) * mpc if attempted > 0 else 0.0
+    """Max marks always include not-attempted questions (they contribute 0)."""
+    del section_results, mpc, ended_early
+    return full_max
 
 
-def percentage_from_marks(total_marks: float, max_marks: float) -> float:
+def percentage_from_marks(scored_marks_value: float, max_marks: float) -> float:
+    """Percentage = scored marks / max marks × 100."""
     if max_marks <= 0:
         return 0.0
-    return max(0.0, min(100.0, round(total_marks / max_marks * 100.0, 2)))
+    return round((float(scored_marks_value) / float(max_marks)) * 100.0, 2)
 
 
 def structured_section_totals(section_results: List[Dict[str, Any]]) -> Tuple[int, int, int]:
@@ -200,7 +228,7 @@ def structured_attempt_stats(
     full_max: float,
     ended_early: bool,
     total_marks: Optional[float] = None,
-) -> Tuple[int, int, int, float]:
+) -> Tuple[int, int, int, float, float, float]:
     """Marks-based stats for a paper or challenge attempt."""
     correct, wrong, not_attempted = structured_section_totals(section_results)
     marks = (
@@ -209,7 +237,7 @@ def structured_attempt_stats(
         else sum(float(r.get("marks", 0)) for r in section_results)
     )
     max_m = max_marks_from_section_results(section_results, mpc, ended_early=ended_early, full_max=full_max)
-    if max_m <= 0 and (correct + wrong) > 0:
-        max_m = float(correct + wrong) * mpc
+    if max_m <= 0:
+        max_m = max_marks_for_count(correct + wrong + not_attempted, mpc)
     pct = percentage_from_marks(marks, max_m)
-    return correct, wrong, not_attempted, pct
+    return correct, wrong, not_attempted, pct, round(float(marks), 2), round(float(max_m), 2)

@@ -29,6 +29,7 @@ import type { Difficulty, QuestionAdmin, QuestionBankFolderTree, QuestionCreateP
 import { AdminFilterShell } from "../../components/AdminFilterShell";
 import { AdminPanel } from "../../components/AdminPanel";
 import { QuestionBankFolderGrid, examTagLabel, subjectFolderLabel } from "../../components/QuestionBankFolderGrid";
+import { notifyFolderTreeChanged } from "../../lib/questionFolders";
 
 type SelectedFolder = { level: "exam" | "subject" | "topic"; key: string; label: string; count: number };
 
@@ -640,6 +641,7 @@ export function QuestionsPage() {
       }
       setFolderModal(null);
       await loadFolderTree();
+      notifyFolderTreeChanged();
       if (postMoveNav) setSearchParams(postMoveNav);
       if (inQuestionList) await loadWithPage(page);
     } catch (err: unknown) {
@@ -708,6 +710,15 @@ export function QuestionsPage() {
     [selectedSubject],
   );
 
+  const newQuestionHref = useMemo(() => {
+    const p = new URLSearchParams();
+    if (examTag) p.set("exam", examTag);
+    if (subjectFolder) p.set("subject", subjectFolder);
+    if (topicFolder) p.set("topic", topicFolder);
+    const q = p.toString();
+    return q ? `/admin/questions/new?${q}` : "/admin/questions/new";
+  }, [examTag, subjectFolder, topicFolder]);
+
   const panelTitle = inQuestionList
     ? topicFolder
     : atTopicLevel
@@ -767,7 +778,7 @@ export function QuestionsPage() {
           <button type="button" className="btn btn-ghost" onClick={() => setShowAiModal(true)}>
             AI-Add Question
           </button>
-          <Link to="/admin/questions/new" className="btn btn-primary">
+          <Link to={newQuestionHref} className="btn btn-primary">
             Add question
           </Link>
         </>

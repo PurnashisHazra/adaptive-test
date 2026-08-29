@@ -121,6 +121,16 @@ class QuestionRepository:
     async def count(self, query: Optional[Dict[str, Any]] = None) -> int:
         return await self._col.count_documents(query or {})
 
+    async def count_for_filters(
+        self,
+        *,
+        subject: Optional[str] = None,
+        topic: Optional[str] = None,
+        exam_tag: Optional[str] = None,
+    ) -> int:
+        filt = self._build_filter(subject, topic, None, None, None, exam_tag)
+        return await self.count(filt)
+
     def _build_filter(
         self,
         subject: Optional[str] = None,
@@ -249,10 +259,13 @@ class QuestionRepository:
             return None
         return oid_str(random.choice(ids))
 
-    async def list_topics(self, subject: Optional[str] = None) -> List[str]:
+    async def list_topics(self, subject: Optional[str] = None, exam_tag: Optional[str] = None) -> List[str]:
         filt: Dict[str, Any] = {}
         if subject:
             filt["subject"] = subject
+        if exam_tag and str(exam_tag).strip():
+            t = str(exam_tag).strip().upper()
+            filt["tags"] = {"$in": [t]}
         vals = await self._col.distinct("topic", filt)
         cleaned = [str(v).strip() for v in vals if str(v).strip()]
         return sorted(set(cleaned), key=lambda x: x.lower())

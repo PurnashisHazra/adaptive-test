@@ -28,6 +28,7 @@ class ChallengeRepository:
             unique=True,
         )
         await self._attempts.create_index([("challenge_id", 1), ("status", 1)])
+        await self._attempts.create_index([("completed_at", -1), ("total_marks", -1)])
 
     async def insert_challenge(self, doc: Dict[str, Any]) -> str:
         doc.setdefault("created_at", _utc_now())
@@ -286,5 +287,53 @@ class ChallengeRepository:
                 "total_marks": {"$exists": True, "$ne": None},
             },
             projection={"student_username": 1, "total_marks": 1, "status": 1},
+        )
+        return [d async for d in cur]
+
+    async def find_latest_completed_attempt(self) -> Optional[Dict[str, Any]]:
+        doc = await self._attempts.find_one(
+            {
+                "status": {"$in": ["completed", "ended_early"]},
+                "total_marks": {"$exists": True, "$ne": None},
+            },
+            projection={
+                "student_username": 1,
+                "display_name": 1,
+                "total_marks": 1,
+                "challenge_id": 1,
+                "completed_at": 1,
+                "status": 1,
+            },
+            sort=[("completed_at", -1)],
+        )
+        return doc
+
+    async def find_top_completed_for_challenge(
+        self,
+        challenge_id: str,
+        *,
+        limit: int = 16,
+    ) -> List[Dict[str, Any]]:
+        cid = challenge_id.strip()
+        if not cid:
+            return []
+        cur = (
+            self._attempts.find(
+                {
+                    "challenge_id": cid,
+                    "status": {"$in": ["completed", "ended_early"]},
+                    "total_marks": {"$exists": True, "$ne": None},
+                },
+                projection={
+                    "student_username": 1,
+                    "display_name": 1,
+                    "total_marks": 1,
+                    "challenge_id": 1,
+                    "completed_at": 1,
+                    "status": 1,
+                },
+            )
+            .sort("total_marks", -1)
+            .limit(limit)
         )
         return [d async for d in cur]

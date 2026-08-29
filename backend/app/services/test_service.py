@@ -25,7 +25,14 @@ from app.utils.exam_tags import exam_folder_for_tags
 from app.services.explanation_hint_openai import request_openai_explanation_hint
 from app.services.rc_set_service import RcSetService
 from app.utils.ids import oid_str
-from app.utils.attempt_scoring import classify_answers, is_answer_attempted, standalone_accuracy_stats
+from app.utils.attempt_scoring import (
+    classify_answers,
+    is_answer_attempted,
+    max_marks_for_count,
+    percentage_from_marks,
+    scored_marks,
+    standalone_result_counts,
+)
 
 
 def _utc_now() -> datetime:
@@ -218,11 +225,29 @@ class TestService:
         cfg = await self._config.get_or_create()
         pool = [str(x).strip() for x in question_pool_ids] if question_pool_ids else []
         pool = [x for x in pool if x] or None
-        if not pool:
+        is_structured = bool(paper_context or challenge_context)
+        if not pool and is_structured:
             if not cfg.get("subject_filter_enabled", True):
                 subject = None
             if not cfg.get("topic_filter_enabled", True):
                 topic = None
+
+        if not is_structured and not pool:
+            exam_tag = (exam_tag or "").strip() or None
+            topic = (topic or "").strip() or None
+            subject = (subject or "").strip() or None
+            if not exam_tag:
+                raise ValueError("Select an exam category")
+            if not topic:
+                raise ValueError("Select a topic")
+            available = await self._questions.count_for_filters(
+                subject=subject,
+                topic=topic,
+                exam_tag=exam_tag,
+            )
+            if available <= 0:
+                raise ValueError("Questions not available")
+            total_questions = min(int(total_questions), available)
 
         if time_limit_seconds is None:
             time_limit_seconds = int(cfg.get("default_time_limit_seconds", 1800))
@@ -251,7 +276,7 @@ class TestService:
                 exam_tag,
                 pool,
             )
-        if not first_id and not adaptive_disabled and not pool:
+        if not first_id and not adaptive_disabled and not pool and is_structured:
             folder_admin = await resolve_folder_admin_username(student_username)
             first_id = await self._ai_generator.generate_and_store_question(
                 subject,
@@ -262,7 +287,9 @@ class TestService:
             )
         if not first_id:
             raise ValueError(
-                "No questions available for this section (check filters or question set and difficulty mix)."
+                "Questions not available"
+                if not is_structured
+                else "No questions available for this section (check filters or question set and difficulty mix)."
             )
 
         doc: Dict[str, Any] = {
@@ -362,11 +389,14 @@ class TestService:
             raise ValueError("Question not found")
 
         last_diff = Difficulty(qdoc["difficulty"])
-        is_correct = _answers_equal(qdoc["correct_answer"], chosen_answer, qdoc["question_type"])
+        chosen = (chosen_answer or "").strip()
+        is_attempted = bool(chosen)
+        is_correct = _answers_equal(qdoc["correct_answer"], chosen, qdoc["question_type"]) if is_attempted else False
+        new_answered = answered + 1
         new_score = int(att.get("score", 0)) + (1 if is_correct else 0)
 
         non_adaptive = bool(att.get("adaptive_disabled"))
-        if non_adaptive:
+        if non_adaptive or not is_attempted:
             next_diff = last_diff
         else:
             transition_enabled = bool(cfg.get("difficulty_transition_enabled", True))
@@ -378,14 +408,15 @@ class TestService:
             seq = _parse_difficulty_sequence(cfg)
             wave_enabled = bool(cfg.get("difficulty_wave_enabled", False))
             if wave_enabled and seq:
-                seq_idx = min(new_answered, len(seq) - 1)
+                seq_idx = min(max(new_answered - 1, 0), len(seq) - 1)
                 next_diff = seq[seq_idx]
 
         answer_entry: Dict[str, Any] = {
             "question_id": question_id,
-            "chosen_answer": chosen_answer.strip(),
+            "chosen_answer": chosen,
             "is_correct": is_correct,
-            "is_attempted": bool(chosen_answer.strip()),
+            "is_attempted": is_attempted,
+            "skipped": not is_attempted,
             "difficulty_when_served": last_diff.value,
             "topic_when_served": str(qdoc.get("topic", "")).strip() or None,
             "target_difficulty_after": next_diff.value,
@@ -394,7 +425,6 @@ class TestService:
             answer_entry["time_spent_seconds"] = int(time_spent_seconds)
         answers = list(att.get("answers", []))
         answers.append(answer_entry)
-        new_answered = answered + 1
 
         patch: Dict[str, Any] = {
             "questions_answered": new_answered,
@@ -430,8 +460,13 @@ class TestService:
         hard_pair_topic = _is_hard_correct_same_topic_pair(answers)
         pool_raw = att.get("question_pool_ids")
         pool_active = isinstance(pool_raw, list) and len([x for x in pool_raw if str(x).strip()]) > 0
-        should_generate_expert = not non_adaptive and not pool_active and (
-            (last_diff == Difficulty.EXPERT and is_correct) or (hard_pair_topic is not None)
+        is_structured = bool(str(att.get("paper_attempt_id") or "").strip() or str(att.get("challenge_attempt_id") or "").strip())
+        should_generate_expert = (
+            is_structured
+            and not non_adaptive
+            and not pool_active
+            and is_attempted
+            and ((last_diff == Difficulty.EXPERT and is_correct) or (hard_pair_topic is not None))
         )
         folder_admin = await resolve_folder_admin_username(
             str(att.get("student_username") or "").strip() or None
@@ -465,7 +500,7 @@ class TestService:
                 att.get("exam_tag_filter"),
                 pool_for_next,
             )
-        if not next_qid and not pool_active:
+        if not next_qid and not pool_active and is_structured:
             next_qid = await self._ai_generator.generate_and_store_question(
                 gen_subject,
                 gen_topic,
@@ -553,6 +588,7 @@ class TestService:
             "chosen_answer": chosen,
             "is_correct": is_correct,
             "is_attempted": is_attempted,
+            "skipped": not is_attempted,
             "difficulty_when_served": last_diff.value,
             "topic_when_served": str(qdoc.get("topic", "")).strip() or None,
             "target_difficulty_after": last_diff.value,
@@ -640,12 +676,17 @@ class TestService:
             raise ValueError("Attempt not found")
         if att.get("status") != AttemptStatus.IN_PROGRESS.value:
             raise ValueError("Attempt already completed")
-        answered = int(att.get("questions_answered", 0))
+        answers = list(att.get("answers") or [])
+        correct, _wrong, _na = standalone_result_counts(att, answers)
+        planned = int(att.get("planned_total_questions") or 0) or int(att.get("total_questions") or 0)
+        total = max(planned, correct + _wrong + _na)
         patch: Dict[str, Any] = {
             "status": AttemptStatus.COMPLETED.value,
             "completed_at": _utc_now(),
             "completion_reason": "section_time_exceeded",
-            "total_questions": answered,
+            "score": correct,
+            "total_questions": total,
+            "questions_answered": correct + _wrong,
         }
         await self._attempts.update(attempt_id, patch)
 
@@ -810,26 +851,26 @@ class TestService:
         if structured and not (allow_paper or allow_structured):
             raise ValueError("This attempt is part of a multi-section test. End it from the contest screen.")
 
-        answered = int(att.get("questions_answered", 0))
         answers = list(att.get("answers") or [])
-        correct, attempted, _ = standalone_accuracy_stats(answers)
+        correct, wrong, not_attempted = standalone_result_counts(att, answers)
+        planned = int(att.get("planned_total_questions") or 0) or int(att.get("total_questions") or 0)
+        total = max(planned, correct + wrong + not_attempted)
 
         patch: Dict[str, Any] = {
             "status": AttemptStatus.COMPLETED.value,
             "completed_at": _utc_now(),
             "completion_reason": "ended_early",
             "score": correct,
-            "total_questions": attempted if attempted > 0 else answered,
+            "total_questions": total,
         }
         await self._attempts.update(attempt_id, patch)
         att_done = await self._attempts.get(attempt_id) or att
 
-        effective_total = attempted if attempted > 0 else answered
         return await self._build_summary(
             att_done,
             attempt_id,
             correct,
-            effective_total,
+            total,
             answers,
             ended_early=True,
         )
@@ -845,13 +886,19 @@ class TestService:
     ) -> AttemptSummary:
         from app.schemas.attempt import AnswerRecord
 
-        total = effective_total
-        correct, attempted, pct = standalone_accuracy_stats(answers)
-        if attempted > 0:
-            score = correct
-            total = attempted
-        else:
-            pct = (score / total * 100.0) if total else 0.0
+        correct_n, wrong_n, not_attempted_n = standalone_result_counts(att, answers)
+        total = max(
+            int(effective_total or 0),
+            int(att.get("planned_total_questions") or 0),
+            int(att.get("total_questions") or 0),
+            correct_n + wrong_n + not_attempted_n,
+        )
+        mpc = 1.0
+        mpi = 0.0
+        marks = scored_marks(correct_n, wrong_n, mpc, mpi)
+        max_m = max_marks_for_count(total, mpc)
+        pct = percentage_from_marks(marks, max_m)
+        score = correct_n
         recs: List[AnswerRecord] = []
         for a in answers:
             recs.append(

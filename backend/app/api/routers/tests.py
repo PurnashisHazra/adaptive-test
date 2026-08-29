@@ -42,10 +42,23 @@ async def start_test(
 
 
 @router.get("/topics")
-async def list_topics(subject: Optional[str] = Query(default=None)) -> dict:
+async def list_topics(
+    subject: Optional[str] = Query(default=None),
+    exam_tag: Optional[str] = Query(default=None),
+) -> dict:
     repo = QuestionRepository()
-    topics = await repo.list_topics(subject=subject.strip() if subject else None)
+    topics = await repo.list_topics(
+        subject=subject.strip() if subject else None,
+        exam_tag=exam_tag.strip().upper() if exam_tag and exam_tag.strip() else None,
+    )
     return {"topics": topics}
+
+
+@router.get("/exam-categories")
+async def list_exam_categories() -> dict:
+    repo = QuestionRepository()
+    tags = await repo.list_exam_tags()
+    return {"exam_tags": tags}
 
 
 @router.get("/subjects")

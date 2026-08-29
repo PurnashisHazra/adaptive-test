@@ -138,6 +138,20 @@ class ChallengeCatalogPage(BaseModel):
     total_pages: int = Field(ge=0)
 
 
+class TodaysTopperOut(BaseModel):
+    display_name: str
+    profile_slug: str
+    percentage: float
+    total_marks: float
+    max_marks: float
+    challenge_id: str
+    challenge_title: str
+
+
+class TodaysTopperResponse(BaseModel):
+    topper: Optional[TodaysTopperOut] = None
+
+
 class ChallengeGuestStartBody(BaseModel):
     display_name: Optional[str] = Field(default=None, max_length=120)
 

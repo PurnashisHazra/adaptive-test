@@ -7,6 +7,7 @@ import { getChallengeRecap } from "../api/client";
 import type { ChallengeRecapResponse } from "../api/types";
 import { isGuestEmailRequiredError } from "../lib/guestEmailGate";
 import { getOrCreateGuestId } from "../lib/guestSession";
+import { percentageFromMarks } from "../lib/scoring";
 
 type PanelPhase = "loading" | "email" | "ready" | "error";
 
@@ -103,6 +104,7 @@ export function ChallengeResultPanel({ challengeAttemptId }: { challengeAttemptI
   }
 
   const { paper_summary: paper } = recap;
+  const paperPct = percentageFromMarks(paper.total_marks, paper.max_marks);
 
   return (
     <>
@@ -112,7 +114,7 @@ export function ChallengeResultPanel({ challengeAttemptId }: { challengeAttemptI
         <h1 style={{ fontSize: "1.75rem", marginBottom: "0.5rem" }}>{paper.title}</h1>
         <p style={{ color: "var(--muted)" }}>{paper.student_name}</p>
         <p style={{ fontSize: "2.5rem", fontWeight: 700, color: "var(--primary-dark)", margin: "1rem 0 0.5rem" }}>
-          {paper.percentage.toFixed(1)}%
+          {paperPct.toFixed(1)}%
         </p>
         <p style={{ fontSize: "1.05rem", marginBottom: "0.5rem" }}>
           Total marks: {paper.total_marks.toFixed(2)} / {paper.max_marks.toFixed(2)}

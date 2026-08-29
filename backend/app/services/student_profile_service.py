@@ -129,9 +129,9 @@ class StudentProfileService:
         if allowed:
             chosen = (exam_tag or "").strip().upper()
             if not chosen:
-                raise ValueError(f"Select an exam type: {', '.join(allowed)}")
+                raise ValueError(f"Select an exam category: {', '.join(allowed)}")
             if chosen not in allowed:
-                raise ValueError(f"Exam type must be one of: {', '.join(allowed)}")
+                raise ValueError(f"Exam category must be one of: {', '.join(allowed)}")
 
         return controls.display_name
 

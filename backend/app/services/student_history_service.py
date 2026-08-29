@@ -11,7 +11,9 @@ from app.services.cohort_percentile_service import CohortPercentileService
 from app.services.paper_service import _max_marks as paper_max_marks
 from app.services.paper_service import _sorted_sections as paper_sorted_sections
 from app.utils.attempt_scoring import (
-    standalone_accuracy_stats,
+    max_marks_for_count,
+    percentage_from_counts,
+    scored_marks,
     standalone_result_counts,
     standalone_test_name,
     structured_attempt_stats,
@@ -69,8 +71,12 @@ class StudentHistoryService:
         for a in rows:
             answers = list(a.get("answers") or [])
             correct, wrong, not_attempted = standalone_result_counts(a, answers)
-            _, attempted, pct = standalone_accuracy_stats(answers)
-            if attempted <= 0 and not answers and not_attempted <= 0:
+            total = max(correct + wrong + not_attempted, 0)
+            mpc, mpi = 1.0, 0.0
+            marks = scored_marks(correct, wrong, mpc, mpi)
+            max_m = max_marks_for_count(total, mpc)
+            pct = percentage_from_counts(correct, wrong, not_attempted, mpc, mpi)
+            if total <= 0 and not answers:
                 continue
 
             cohort = await self._cohort.for_standalone(
@@ -90,8 +96,10 @@ class StudentHistoryService:
                     wrong=wrong,
                     not_attempted=not_attempted,
                     score=correct,
-                    total_questions=max(correct + wrong + not_attempted, attempted),
+                    total_questions=total,
                     percentage=round(pct, 2),
+                    total_marks=round(marks, 2),
+                    max_marks=round(max_m, 2),
                     cohort_percentile=cohort.get("cohort_percentile"),
                     cohort_ranked_count=int(cohort.get("cohort_ranked_count") or 0),
                     subject=a.get("subject_filter"),
@@ -149,7 +157,7 @@ class StudentHistoryService:
             full_max = _paper_full_max(paper, mpc)
             total_marks_raw = pa.get("total_marks")
             total_marks = float(total_marks_raw) if total_marks_raw is not None else None
-            _, _, _, pct = structured_attempt_stats(
+            _, _, _, pct, marks, max_m = structured_attempt_stats(
                 section_results,
                 mpc=mpc,
                 full_max=full_max,
@@ -178,6 +186,8 @@ class StudentHistoryService:
                     score=correct,
                     total_questions=correct + wrong + not_attempted,
                     percentage=round(pct, 2),
+                    total_marks=round(marks, 2),
+                    max_marks=round(max_m, 2),
                     cohort_percentile=cohort_pct,
                     cohort_ranked_count=cohort_n,
                     subject=None,
@@ -211,7 +221,7 @@ class StudentHistoryService:
             full_max = _challenge_full_max(challenge, mpc)
             total_marks_raw = ca.get("total_marks")
             total_marks = float(total_marks_raw) if total_marks_raw is not None else None
-            _, _, _, pct = structured_attempt_stats(
+            _, _, _, pct, marks, max_m = structured_attempt_stats(
                 section_results,
                 mpc=mpc,
                 full_max=full_max,
@@ -245,6 +255,8 @@ class StudentHistoryService:
                     score=correct,
                     total_questions=correct + wrong + not_attempted,
                     percentage=round(pct, 2),
+                    total_marks=round(marks, 2),
+                    max_marks=round(max_m, 2),
                     cohort_percentile=cohort_pct,
                     cohort_ranked_count=cohort_n,
                     subject=None,

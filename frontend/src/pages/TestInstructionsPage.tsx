@@ -59,7 +59,7 @@ export function TestInstructionsPage() {
         err && typeof err === "object" && "response" in err
           ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
           : undefined;
-      toast.error(typeof msg === "string" ? msg : "Could not start test");
+      toast.error(typeof msg === "string" ? msg : "Questions not available");
     } finally {
       setLoading(false);
     }
@@ -78,16 +78,16 @@ export function TestInstructionsPage() {
         </ol>
         <p style={{ color: "var(--muted)", marginTop: "0.75rem" }}>
           Candidate: <strong>{pendingStart.studentName}</strong> · Questions: <strong>{pendingStart.totalQuestions}</strong>
+          {pendingStart.exam_tag ? (
+            <>
+              {" "}
+              · Exam category: <strong>{pendingStart.exam_tag}</strong>
+            </>
+          ) : null}
           {pendingStart.topic ? (
             <>
               {" "}
               · Topic: <strong>{pendingStart.topic}</strong>
-            </>
-          ) : null}
-          {pendingStart.exam_tag ? (
-            <>
-              {" "}
-              · Exam: <strong>{pendingStart.exam_tag}</strong>
             </>
           ) : null}
         </p>

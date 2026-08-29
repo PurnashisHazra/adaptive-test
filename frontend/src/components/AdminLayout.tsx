@@ -50,8 +50,11 @@ export function AdminLayout() {
     <div className="admin-root">
       <aside className="admin-sidebar" aria-label="Admin navigation">
         <div className="admin-sidebar-brand">
-          AdapTest Admin
-          <span className="admin-sidebar-brand__sub">Instructor dashboard</span>
+          <img src="/emgc-logo.png" alt="EMGC" className="admin-sidebar-brand__logo" />
+          <span className="admin-sidebar-brand__lockup">
+            <span className="admin-sidebar-brand__name">Testhub</span>
+            <span className="admin-sidebar-brand__sub">Instructor dashboard</span>
+          </span>
         </div>
         <nav className="admin-nav">
           {navGroups.map((group) => (

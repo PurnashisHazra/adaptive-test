@@ -7,7 +7,7 @@ function page(partial: PageSeo): PageSeo {
 
 export const SEO_HOME: PageSeo = page({
   path: "/",
-  title: `${SITE_NAME} — Free CAT Mock Test & SSC Mock Test Online | Adaptive Mocks`,
+  title: SITE_NAME,
   description:
     "Practice CAT mocks and SSC mock tests online. AdapTest adapts every next question to your accuracy, speed, and knowledge—timed challenges, full-length papers, and performance analytics.",
   keywords: [

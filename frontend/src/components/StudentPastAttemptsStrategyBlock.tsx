@@ -7,6 +7,7 @@ import {
   normalizeAccuracyCoach,
   normalizeTimeCoach,
 } from "../lib/coachPlanFallback";
+import { percentageFromMarks } from "../lib/scoring";
 import type {
   StudentAttemptAccuracyImprovementResponse,
   StudentAttemptTimeStrategyResponse,
@@ -522,7 +523,9 @@ export function StudentPastAttemptsStrategyBlock({
             <span style={{ color: "var(--muted)" }}>
               {" "}
               · {detail.score}/{detail.total_questions}
-              {detail.percentage != null ? ` (${detail.percentage}%)` : ""}
+              {detail.total_questions > 0
+                ? ` (${percentageFromMarks(detail.score, detail.total_questions).toFixed(1)}%)`
+                : ""}
             </span>
           ) : null}
         </p>

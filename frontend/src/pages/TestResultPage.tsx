@@ -1,6 +1,7 @@
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { ChallengeResultPanel } from "../components/ChallengeResultPanel";
 import { CohortPercentileBanner } from "../components/CohortPercentileBanner";
+import { percentageFromMarks } from "../lib/scoring";
 import { useHasTestSessionHydrated, useTestSession } from "../store/testSession";
 
 export function TestResultPage() {
@@ -40,12 +41,13 @@ export function TestResultPage() {
   }
 
   if (paperSummary) {
+    const paperPct = percentageFromMarks(paperSummary.total_marks, paperSummary.max_marks);
     return (
       <div className="page">
         <div className="card" style={{ textAlign: "center" }}>
           <h1 style={{ fontSize: "1.75rem", marginBottom: "0.5rem" }}>{paperSummary.title}</h1>
           <p style={{ color: "var(--muted)" }}>{paperSummary.student_name}</p>
-          <p style={{ fontSize: "2.5rem", fontWeight: 700, color: "var(--primary-dark)", margin: "1rem 0 0.5rem" }}>{paperSummary.percentage.toFixed(1)}%</p>
+          <p style={{ fontSize: "2.5rem", fontWeight: 700, color: "var(--primary-dark)", margin: "1rem 0 0.5rem" }}>{paperPct.toFixed(1)}%</p>
           <p style={{ fontSize: "1.05rem", marginBottom: "0.5rem" }}>
             Total marks: {paperSummary.total_marks.toFixed(2)} / {paperSummary.max_marks.toFixed(2)}
           </p>
@@ -102,9 +104,13 @@ export function TestResultPage() {
   }
 
   const endedEarly = Boolean(summary?.ended_early);
+  const reviewAnswers = summary?.answers ?? [];
+  const notAttemptedCount = reviewAnswers.filter((a) => a.is_attempted === false).length;
+  const wrongCount = reviewAnswers.filter((a) => a.is_attempted !== false && !a.is_correct).length;
+  const resultPct = percentageFromMarks(summary!.score, summary!.total_questions);
   const scoreLabel =
     summary!.total_questions > 0
-      ? `${summary!.score} / ${summary!.total_questions} correct (attempted)`
+      ? `${summary!.score} correct · ${wrongCount} wrong · ${notAttemptedCount} not attempted`
       : endedEarly
         ? "No questions attempted"
         : "0 / 0";
@@ -121,7 +127,7 @@ export function TestResultPage() {
             {summary!.total_questions > 0 ? (
               <>
                 <p style={{ color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", fontSize: "0.8rem", marginBottom: "0.35rem" }}>Your result</p>
-                <p style={{ fontSize: "2.5rem", fontWeight: 700, color: "var(--primary-dark)", margin: "0 0 0.5rem" }}>{summary!.percentage.toFixed(1)}%</p>
+                <p style={{ fontSize: "2.5rem", fontWeight: 700, color: "var(--primary-dark)", margin: "0 0 0.5rem" }}>{resultPct.toFixed(1)}%</p>
                 <p style={{ fontSize: "1.1rem", marginBottom: "0.5rem" }}>
                   {scoreLabel}
                 </p>
@@ -133,7 +139,7 @@ export function TestResultPage() {
         ) : (
           <>
             <p style={{ color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", fontSize: "0.8rem" }}>Session complete</p>
-            <h1 style={{ fontSize: "2.5rem", color: "var(--primary-dark)" }}>{summary!.percentage.toFixed(1)}%</h1>
+            <h1 style={{ fontSize: "2.5rem", color: "var(--primary-dark)" }}>{resultPct.toFixed(1)}%</h1>
             <p style={{ fontSize: "1.1rem", marginBottom: "0.5rem" }}>
               {scoreLabel}
             </p>

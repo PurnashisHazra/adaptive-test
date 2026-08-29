@@ -104,12 +104,47 @@ main {
 }
 
 .admin-sidebar-brand {
-  padding: 1rem 1rem 0.75rem;
+  padding: 1rem 1rem 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
   font-weight: 700;
-  font-size: 0.8rem;
-  letter-spacing: 0.06em;
+  font-size: 0.95rem;
+  letter-spacing: -0.02em;
+  text-transform: none;
+  color: #e2e8f0;
+}
+
+.admin-sidebar-brand__logo {
+  height: 2rem;
+  width: auto;
+  max-width: 7.5rem;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 8px;
+  padding: 0.15rem 0.25rem;
+}
+
+.admin-sidebar-brand__lockup {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 0.1rem;
+}
+
+.admin-sidebar-brand__name {
+  font-weight: 800;
+  color: #fff;
+}
+
+.admin-sidebar-brand__sub {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: #94a3b8;
 }
 
 .admin-nav {
@@ -288,6 +323,50 @@ main {
   border-color: #fca5a5;
   color: #dc2626;
   background: #fef2f2;
+}
+
+.qb-folder__use-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2rem;
+  padding: 0 0.55rem;
+  border: 1px solid #93c5fd;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.qb-folder__use-btn:hover:not(:disabled) {
+  background: #dbeafe;
+}
+
+.qb-folder__use-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.paper-folder-source {
+  margin-bottom: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.paper-folder-source__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.paper-folder-source__path {
+  font-size: 0.88rem;
+  color: #334155;
 }
 
 .qb-transfer-bar {
@@ -951,6 +1030,14 @@ select:focus,
 textarea:focus {
   outline: 2px solid rgba(14, 165, 233, 0.35);
   border-color: var(--primary);
+}
+
+.input:disabled,
+select:disabled,
+textarea:disabled {
+  background: #f1f5f9;
+  color: var(--muted);
+  cursor: not-allowed;
 }
 
 .label {
@@ -3191,6 +3278,21 @@ table.data th {
   font-size: 1.1rem;
   color: var(--text);
   text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.seo-footer__logo-img {
+  height: 2rem;
+  width: auto;
+  max-width: 9rem;
+  object-fit: contain;
+}
+
+.seo-footer__logo-divider {
+  color: #94a3b8;
+  font-weight: 400;
 }
 
 .seo-footer__tagline {

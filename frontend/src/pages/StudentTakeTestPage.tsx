@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { getConfig, getMySessionControls, getTestTopics, requestMorePracticeAttempts } from "../api/client";
+import { getConfig, getMySessionControls, getTestExamCategories, getTestTopics, requestMorePracticeAttempts } from "../api/client";
 import type { StudentSessionControls } from "../api/types";
+import { examTagLabel } from "../components/QuestionBankFolderGrid";
 import { useAuthStore } from "../store/authStore";
 import { useTestSession } from "../store/testSession";
 import { AppPage } from "../components/AppPage";
@@ -15,10 +16,10 @@ export function StudentTakeTestPage() {
   const [controls, setControls] = useState<StudentSessionControls | null>(null);
   const [loadingControls, setLoadingControls] = useState(true);
   const [name, setName] = useState("");
-  const [subject, setSubject] = useState("");
   const [topic, setTopic] = useState("");
   const [topics, setTopics] = useState<string[]>([]);
   const [loadingTopics, setLoadingTopics] = useState(false);
+  const [examCategories, setExamCategories] = useState<string[]>([]);
   const [total, setTotal] = useState(10);
   const [cfg, setCfg] = useState<Awaited<ReturnType<typeof getConfig>> | null>(null);
   const [loading, setLoading] = useState(false);
@@ -32,6 +33,10 @@ export function StudentTakeTestPage() {
   const allowedExams = controls?.allowed_exam_tags ?? [];
   const examRestricted = allowedExams.length > 0;
   const nameLocked = Boolean(controls?.display_name);
+  const examOptions = examRestricted ? allowedExams : examCategories;
+  const examSelected = examTag.trim().length > 0;
+  const topicSelected = topic.trim().length > 0;
+  const noQuestionsForSelection = examSelected && !loadingTopics && topics.length === 0;
 
   useEffect(() => {
     let alive = true;
@@ -67,20 +72,41 @@ export function StudentTakeTestPage() {
   }, []);
 
   useEffect(() => {
-    if (!cfg?.topic_filter_enabled) return;
+    if (examRestricted) return;
+    let alive = true;
+    getTestExamCategories()
+      .then((tags) => {
+        if (!alive) return;
+        setExamCategories(tags);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setExamCategories([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [examRestricted]);
+
+  useEffect(() => {
+    if (!examSelected) {
+      setTopics([]);
+      setTopic("");
+      setLoadingTopics(false);
+      return;
+    }
     let alive = true;
     setLoadingTopics(true);
-    getTestTopics(cfg?.subject_filter_enabled ? subject.trim() || undefined : undefined)
+    getTestTopics(undefined, examTag.trim())
       .then((ts) => {
         if (!alive) return;
         setTopics(ts);
-        if (topic && !ts.includes(topic)) {
-          setTopic("");
-        }
+        setTopic((current) => (current && ts.some((t) => t.toLowerCase() === current.toLowerCase()) ? current : ""));
       })
       .catch(() => {
         if (!alive) return;
         setTopics([]);
+        setTopic("");
       })
       .finally(() => {
         if (alive) setLoadingTopics(false);
@@ -88,7 +114,7 @@ export function StudentTakeTestPage() {
     return () => {
       alive = false;
     };
-  }, [cfg?.topic_filter_enabled, cfg?.subject_filter_enabled, subject, topic]);
+  }, [examTag, examSelected]);
 
   const attemptsHint = useMemo(() => {
     if (!controls) return null;
@@ -127,17 +153,24 @@ export function StudentTakeTestPage() {
       toast.error("Please enter your name");
       return;
     }
-    if (examRestricted && !examTag.trim()) {
-      toast.error("Select an exam type");
+    if (!examTag.trim()) {
+      toast.error("Select an exam category");
+      return;
+    }
+    if (!topic.trim()) {
+      toast.error("Select a topic");
+      return;
+    }
+    if (noQuestionsForSelection) {
+      toast.error("Questions not available");
       return;
     }
     setLoading(true);
     try {
       setPendingStart({
         studentName: name.trim(),
-        subject: cfg?.subject_filter_enabled ? subject.trim() || undefined : undefined,
-        topic: cfg?.topic_filter_enabled ? topic.trim() || undefined : undefined,
-        exam_tag: examTag.trim() || undefined,
+        topic: topic.trim(),
+        exam_tag: examTag.trim(),
         totalQuestions: total,
         timeLimitSeconds: cfg?.default_time_limit_seconds,
       });
@@ -218,48 +251,58 @@ export function StudentTakeTestPage() {
             </p>
           ) : null}
         </div>
-        {cfg?.subject_filter_enabled && (
-          <div style={{ marginBottom: "1rem" }}>
-            <label className="label">Subject (optional)</label>
-            <input className="input" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. Mathematics" />
-          </div>
-        )}
-        {cfg?.topic_filter_enabled && (
-          <div style={{ marginBottom: "1rem" }}>
-            <label className="label">Topic (optional)</label>
-            <select className="input" value={topic} onChange={(e) => setTopic(e.target.value)} disabled={loadingTopics}>
-              <option value="">Any topic</option>
-              {topics.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
         <div style={{ marginBottom: "1rem" }}>
-          <label className="label">{examRestricted ? "Exam type" : "Exam lens (optional)"}</label>
-          {examRestricted ? (
-            <select className="input" value={examTag} onChange={(e) => setExamTag(e.target.value)} required>
-              <option value="">Select exam…</option>
-              {allowedExams.map((tag) => (
-                <option key={tag} value={tag}>
-                  {tag}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <input
-              className="input"
-              value={examTag}
-              onChange={(e) => setExamTag(e.target.value)}
-              placeholder="e.g. CAT, JEE — matches saved coach plans"
-            />
-          )}
+          <label className="label">Exam category</label>
+          <select
+            className="input"
+            value={examTag}
+            onChange={(e) => {
+              setExamTag(e.target.value);
+              setTopic("");
+            }}
+            required
+          >
+            <option value="">Select exam category</option>
+            {examOptions.map((tag) => (
+              <option key={tag} value={tag}>
+                {examTagLabel(tag)}
+              </option>
+            ))}
+          </select>
           {examRestricted ? (
             <p style={{ margin: "0.35rem 0 0", fontSize: "0.78rem", color: "var(--muted)" }}>
-              Your instructor limited practice tests to: {allowedExams.join(", ")}.
+              Your instructor limited practice tests to: {allowedExams.map((t) => examTagLabel(t)).join(", ")}.
             </p>
+          ) : examOptions.length === 0 ? (
+            <p style={{ margin: "0.35rem 0 0", fontSize: "0.85rem", color: "#b91c1c" }}>Questions not available</p>
+          ) : null}
+        </div>
+        <div style={{ marginBottom: "1rem" }}>
+          <label className="label">Topic</label>
+          <select
+            className="input"
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+            disabled={!examSelected || loadingTopics}
+            required
+          >
+            <option value="">
+              {!examSelected
+                ? "Select exam category first"
+                : loadingTopics
+                  ? "Loading topics…"
+                  : topics.length === 0
+                    ? "No topics yet"
+                    : "Select topic"}
+            </option>
+            {topics.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+          {noQuestionsForSelection ? (
+            <p style={{ margin: "0.35rem 0 0", fontSize: "0.85rem", color: "#b91c1c" }}>Questions not available</p>
           ) : null}
         </div>
         <div style={{ marginBottom: "1.25rem" }}>
@@ -276,7 +319,7 @@ export function StudentTakeTestPage() {
         <button
           type="submit"
           className="btn btn-primary"
-          disabled={loading || !controls?.can_start_practice_test}
+          disabled={loading || !controls?.can_start_practice_test || !examSelected || !topicSelected || noQuestionsForSelection}
           style={{ width: "100%" }}
         >
           {loading ? "Starting…" : "Start adaptive test"}

@@ -10,6 +10,7 @@ from app.api.deps import get_student_history_service
 from app.repositories.attempt_repository import AttemptRepository
 from app.schemas.attempt import AttemptListItem, StudentHistoryStats
 from app.services.student_history_service import StudentHistoryService
+from app.utils.attempt_scoring import standalone_accuracy_stats
 from app.utils.ids import oid_str, try_object_id
 from app.api.deps_auth import require_admin, require_student_with_admin_code
 
@@ -32,7 +33,9 @@ async def list_attempts(
     for a in rows:
         tq = int(a.get("total_questions", 1))
         sc = int(a.get("score", 0))
-        pct = (sc / tq * 100.0) if tq else 0.0
+        _, total, pct = standalone_accuracy_stats(list(a.get("answers") or []), a)
+        if total > 0:
+            tq = total
         out.append(
             AttemptListItem(
                 id=oid_str(a["_id"]),
@@ -87,7 +90,9 @@ async def export_attempts(
     for a in rows:
         tq = int(a.get("total_questions", 1))
         sc = int(a.get("score", 0))
-        pct = (sc / tq * 100.0) if tq else 0.0
+        _, total, pct = standalone_accuracy_stats(list(a.get("answers") or []), a)
+        if total > 0:
+            tq = total
         w.writerow(
             [
                 str(a["_id"]),

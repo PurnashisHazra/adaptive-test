@@ -22,6 +22,7 @@ from app.api.routers import (
     public_profiles,
     public_provisioning,
     public_question_papers,
+    public_news,
     challenges,
     consultation_requests,
     paper_unlocks,
@@ -131,6 +132,7 @@ def create_app() -> FastAPI:
     app.include_router(leader_connect.router, prefix="/api")
     app.include_router(consultation_requests.router, prefix="/api")
     app.include_router(public_profiles.router, prefix="/api")
+    app.include_router(public_news.router, prefix="/api")
     app.include_router(public_question_papers.router, prefix="/api")
     app.include_router(public_provisioning.router, prefix="/api")
     app.include_router(question_papers.router, prefix="/api")

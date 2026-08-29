@@ -481,15 +481,15 @@ class StudentAnalyticsService:
             top = att.get("topic_filter") or None
             st = str(att.get("status", ""))
             answers = list(att.get("answers") or [])
-            score, attempted, _ = standalone_accuracy_stats(answers)
+            score, total, _ = standalone_accuracy_stats(answers, att)
             title = "Adaptive test"
             sub_bits: List[str] = []
             if subj:
                 sub_bits.append(subj)
             if top:
                 sub_bits.append(top)
-            if st == AttemptStatus.COMPLETED.value and attempted > 0:
-                sub_bits.append(f"Score {score}/{attempted}")
+            if st == AttemptStatus.COMPLETED.value and total > 0:
+                sub_bits.append(f"Score {score}/{total}")
             elif st == AttemptStatus.IN_PROGRESS.value:
                 sub_bits.append("In progress")
             items.append(
@@ -544,7 +544,7 @@ class StudentAnalyticsService:
         rows = await self._attempts.list_answer_slices_for_questions(qids)
         self._apply_peer_stats(reviews, rows)
         self._apply_question_insight_capsules(reviews)
-        score, total, pct_raw = standalone_accuracy_stats(answers)
+        score, total, pct_raw = standalone_accuracy_stats(answers, att)
         pct = round(pct_raw, 2) if total else None
         ended_early = str(att.get("completion_reason", "")) == "ended_early"
         subj = att.get("subject_filter")

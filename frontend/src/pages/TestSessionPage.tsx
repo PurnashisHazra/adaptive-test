@@ -12,8 +12,6 @@ import {
   postCoachExplanationHint,
   submitAnswer,
   submitQuestionReport,
-  timeoutChallengeSection,
-  timeoutPaperSection,
 } from "../api/client";
 import type { PaperNextSection, PaperResultSummary, StudentCoachPlanBundle } from "../api/types";
 import { computeCoachLiveAdvice } from "../lib/coachHints";
@@ -85,10 +83,10 @@ export function TestSessionPage() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportMessage, setReportMessage] = useState("");
   const [reportSending, setReportSending] = useState(false);
+  const [sessionEndedPrompt, setSessionEndedPrompt] = useState(false);
+  const [sessionContinued, setSessionContinued] = useState(false);
   const questionShownAtMs = useRef<number>(Date.now());
   const draftByIndex = useRef<Record<number, string>>({});
-  const timeoutOnce = useRef(false);
-  const practiceTimeoutOnce = useRef(false);
   const explanationHintFetchedForQid = useRef<string | null>(null);
   const pausedAccumMs = useRef(0);
   const pauseStartedAt = useRef<number | null>(null);
@@ -128,16 +126,18 @@ export function TestSessionPage() {
   }, [isQuestionPaperSession, question?.id]);
 
   useEffect(() => {
-    timeoutOnce.current = false;
+    setSessionEndedPrompt(false);
+    setSessionContinued(false);
   }, [sectionStartedAt, paperMeta?.section_index]);
 
   useEffect(() => {
-    practiceTimeoutOnce.current = false;
     pausedAccumMs.current = 0;
     pauseStartedAt.current = null;
+    setSessionEndedPrompt(false);
+    setSessionContinued(false);
   }, [attemptId]);
 
-  const timerPaused = submitting || ending || sectionTimingOut;
+  const timerPaused = submitting || ending || sectionTimingOut || sessionEndedPrompt;
   useEffect(() => {
     if (timerPaused) {
       if (pauseStartedAt.current == null) pauseStartedAt.current = Date.now();
@@ -188,65 +188,16 @@ export function TestSessionPage() {
   useEffect(() => {
     if (pendingSectionNext) return;
     if (!paperMeta || !paperAttemptId || sectionRemaining == null || sectionRemaining > 0) return;
-    if (timeoutOnce.current || sectionTimingOut) return;
-    timeoutOnce.current = true;
-    setSectionTimingOut(true);
-    (async () => {
-      try {
-        const res =
-          structuredKind === "challenge"
-            ? await timeoutChallengeSection(paperAttemptId)
-            : await timeoutPaperSection(paperAttemptId);
-        if (res.paper_summary) {
-          setLastPaperSummary(res.paper_summary);
-          nav("/result");
-          return;
-        }
-        if (res.paper_next) {
-          setPendingSectionNext(res.paper_next);
-          setSectionGateReason("timeout");
-          setSelected(null);
-          draftByIndex.current = {};
-        }
-      } catch (err: unknown) {
-        const msg =
-          err && typeof err === "object" && "response" in err
-            ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
-            : undefined;
-        toast.error(typeof msg === "string" ? msg : "Section timeout failed");
-      } finally {
-        setSectionTimingOut(false);
-      }
-    })();
-  }, [sectionRemaining, paperMeta, paperAttemptId, setLastPaperSummary, nav, pendingSectionNext, structuredKind, sectionTimingOut]);
+    if (sessionContinued || sessionEndedPrompt || ending || submitting) return;
+    setSessionEndedPrompt(true);
+  }, [sectionRemaining, paperMeta, paperAttemptId, pendingSectionNext, sessionContinued, sessionEndedPrompt, ending, submitting]);
 
   useEffect(() => {
     if (!sessionReady || paperMeta || !attemptId) return;
     if (remaining == null || remaining > 0) return;
-    if (practiceTimeoutOnce.current || ending || submitting) return;
-    practiceTimeoutOnce.current = true;
-    setEnding(true);
-    void (async () => {
-      try {
-        const summary = await endTest(attemptId);
-        setAfterSubmit({
-          nextQuestion: null,
-          questionIndex: null,
-          summary,
-        });
-        nav("/result");
-      } catch (err: unknown) {
-        practiceTimeoutOnce.current = false;
-        const msg =
-          err && typeof err === "object" && "response" in err
-            ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
-            : undefined;
-        toast.error(typeof msg === "string" ? msg : "Time expired — could not save the test");
-      } finally {
-        setEnding(false);
-      }
-    })();
-  }, [sessionReady, remaining, paperMeta, attemptId, ending, submitting, setAfterSubmit, nav]);
+    if (sessionContinued || sessionEndedPrompt || ending || submitting) return;
+    setSessionEndedPrompt(true);
+  }, [sessionReady, remaining, paperMeta, attemptId, ending, submitting, sessionContinued, sessionEndedPrompt]);
 
   const headerTabs = useMemo(() => {
     if (paperMeta) {
@@ -548,14 +499,7 @@ export function TestSessionPage() {
     }
   }
 
-  async function onEndTest() {
-    const msg = paperMeta
-      ? structuredKind === "challenge"
-        ? "End this challenge now? Your scored attempts so far will be kept. You cannot continue this challenge later."
-        : "End this question paper now? Your scored attempts so far will be kept. You cannot continue this paper later."
-      : "Are you sure you want to end the test now? Your answers so far will be saved, and you will not be able to continue this attempt.";
-    const ok = window.confirm(msg);
-    if (!ok) return;
+  async function commitEndSession() {
     setEnding(true);
     try {
       if (paperMeta && paperAttemptId) {
@@ -583,6 +527,22 @@ export function TestSessionPage() {
     } finally {
       setEnding(false);
     }
+  }
+
+  async function onEndTest() {
+    const msg = paperMeta
+      ? structuredKind === "challenge"
+        ? "End this challenge now? Your scored attempts so far will be kept. You cannot continue this challenge later."
+        : "End this question paper now? Your scored attempts so far will be kept. You cannot continue this paper later."
+      : "Are you sure you want to end the test now? Your answers so far will be saved, and you will not be able to continue this attempt.";
+    const ok = window.confirm(msg);
+    if (!ok) return;
+    await commitEndSession();
+  }
+
+  function onContinueExpiredSession() {
+    setSessionContinued(true);
+    setSessionEndedPrompt(false);
   }
 
   const isTita = currentQuestion.question_type === "tita";
@@ -685,15 +645,18 @@ export function TestSessionPage() {
     }
   }
 
-  async function onSubmit() {
-    if (isTita) {
-      if (selected == null || !selected.trim()) {
-        toast.error("Enter your answer");
+  async function onSubmit(opts?: { skip?: boolean }) {
+    const skip = Boolean(opts?.skip);
+    if (!skip) {
+      if (isTita) {
+        if (selected == null || !selected.trim()) {
+          toast.error("Enter your answer");
+          return;
+        }
+      } else if (selected == null) {
+        toast.error("Select an answer");
         return;
       }
-    } else if (selected == null) {
-      toast.error("Select an answer");
-      return;
     }
     if (!adaptiveDisabled && !canSubmit) {
       toast.error("You can only submit on the current active question");
@@ -704,7 +667,7 @@ export function TestSessionPage() {
       const secondsOnQuestion = Math.max(0, Math.floor((Date.now() - questionShownAtMs.current) / 1000));
       const res = await submitAnswer(stableAttemptId, {
         question_id: currentQuestion.id,
-        chosen_answer: selected,
+        chosen_answer: skip ? "" : selected ?? "",
         elapsed_seconds: secondsOnQuestion,
       });
       delete draftByIndex.current[currentIndex];
@@ -1031,7 +994,7 @@ export function TestSessionPage() {
               <button
                 type="button"
                 className="test-exam-footer__btn test-exam-footer__btn--primary"
-                onClick={onSubmit}
+                onClick={() => void onSubmit()}
                 disabled={
                   submitting ||
                   (!adaptiveDisabled && !canSubmit) ||
@@ -1069,6 +1032,16 @@ export function TestSessionPage() {
                 >
                   Clear response
                 </button>
+                {!adaptiveDisabled ? (
+                  <button
+                    type="button"
+                    className="test-exam-footer__btn"
+                    onClick={() => void onSubmit({ skip: true })}
+                    disabled={submitting || !canSubmit || loadingIndex != null || sectionTimingOut}
+                  >
+                    Skip
+                  </button>
+                ) : null}
               </div>
             </div>
 
@@ -1148,6 +1121,16 @@ export function TestSessionPage() {
           <button type="button" className="test-exam-footer__btn" onClick={() => void onClearResponse()} disabled={(!adaptiveDisabled && !canSubmit) || loadingIndex != null || sectionTimingOut}>
             Clear response
           </button>
+          {!adaptiveDisabled ? (
+            <button
+              type="button"
+              className="test-exam-footer__btn"
+              onClick={() => void onSubmit({ skip: true })}
+              disabled={submitting || !canSubmit || loadingIndex != null || sectionTimingOut}
+            >
+              Skip
+            </button>
+          ) : null}
         </div>
         <div className="test-exam-footer__right">
           {adaptiveDisabled && paperMeta ? (
@@ -1163,7 +1146,7 @@ export function TestSessionPage() {
           <button
             type="button"
             className="test-exam-footer__btn test-exam-footer__btn--primary"
-            onClick={onSubmit}
+            onClick={() => void onSubmit()}
             disabled={
               submitting ||
               (!adaptiveDisabled && !canSubmit) ||
@@ -1176,6 +1159,41 @@ export function TestSessionPage() {
           </button>
         </div>
       </footer>
+
+      {sessionEndedPrompt ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15,23,42,0.45)",
+            display: "grid",
+            placeItems: "center",
+            zIndex: 70,
+            padding: "1rem",
+          }}
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="session-ended-heading"
+          aria-describedby="session-ended-copy"
+        >
+          <div className="card" style={{ width: "min(440px, 96vw)", margin: 0, textAlign: "center" }}>
+            <h3 id="session-ended-heading" style={{ marginTop: 0 }}>
+              Session has ended
+            </h3>
+            <p id="session-ended-copy" style={{ color: "var(--muted)", fontSize: "0.95rem" }}>
+              Time is up. Continue this session to keep answering, or end the session to save and finish.
+            </p>
+            <div style={{ display: "flex", gap: "0.6rem", marginTop: "1.15rem", flexWrap: "wrap", justifyContent: "center" }}>
+              <button type="button" className="btn btn-primary" onClick={onContinueExpiredSession} disabled={ending}>
+                Continue session
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={() => void commitEndSession()} disabled={ending}>
+                {ending ? "Ending…" : "End session"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {showReportModal ? (
         <div

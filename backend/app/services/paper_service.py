@@ -466,11 +466,6 @@ class PaperService:
                 paper_summary=None,
             )
 
-        total_marks = sum(float(r["marks"]) for r in prev_results)
-        max_m = _max_marks(paper, mpc)
-        pct = (total_marks / max_m * 100.0) if max_m > 0 else 0.0
-        pct = max(0.0, min(100.0, round(pct, 2)))
-
         pa = await self._papers.get_paper_attempt(pa_id) or paper_attempt
         pr = await self._finalize_paper_result(pa, paper, ended_early=False)
 
@@ -674,9 +669,6 @@ class PaperService:
             )
 
         total_marks = sum(float(r["marks"]) for r in prev)
-        max_m = _max_marks(paper, mpc)
-        pct = (total_marks / max_m * 100.0) if max_m > 0 else 0.0
-        pct = max(0.0, min(100.0, round(pct, 2)))
         await self._papers.update_paper_attempt(
             paper_attempt_id,
             {"status": "completed", "completed_at": _utc_now(), "total_marks": total_marks},

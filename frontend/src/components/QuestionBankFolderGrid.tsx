@@ -135,6 +135,7 @@ export function QuestionBankFolderGrid({
   onDelete,
   onMove,
   onCopy,
+  onUse,
   selectedIds,
   onToggleSelect,
 }: {
@@ -144,6 +145,7 @@ export function QuestionBankFolderGrid({
   onDelete?: (id: string) => void;
   onMove?: (id: string) => void;
   onCopy?: (id: string) => void;
+  onUse?: (id: string) => void;
   selectedIds?: string[];
   onToggleSelect?: (id: string) => void;
 }) {
@@ -151,7 +153,7 @@ export function QuestionBankFolderGrid({
     return <p className="empty">No folders in this view yet.</p>;
   }
 
-  const hasActions = Boolean(onRename || onDelete || onMove || onCopy);
+  const hasActions = Boolean(onRename || onDelete || onMove || onCopy || onUse);
   const selectable = Boolean(onToggleSelect && selectedIds);
 
   return (
@@ -187,6 +189,21 @@ export function QuestionBankFolderGrid({
             </button>
             {hasActions ? (
               <div className="qb-folder__toolbar">
+                {onUse ? (
+                  <button
+                    type="button"
+                    className="qb-folder__use-btn"
+                    title={`Use ${folder.label}`}
+                    aria-label={`Use ${folder.label}`}
+                    disabled={folder.mix.total <= 0}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onUse(folder.id);
+                    }}
+                  >
+                    Use
+                  </button>
+                ) : null}
                 {onMove ? (
                   <button
                     type="button"

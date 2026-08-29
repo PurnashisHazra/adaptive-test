@@ -180,6 +180,8 @@ class AttemptListItem(BaseModel):
     score: int
     total_questions: int
     percentage: float
+    total_marks: float = 0
+    max_marks: float = 0
     cohort_percentile: Optional[float] = None
     cohort_ranked_count: int = 0
     subject: Optional[str] = None

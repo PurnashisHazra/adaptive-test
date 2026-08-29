@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { formatDateTimeIST } from "../lib/istTime";
+import { percentageFromMarks } from "../lib/scoring";
 import { CohortPercentileBanner } from "../components/CohortPercentileBanner";
 import { PaperReviewDifficultyChart } from "../components/PaperReviewDifficultyChart";
 import { PaperSectionQuestions } from "../components/PaperSectionQuestions";
@@ -352,7 +353,9 @@ export function StudentReviewSessionPage() {
             {standalone.status === "completed" ? (
               <>
                 Score {standalone.score}/{standalone.total_questions}
-                {standalone.percentage != null ? ` · ${standalone.percentage}%` : ""}
+                {standalone.total_questions > 0
+                  ? ` · ${percentageFromMarks(standalone.score, standalone.total_questions).toFixed(1)}%`
+                  : ""}
                 {standalone.ended_early ? " · Ended early" : ""}
               </>
             ) : (
@@ -382,7 +385,7 @@ export function StudentReviewSessionPage() {
                 {paper.total_marks != null && paper.max_marks != null ? (
                   <>
                     Marks {paper.total_marks.toFixed(2)} / {paper.max_marks.toFixed(2)}
-                    {paper.percentage != null ? ` · ${paper.percentage}%` : ""}
+                    {` · ${percentageFromMarks(paper.total_marks, paper.max_marks).toFixed(1)}%`}
                   </>
                 ) : null}
                 {paper.ended_early ? " · Ended early" : ""}

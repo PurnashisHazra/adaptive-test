@@ -25,6 +25,8 @@ import type {
   ChallengeCatalogPage,
   ChallengeParticipantsPage,
   ChallengeRecapResponse,
+  TodaysTopper,
+  ExamNewsItem,
   QuestionPaper,
   StudentHistoryStats,
   StudentAttemptAccuracyImprovementResponse,
@@ -522,11 +524,19 @@ export async function startTest(body: {
   return data;
 }
 
-export async function getTestTopics(subject?: string) {
+export async function getTestTopics(subject?: string, examTag?: string) {
   const { data } = await api.get<{ topics: string[] }>("/tests/topics", {
-    params: { subject: subject || undefined },
+    params: {
+      subject: subject || undefined,
+      exam_tag: examTag || undefined,
+    },
   });
   return data.topics;
+}
+
+export async function getTestExamCategories() {
+  const { data } = await api.get<{ exam_tags: string[] }>("/tests/exam-categories");
+  return data.exam_tags;
 }
 
 export async function getTestSubjects() {
@@ -636,6 +646,16 @@ export async function listPaperAssignments(paperId: string) {
     `/admin/question-papers/${paperId}/assignments`
   );
   return data;
+}
+
+export async function getExamNews() {
+  const { data } = await api.get<{ source: string; items: ExamNewsItem[] }>("/public/exam-news");
+  return data.items;
+}
+
+export async function getTodaysTopper() {
+  const { data } = await api.get<{ topper: TodaysTopper | null }>("/challenges/todays-topper");
+  return data.topper;
 }
 
 export async function listChallengeCatalog(page = 1, pageSize = 3, guestId?: string) {
