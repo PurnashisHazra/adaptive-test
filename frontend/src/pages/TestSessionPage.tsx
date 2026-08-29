@@ -76,7 +76,7 @@ export function TestSessionPage() {
   const [sectionElapsed, setSectionElapsed] = useState(0);
   const [loadingIndex, setLoadingIndex] = useState<number | null>(null);
   const [ending, setEnding] = useState(false);
-  const [sectionTimingOut, setSectionTimingOut] = useState(false);
+  const sectionTimingOut = false;
   const [pendingSectionNext, setPendingSectionNext] = useState<PaperNextSection | null>(null);
   const [sectionGateReason, setSectionGateReason] = useState<"submit" | "timeout" | null>(null);
   const [visitedIndices, setVisitedIndices] = useState<number[]>([1]);
@@ -744,7 +744,6 @@ export function TestSessionPage() {
     }
   }
 
-  const progress = totalQuestions > 0 ? (questionsAnswered / totalQuestions) * 100 : 0;
   const optionsDisabled = (!adaptiveDisabled && !canSubmit) || loadingIndex != null || sectionTimingOut;
 
   const timerSeconds = sectionRemaining ?? remaining;

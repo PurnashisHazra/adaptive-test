@@ -93,7 +93,7 @@ export function examOptionsFromTree(
     label: examTagLabel(exam.exam_tag, exam.display_name),
   }));
   const seen = new Set(fromTree.map((o) => o.value.toUpperCase()));
-  const extras = FALLBACK_EXAM_TAGS.filter((tag) => !seen.has(tag)).map((tag) => ({
+  const extras: Array<{ value: string; label: string }> = FALLBACK_EXAM_TAGS.filter((tag) => !seen.has(tag)).map((tag) => ({
     value: tag,
     label: tag,
   }));
