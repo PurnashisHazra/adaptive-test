@@ -134,7 +134,15 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_list(self) -> List[str]:
-        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        origins: List[str] = []
+        for raw in self.cors_origins.split(","):
+            origin = raw.strip()
+            if not origin:
+                continue
+            if "://" not in origin:
+                origin = f"https://{origin}"
+            origins.append(origin)
+        return origins
 
     @property
     def public_assign_api_keys_list(self) -> List[str]:
