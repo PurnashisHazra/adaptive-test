@@ -35,6 +35,7 @@ from app.api.routers import (
     student_me,
     super_admin,
     super_admin_dashboard,
+    god,
     tests,
 )
 from app.core.config import get_settings
@@ -140,6 +141,7 @@ def create_app() -> FastAPI:
     app.include_router(question_reports.admin_router, prefix="/api")
     app.include_router(super_admin.router, prefix="/api")
     app.include_router(super_admin_dashboard.router, prefix="/api")
+    app.include_router(god.router, prefix="/api")
     return app
 
 

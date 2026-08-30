@@ -507,3 +507,93 @@
 .app-shell-main--landing {
   background: #fff;
 }
+
+.god-db-grid {
+  display: grid;
+  grid-template-columns: minmax(11rem, 16rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.god-db-cols {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.god-db-col {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--landing-border);
+  background: #fff;
+  border-radius: 10px;
+  padding: 0.45rem 0.65rem;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.god-db-col.is-active {
+  border-color: var(--landing-blue);
+  background: var(--landing-blue-soft);
+  color: var(--landing-blue);
+}
+
+.god-db-count {
+  font-weight: 600;
+  color: var(--landing-muted);
+}
+
+.god-db-toolbar,
+.god-db-pager,
+.god-db-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 0.75rem;
+}
+
+.god-db-list {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.god-db-row {
+  border: 1px solid var(--landing-border);
+  border-radius: 12px;
+  padding: 0.75rem;
+  background: #fff;
+}
+
+.god-db-row pre {
+  margin: 0 0 0.65rem;
+  max-height: 12rem;
+  overflow: auto;
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.god-db-json {
+  min-height: 12rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  resize: vertical;
+}
+
+@media (max-width: 900px) {
+  .god-db-grid {
+    grid-template-columns: 1fr;
+  }
+}

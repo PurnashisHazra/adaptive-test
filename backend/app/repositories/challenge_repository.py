@@ -29,6 +29,7 @@ class ChallengeRepository:
         )
         await self._attempts.create_index([("challenge_id", 1), ("status", 1)])
         await self._attempts.create_index([("completed_at", -1), ("total_marks", -1)])
+        await self._attempts.create_index([("status", 1), ("student_username", 1)])
 
     async def insert_challenge(self, doc: Dict[str, Any]) -> str:
         doc.setdefault("created_at", _utc_now())
@@ -337,3 +338,39 @@ class ChallengeRepository:
             .limit(limit)
         )
         return [d async for d in cur]
+
+    _COMPLETED = {"$in": ["completed", "ended_early"]}
+    _NOT_GUEST = {"$not": {"$regex": "^guest_"}}
+
+    async def aggregate_most_challenge_attempts(self, *, limit: int = 8) -> List[Dict[str, Any]]:
+        pipeline = [
+            {
+                "$match": {
+                    "status": self._COMPLETED,
+                    "student_username": self._NOT_GUEST,
+                }
+            },
+            {"$group": {"_id": "$student_username", "challenge_count": {"$sum": 1}}},
+            {"$sort": {"challenge_count": -1, "_id": 1}},
+            {"$limit": int(limit)},
+        ]
+        return [d async for d in self._attempts.aggregate(pipeline)]
+
+    async def aggregate_best_challenge_scores(self, *, limit_pairs: int = 4000) -> List[Dict[str, Any]]:
+        pipeline = [
+            {
+                "$match": {
+                    "status": self._COMPLETED,
+                    "total_marks": {"$exists": True, "$ne": None},
+                    "student_username": self._NOT_GUEST,
+                }
+            },
+            {
+                "$group": {
+                    "_id": {"u": "$student_username", "c": "$challenge_id"},
+                    "marks": {"$max": "$total_marks"},
+                }
+            },
+            {"$limit": int(limit_pairs)},
+        ]
+        return [d async for d in self._attempts.aggregate(pipeline)]

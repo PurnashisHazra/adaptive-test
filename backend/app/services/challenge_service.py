@@ -19,6 +19,8 @@ from app.schemas.challenge import (
     ChallengeParticipantBrief,
     ChallengeParticipantsPage,
     ChallengeUpdate,
+    HomepageLeaderboard,
+    LeaderboardEntry,
     TodaysTopperOut,
     TodaysTopperResponse,
 )
@@ -241,6 +243,104 @@ class ChallengeService:
                 )
             )
         return TodaysTopperResponse(topper=None)
+
+    async def homepage_leaderboard(self, *, limit: int = 6) -> HomepageLeaderboard:
+        from app.repositories.user_repository import UserRepository
+        from app.services.public_profile_service import PublicProfileService
+
+        cap = max(3, min(int(limit), 12))
+        most_rows = await self._challenges.aggregate_most_challenge_attempts(limit=cap)
+        score_pairs = await self._challenges.aggregate_best_challenge_scores()
+        recent_users = await UserRepository().list_recent_students(limit=cap)
+
+        challenge_ids = list(
+            {
+                str(row.get("_id", {}).get("c") or "")
+                for row in score_pairs
+                if str(row.get("_id", {}).get("c") or "").strip()
+            }
+        )
+        challenges_by_id = await self._challenges.get_challenges_by_ids(challenge_ids) if challenge_ids else {}
+        max_by_cid: Dict[str, float] = {}
+        for cid, ch in challenges_by_id.items():
+            mpc = float(ch.get("marks_per_correct", 1))
+            max_by_cid[cid] = _max_marks(ch, mpc)
+
+        best_pct: Dict[str, float] = {}
+        for row in score_pairs:
+            key = row.get("_id") or {}
+            uname = str(key.get("u") or "").strip()
+            cid = str(key.get("c") or "").strip()
+            if not uname or not cid or is_guest_username(uname):
+                continue
+            marks = float(row.get("marks") or 0)
+            max_m = max_by_cid.get(cid) or 0.0
+            pct = percentage_from_marks(marks, max_m)
+            if pct <= 0 or pct > 100.5:
+                continue
+            pct = min(pct, 100.0)
+            prev = best_pct.get(uname)
+            if prev is None or pct > prev:
+                best_pct[uname] = pct
+        top_scorers = sorted(best_pct.items(), key=lambda kv: (-kv[1], kv[0].lower()))[:cap]
+
+        usernames: List[str] = []
+        for row in most_rows:
+            u = str(row.get("_id") or "").strip()
+            if u and not is_guest_username(u):
+                usernames.append(u)
+        usernames.extend(u for u, _ in top_scorers)
+        for user in recent_users:
+            u = str(user.get("username") or "").strip()
+            if u and not is_guest_username(u):
+                usernames.append(u)
+        profiles = await PublicProfileService().brief_for_usernames(usernames)
+
+        def _entry(rank: int, username: str, metric: str) -> LeaderboardEntry:
+            brief = profiles.get(username) or {}
+            return LeaderboardEntry(
+                rank=rank,
+                display_name=str(brief.get("display_name") or username),
+                profile_slug=str(brief.get("profile_slug") or username),
+                metric=metric,
+            )
+
+        most_challenges: List[LeaderboardEntry] = []
+        for row in most_rows:
+            u = str(row.get("_id") or "").strip()
+            if not u or is_guest_username(u):
+                continue
+            n = int(row.get("challenge_count") or 0)
+            label = f"{n} challenge" if n == 1 else f"{n} challenges"
+            most_challenges.append(_entry(len(most_challenges) + 1, u, label))
+
+        highest_scores = [
+            _entry(i, uname, f"{pct:.1f}%")
+            for i, (uname, pct) in enumerate(top_scorers, start=1)
+        ]
+
+        new_signups: List[LeaderboardEntry] = []
+        for user in recent_users:
+            u = str(user.get("username") or "").strip()
+            if not u or is_guest_username(u):
+                continue
+            created = user.get("created_at")
+            if created is None and user.get("_id") is not None:
+                try:
+                    created = user["_id"].generation_time
+                except Exception:
+                    created = None
+            if isinstance(created, datetime):
+                metric = f"Joined {ensure_utc(created).strftime('%d %b %Y')}"
+            else:
+                metric = "New"
+            new_signups.append(_entry(len(new_signups) + 1, u, metric))
+
+        return HomepageLeaderboard(
+            most_challenges=most_challenges[:cap],
+            highest_scores=highest_scores,
+            new_signups=new_signups[:cap],
+        )
 
     async def assign(self, challenge_id: str, student_username: str) -> None:
         got = await self._challenges.get_challenge(challenge_id)

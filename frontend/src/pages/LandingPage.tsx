@@ -1,10 +1,10 @@
 import { Link } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { listExamShowcasePapers, getExamNews, getTodaysTopper } from "../api/client";
-import type { ExamNewsItem, ExamShowcasePaper, TodaysTopper } from "../api/types";
+import { listExamShowcasePapers, getExamNews, getHomepageLeaderboard, getTodaysTopper } from "../api/client";
+import type { ExamNewsItem, ExamShowcasePaper, HomepageLeaderboard, TodaysTopper } from "../api/types";
 import { ExamNewsCarousel } from "../components/ExamNewsCarousel";
-import { HeroImageCarousel } from "../components/HeroImageCarousel";
+import { LandingLeaderboard } from "../components/LandingLeaderboard";
 import { useAuthStore } from "../store/authStore";
 import { TopperBookingModal } from "../components/TopperBookingModal";
 import { FreeConsultationModal } from "../components/FreeConsultationModal";
@@ -267,6 +267,8 @@ export function LandingPage() {
   const [todaysTopper, setTodaysTopper] = useState<TodaysTopper | null>(null);
   const [topperLoading, setTopperLoading] = useState(true);
   const [examNews, setExamNews] = useState<ExamNewsItem[]>([]);
+  const [leaderboard, setLeaderboard] = useState<HomepageLeaderboard | null>(null);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(true);
 
   const category = EXAM_CATEGORIES.find((c) => c.id === activeCategory) ?? EXAM_CATEGORIES[0];
 
@@ -305,6 +307,17 @@ export function LandingPage() {
       .catch(() => {
         if (alive) setExamNews([]);
       });
+    setLeaderboardLoading(true);
+    getHomepageLeaderboard()
+      .then((board) => {
+        if (alive) setLeaderboard(board);
+      })
+      .catch(() => {
+        if (alive) setLeaderboard({ most_challenges: [], highest_scores: [], new_signups: [] });
+      })
+      .finally(() => {
+        if (alive) setLeaderboardLoading(false);
+      });
     return () => {
       alive = false;
     };
@@ -322,99 +335,72 @@ export function LandingPage() {
   return (
     <div className="landing">
       <main className="landing-main">
-        <div className="landing-spotlight">
-          <aside className="landing-topper" aria-labelledby="todays-topper-heading">
-            <div className="landing-topper-icon" aria-hidden>
-              <TrophyIcon />
-            </div>
-            <div className="landing-topper-body">
-              <p className="landing-topper-kicker" id="todays-topper-heading">
-                Today&apos;s topper
-              </p>
-              {topperLoading ? (
-                <p className="landing-topper-empty">Loading today&apos;s leader…</p>
-              ) : todaysTopper ? (
-                <p className="landing-topper-line">
-                  <Link to={`/u/${encodeURIComponent(todaysTopper.profile_slug)}`} className="landing-topper-name">
-                    {todaysTopper.display_name}
-                  </Link>
-                  <span className="landing-topper-score">
-                    {todaysTopper.percentage.toFixed(1)}%
-                    <span className="landing-topper-marks">
-                      {" "}
-                      · {todaysTopper.total_marks.toFixed(0)}/{todaysTopper.max_marks.toFixed(0)}
-                    </span>
-                  </span>
-                  <span className="landing-topper-challenge">{todaysTopper.challenge_title}</span>
-                </p>
-              ) : (
-                <p className="landing-topper-empty">No challenge toppers yet. Take a free mock and claim the spot.</p>
-              )}
-            </div>
-          </aside>
-          <ExamNewsCarousel items={examNews} />
-        </div>
-
         <section className="landing-hero">
-          <div className="landing-hero-copy">
-            <div className="landing-hero-intro">
-              <div className="landing-hero-intro-text">
-                <span className="landing-kicker">ADAPTIVE INTELLIGENCE • SMARTER PRACTICE</span>
-                <h1 className="landing-headline">
-                  Practice
-                  <span className="landing-headline-outline">Smarter.</span>
-                  Score Higher.
-                </h1>
-                <p className="landing-subhead">
-                  AdapTest adapts every question to your level — so you stop wasting time and start improving where it
-                  matters most.
-                </p>
-                <div className="landing-cta-row">
-                  <Link to="/challenges" className="landing-btn-primary landing-btn-lg landing-btn-mock">
-                    <span className="landing-btn-mock-title">Free Mock Tests</span>
-                    <span className="landing-btn-mock-sub">Compete with other brilliant students</span>
-                  </Link>
-                  <a href="#exam-categories" className="landing-btn-secondary landing-btn-lg">
-                    Browse exam categories
-                  </a>
+          <div className="landing-spotlight-wrap">
+            <Link to="/challenges" className="landing-ribbon">
+              <span>Earn special discounts on mock tests by acing Challenges!</span>
+              <span className="landing-ribbon-sep" aria-hidden>
+                •
+              </span>
+              <span>Earn coins to buy exam goodies!</span>
+            </Link>
+            <div className="landing-spotlight">
+              <aside className="landing-topper" aria-labelledby="todays-topper-heading">
+                <div className="landing-topper-icon" aria-hidden>
+                  <TrophyIcon />
                 </div>
-              </div>
-              <HeroImageCarousel />
-            </div>
-
-            <div className="landing-trust-panel">
-              <div className="landing-trust-stats">
-                <div className="landing-trust-stat">
-                  <span className="landing-trust-value">50,000+</span>
-                  <span className="landing-trust-label">Students</span>
-                </div>
-                <div className="landing-trust-stat">
-                  <span className="landing-trust-value">1M+</span>
-                  <span className="landing-trust-label">Questions attempted</span>
-                </div>
-                <div className="landing-trust-stat">
-                  <span className="landing-trust-value">500+</span>
-                  <span className="landing-trust-label">Alumni mentors</span>
-                </div>
-              </div>
-              <div className="landing-trust-band">
-                <div className="landing-trust-copy">
-                  <p className="landing-trust-band-title">Strong IIM, Banking, SSC &amp; Law alumni network</p>
-                  <p className="landing-trust-band-text">
-                    Learn from toppers and connect with pioneers who cracked CAT, SSC, banking, and law exams.
+                <div className="landing-topper-body">
+                  <p className="landing-topper-kicker" id="todays-topper-heading">
+                    Today&apos;s topper
                   </p>
+                  {topperLoading ? (
+                    <p className="landing-topper-empty">Loading today&apos;s leader…</p>
+                  ) : todaysTopper ? (
+                    <p className="landing-topper-line">
+                      <Link to={`/u/${encodeURIComponent(todaysTopper.profile_slug)}`} className="landing-topper-name">
+                        {todaysTopper.display_name}
+                      </Link>
+                      <span className="landing-topper-score">
+                        {todaysTopper.percentage.toFixed(1)}%
+                        <span className="landing-topper-marks">
+                          {" "}
+                          · {todaysTopper.total_marks.toFixed(0)}/{todaysTopper.max_marks.toFixed(0)}
+                        </span>
+                      </span>
+                      <span className="landing-topper-challenge">{todaysTopper.challenge_title}</span>
+                    </p>
+                  ) : (
+                    <p className="landing-topper-empty">No challenge toppers yet. Take a free mock and claim the spot.</p>
+                  )}
                 </div>
-                <button
-                  type="button"
-                  className="landing-trust-cta"
-                  onClick={() => setShowBooking(true)}
-                >
-                  Connect with Pioneers
-                  <ArrowIcon />
-                </button>
-              </div>
+              </aside>
+              <ExamNewsCarousel items={examNews} />
             </div>
           </div>
+
+          <div className="landing-hero-copy">
+            <span className="landing-kicker">ADAPTIVE INTELLIGENCE • SMARTER PRACTICE</span>
+            <h1 className="landing-headline">
+              Practice
+              <span className="landing-headline-outline">Smarter.</span>
+              Score Higher.
+            </h1>
+            <p className="landing-subhead">
+              AdapTest adapts every question to your level — so you stop wasting time and start improving where it
+              matters most.
+            </p>
+            <div className="landing-cta-row">
+              <Link to="/challenges" className="landing-btn-primary landing-btn-lg landing-btn-mock">
+                <span className="landing-btn-mock-title">Free Mock Tests</span>
+                <span className="landing-btn-mock-sub">Compete with other brilliant students</span>
+              </Link>
+              <a href="#exam-categories" className="landing-btn-secondary landing-btn-lg">
+                Browse exam categories
+              </a>
+            </div>
+          </div>
+
+          <LandingLeaderboard data={leaderboard} loading={leaderboardLoading} />
 
           <div className="landing-hero-aside">
             <h2 className="landing-aside-heading">Mentorship &amp; network</h2>
@@ -464,19 +450,36 @@ export function LandingPage() {
                 </div>
               </div>
             </article>
+            </div>
+          </div>
 
-            <article className="landing-card landing-card--light landing-card--leaders">
-              <span className="landing-card-badge landing-card-badge--light">INDUSTRY INSIGHTS</span>
-
+          <article className="landing-card landing-card--light landing-card--leaders">
+            <div className="landing-leaders-row">
               <div className="landing-card-leaders-intro">
                 <div className="landing-card-icon landing-card-icon--light">
                   <BriefcaseIcon />
                 </div>
                 <div className="landing-card-leaders-copy">
+                  <span className="landing-card-badge landing-card-badge--light">INDUSTRY INSIGHTS</span>
                   <h2 className="landing-card-title">Connect with current business leaders</h2>
                   <p className="landing-card-text landing-card-text--flush">
-                    Connect with ex-students now at Apple, NVIDIA and other global firms.
+                    Ex-students now at Apple, NVIDIA and other global firms. 500+ consultations and referrals done.
                   </p>
+                </div>
+              </div>
+
+              <div className="landing-leaders-stats" aria-label="Network results">
+                <div className="landing-leaders-stat">
+                  <span className="landing-leaders-stat-value">230+</span>
+                  <span className="landing-leaders-stat-label">Consultations and referrals done</span>
+                </div>
+                <div className="landing-leaders-stat">
+                  <span className="landing-leaders-stat-value">500+</span>
+                  <span className="landing-leaders-stat-label">Alumni mentors</span>
+                </div>
+                <div className="landing-leaders-stat">
+                  <span className="landing-leaders-stat-value">30+</span>
+                  <span className="landing-leaders-stat-label">Global firms</span>
                 </div>
               </div>
 
@@ -501,48 +504,72 @@ export function LandingPage() {
                       <span className="landing-leader-logo-shell">
                         <img src={co.logo} alt="" className="landing-leader-logo" />
                       </span>
-                      <span className="landing-leader-logo-name">{co.shortName ?? co.name}</span>
                     </button>
                   ))}
                 </div>
-
-                <div className="landing-leader-stack-wrap">
-                  <div className="landing-leader-stack" aria-label="More companies">
-                    {STACKED_LEADER_COMPANIES.map((co, index) => (
-                      <button
-                        key={co.id}
-                        type="button"
-                        className={[
-                          "landing-leader-stack-btn",
-                          co.id === "meta" ? "landing-leader-stack-btn--meta" : "",
-                        ]
-                          .filter(Boolean)
-                          .join(" ")}
-                        style={{ zIndex: STACKED_LEADER_COMPANIES.length - index }}
-                        title={`Connect via ${co.name}`}
-                        onClick={() => setLeaderConnectCompany(co.name)}
-                      >
-                        <img src={co.logo} alt="" className="landing-leader-stack-logo" />
-                      </button>
-                    ))}
-                  </div>
-                  <div className="landing-leader-stack-copy">
-                    <span className="landing-leader-stack-caption">Google · Meta · Goldman · BCG · Amazon</span>
-                    <span className="landing-leader-stack-sub">+ more global firms</span>
-                  </div>
+                <div className="landing-leader-stack" aria-label="More companies">
+                  {STACKED_LEADER_COMPANIES.map((co, index) => (
+                    <button
+                      key={co.id}
+                      type="button"
+                      className={[
+                        "landing-leader-stack-btn",
+                        co.id === "meta" ? "landing-leader-stack-btn--meta" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                      style={{ zIndex: STACKED_LEADER_COMPANIES.length - index }}
+                      title={`Connect via ${co.name}`}
+                      onClick={() => setLeaderConnectCompany(co.name)}
+                    >
+                      <img src={co.logo} alt="" className="landing-leader-stack-logo" />
+                    </button>
+                  ))}
                 </div>
-
-                <button
-                  type="button"
-                  className="landing-card-btn landing-card-btn--primary landing-card-btn--leaders"
-                  onClick={() => setLeaderConnectCompany("McKinsey")}
-                >
-                  Connect with Alumni
-                  <ArrowIcon />
-                </button>
               </div>
-            </article>
-          </div>
+
+              <button
+                type="button"
+                className="landing-card-btn landing-card-btn--primary landing-card-btn--leaders"
+                onClick={() => setLeaderConnectCompany("McKinsey")}
+              >
+                Connect with Alumni
+                <ArrowIcon />
+              </button>
+            </div>
+          </article>
+
+          <div className="landing-trust-panel">
+            <div className="landing-trust-stats">
+              <div className="landing-trust-stat">
+                <span className="landing-trust-value">50,000+</span>
+                <span className="landing-trust-label">Students</span>
+              </div>
+              <div className="landing-trust-stat">
+                <span className="landing-trust-value">1M+</span>
+                <span className="landing-trust-label">Questions attempted</span>
+              </div>
+              <div className="landing-trust-stat">
+                <span className="landing-trust-value">500+</span>
+                <span className="landing-trust-label">Alumni mentors</span>
+              </div>
+            </div>
+            <div className="landing-trust-band">
+              <div className="landing-trust-copy">
+                <p className="landing-trust-band-title">Strong IIM, Banking, SSC &amp; Law alumni network</p>
+                <p className="landing-trust-band-text">
+                  Learn from toppers and connect with pioneers who cracked CAT, SSC, banking, and law exams.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="landing-trust-cta"
+                onClick={() => setShowBooking(true)}
+              >
+                Connect with Pioneers
+                <ArrowIcon />
+              </button>
+            </div>
           </div>
         </section>
 

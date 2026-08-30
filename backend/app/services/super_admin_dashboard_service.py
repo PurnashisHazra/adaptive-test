@@ -61,11 +61,28 @@ class SuperAdminDashboardService:
         usage = await AdminLimitsService().get_usage(username)
         return self._row(updated, usage=usage)
 
-    async def update_role(self, username: str, role: Role) -> SuperAdminUserRow:
+    async def update_role(
+        self,
+        username: str,
+        role: Role,
+        *,
+        actor_username: str,
+        actor_role: Role,
+    ) -> SuperAdminUserRow:
         target = username.strip()
         user = await self._users.get_by_username(target)
         if not user:
             raise ValueError("User not found")
+
+        current = parse_role(user.get("role", ""))
+        if actor_role != Role.god:
+            if current == Role.god or role == Role.god:
+                raise ValueError("Only a god account can assign or change the god role")
+
+        if actor_username.strip() == target and current == Role.god and role != Role.god:
+            remaining = await self._users.count_by_role(Role.god.value)
+            if remaining <= 1:
+                raise ValueError("Cannot remove the last god account")
 
         patch: dict = {"role": role.value}
         if role == Role.student:
@@ -74,7 +91,7 @@ class SuperAdminDashboardService:
             if not user.get("admin_code"):
                 patch["admin_code"] = await self._new_unique_admin_code()
             patch["assigned_admin_code"] = None
-        elif role == Role.super_admin:
+        elif role in (Role.super_admin, Role.god):
             patch["admin_code"] = None
             patch["assigned_admin_code"] = None
 

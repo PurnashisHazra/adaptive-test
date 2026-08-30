@@ -23,6 +23,7 @@ class UserRepository:
             partialFilterExpression={"admin_code": {"$type": "string"}},
         )
         await self._col.create_index([("assigned_admin_code", 1), ("role", 1)])
+        await self._col.create_index([("role", 1), ("created_at", -1)])
 
     async def get_by_username(self, username: str) -> Optional[Dict[str, Any]]:
         return await self._col.find_one({"username": username.strip()})
@@ -70,6 +71,9 @@ class UserRepository:
         cur = self._col.find({}).sort("username", 1).limit(limit)
         return [d async for d in cur]
 
+    async def count_by_role(self, role: str) -> int:
+        return await self._col.count_documents({"role": str(role).strip()})
+
     async def admin_code_taken(self, admin_code: str, *, except_username: Optional[str] = None) -> bool:
         code = normalize_admin_code(admin_code)
         filt: Dict[str, Any] = {"admin_code": code}
@@ -77,3 +81,17 @@ class UserRepository:
             filt["username"] = {"$ne": except_username.strip()}
         n = await self._col.count_documents(filt, limit=1)
         return n > 0
+
+    async def list_recent_students(self, *, limit: int = 12) -> List[Dict[str, Any]]:
+        cur = (
+            self._col.find(
+                {
+                    "role": "student",
+                    "username": {"$not": {"$regex": "^guest_"}},
+                },
+                projection={"username": 1, "created_at": 1, "role": 1},
+            )
+            .sort("created_at", -1)
+            .limit(int(limit))
+        )
+        return [d async for d in cur]

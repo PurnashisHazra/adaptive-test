@@ -1,6 +1,6 @@
 export type Difficulty = "EASY" | "MEDIUM" | "HARD" | "EXPERT";
 export type QuestionType = "mcq_single" | "true_false" | "tita";
-export type Role = "student" | "admin" | "super_admin";
+export type Role = "student" | "admin" | "super_admin" | "god";
 export type ExamTag = "CAT" | "SSC" | "BANK" | "RAILWAY" | "DEFENCE" | "STATE" | "OTHER";
 
 export interface AuthUser {
@@ -37,6 +37,19 @@ export interface AdminLimitsUsage {
   papers_count: number;
   students_count: number;
   monthly_attempts_count: number;
+}
+
+export interface GodCollectionInfo {
+  name: string;
+  estimated_count: number;
+}
+
+export interface GodDocumentPage {
+  collection: string;
+  total: number;
+  page: number;
+  page_size: number;
+  documents: Record<string, unknown>[];
 }
 
 export interface SuperAdminUserRow {
@@ -463,6 +476,19 @@ export interface TodaysTopper {
   max_marks: number;
   challenge_id: string;
   challenge_title: string;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  display_name: string;
+  profile_slug: string;
+  metric: string;
+}
+
+export interface HomepageLeaderboard {
+  most_challenges: LeaderboardEntry[];
+  highest_scores: LeaderboardEntry[];
+  new_signups: LeaderboardEntry[];
 }
 
 export interface ExamNewsItem {

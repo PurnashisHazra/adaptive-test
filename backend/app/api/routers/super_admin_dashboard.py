@@ -12,6 +12,7 @@ from app.schemas.super_admin_dashboard import (
 from app.schemas.super_admin_metrics import SuperAdminMetricsResponse
 from app.services.super_admin_dashboard_service import SuperAdminDashboardService
 from app.services.super_admin_metrics_service import SuperAdminMetricsService
+from app.utils.roles import parse_role
 
 router = APIRouter(prefix="/super-admin/dashboard", tags=["super-admin-dashboard"])
 
@@ -35,10 +36,16 @@ async def platform_metrics(_: dict = Depends(require_super_admin)) -> SuperAdmin
 async def update_user_role(
     username: str,
     body: UpdateUserRoleRequest,
-    _: dict = Depends(require_super_admin),
+    claims: dict = Depends(require_super_admin),
 ) -> SuperAdminUserRow:
     try:
-        return await _svc().update_role(username, body.role)
+        actor_role = parse_role(str(claims.get("role", "")))
+        return await _svc().update_role(
+            username,
+            body.role,
+            actor_username=str(claims.get("sub", "")),
+            actor_role=actor_role,
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 

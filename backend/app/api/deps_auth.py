@@ -43,8 +43,9 @@ def require_role(allowed_roles: List[Role]):
     return _dep
 
 
-require_admin = require_role([Role.admin])
-require_super_admin = require_role([Role.super_admin])
+require_admin = require_role([Role.admin, Role.god])
+require_super_admin = require_role([Role.super_admin, Role.god])
+require_god = require_role([Role.god])
 require_student = require_role([Role.student])
 
 

@@ -23,7 +23,7 @@ export function RequireRole(props: {
   if (!role) return <Navigate to="/auth" replace state={{ from: location.pathname }} />;
   if (!props.allowedRoles.includes(role)) {
     const target =
-      role === "super_admin"
+      role === "god" || role === "super_admin"
         ? props.superAdminRedirectTo ?? "/super-admin"
         : role === "admin"
           ? props.adminRedirectTo ?? "/admin"

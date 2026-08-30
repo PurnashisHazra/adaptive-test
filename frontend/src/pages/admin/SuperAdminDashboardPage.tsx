@@ -7,17 +7,22 @@ import {
   setSuperAdminUserAdminCode,
   updateSuperAdminUserRole,
 } from "../../api/client";
+import { useAuthStore } from "../../store/authStore";
 import type { Role, SuperAdminUserRow } from "../../api/types";
 
-const ROLES: Role[] = ["student", "admin", "super_admin"];
+const STAFF_ROLES: Role[] = ["student", "admin", "super_admin"];
+const GOD_ROLES: Role[] = ["student", "admin", "super_admin", "god"];
 
 function roleLabel(role: Role) {
+  if (role === "god") return "God";
   if (role === "super_admin") return "Super admin";
   if (role === "admin") return "Admin";
   return "Student";
 }
 
 export function SuperAdminDashboardPage() {
+  const actorRole = useAuthStore((s) => s.role);
+  const assignableRoles = actorRole === "god" ? GOD_ROLES : STAFF_ROLES;
   const [users, setUsers] = useState<SuperAdminUserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -113,11 +118,11 @@ export function SuperAdminDashboardPage() {
       <select
         className="input"
         value={user.role}
-        disabled={busy === `role:${user.username}`}
+        disabled={busy === `role:${user.username}` || (user.role === "god" && actorRole !== "god")}
         onChange={(e) => void onRoleChange(user.username, e.target.value as Role)}
         aria-label={`Role for ${user.username}`}
       >
-        {ROLES.map((r) => (
+        {Array.from(new Set([...assignableRoles, user.role])).map((r) => (
           <option key={r} value={r}>
             {roleLabel(r)}
           </option>
@@ -180,7 +185,8 @@ export function SuperAdminDashboardPage() {
   return (
     <div>
       <p className="sa-page-lead">
-        Assign roles, admin codes, and per-instructor quotas. Defaults are unlimited until you set limits below.
+        Assign student, admin, and super-admin roles
+        {actorRole === "god" ? ", plus the god role" : ""}. Admin codes and quotas apply to instructors.
       </p>
 
       <div className="sa-toolbar">

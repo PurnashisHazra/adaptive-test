@@ -64,6 +64,7 @@ function NavLinks({
   isStaff,
   isStudent,
   isSuperAdmin,
+  isGod,
   mentorshipHref,
   examCategoriesHref,
   onNavigate,
@@ -72,6 +73,7 @@ function NavLinks({
   isStaff: boolean;
   isStudent: boolean;
   isSuperAdmin: boolean;
+  isGod: boolean;
   mentorshipHref: string;
   examCategoriesHref: string;
   onNavigate?: () => void;
@@ -80,7 +82,22 @@ function NavLinks({
   const linkProps = onNavigate ? { onClick: onNavigate } : {};
 
   if (isStaff) {
-    return isSuperAdmin ? (
+    return isGod ? (
+      <>
+        <NavLink to="/super-admin" end className={navLinkClass} {...linkProps}>
+          Users
+        </NavLink>
+        <NavLink to="/admin" className={navLinkClass} {...linkProps}>
+          Admin
+        </NavLink>
+        <NavLink to="/super-admin/database" className={navLinkClass} {...linkProps}>
+          Database
+        </NavLink>
+        <NavLink to="/super-admin/metrics" className={navLinkClass} {...linkProps}>
+          Metrics
+        </NavLink>
+      </>
+    ) : isSuperAdmin ? (
       <>
         <NavLink to="/super-admin" end className={navLinkClass} {...linkProps}>
           Users
@@ -192,9 +209,10 @@ export function SiteNavbar() {
   const isStudent = role === "student";
   const isAdmin = role === "admin";
   const isSuperAdmin = role === "super_admin";
-  const isStaff = isAdmin || isSuperAdmin;
+  const isGod = role === "god";
+  const isStaff = isAdmin || isSuperAdmin || isGod;
 
-  const homeTo = isSuperAdmin ? "/super-admin" : isAdmin ? "/admin" : "/";
+  const homeTo = isGod || isSuperAdmin ? "/super-admin" : isAdmin ? "/admin" : "/";
   const onLanding = pathname === "/";
   const mentorshipHref = onLanding ? "#mentorship" : "/#mentorship";
   const examCategoriesHref = onLanding ? "#exam-categories" : "/#exam-categories";
@@ -226,6 +244,7 @@ export function SiteNavbar() {
     isStaff,
     isStudent,
     isSuperAdmin,
+    isGod,
     mentorshipHref,
     examCategoriesHref,
   };

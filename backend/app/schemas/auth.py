@@ -8,6 +8,7 @@ class Role(str, Enum):
     student = "student"
     admin = "admin"
     super_admin = "super_admin"
+    god = "god"
 
 
 class SignupRequest(BaseModel):
@@ -20,7 +21,7 @@ class SignupRequest(BaseModel):
     )
     role_key: Optional[str] = Field(
         default=None,
-        description="Public signup only creates students. Admin/super_admin are assigned in the super-admin dashboard.",
+        description="Public signup only creates students. Staff roles are assigned by a super admin or god.",
     )
 
 

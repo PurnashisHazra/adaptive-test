@@ -51,8 +51,8 @@ class AuthService:
 
     async def signup(self, req: SignupRequest) -> AuthResponse:
         role_key = (req.role_key or "").strip().lower()
-        if role_key in ("admin", "super_admin"):
-            raise ValueError("Cannot self-register as admin. Ask a super admin to assign your role.")
+        if role_key in ("admin", "super_admin", "god"):
+            raise ValueError("Cannot self-register as staff. Ask a super admin or god to assign your role.")
 
         existing = await self._users.get_by_username(req.username.strip())
         if existing:

@@ -12,6 +12,7 @@ from app.schemas.challenge import (
     ChallengeGuestStartBody,
     ChallengeParticipantsPage,
     ChallengeRecapResponse,
+    HomepageLeaderboard,
     TodaysTopperResponse,
 )
 from app.services.challenge_service import ChallengeService
@@ -37,6 +38,13 @@ async def get_todays_topper(
     svc: ChallengeService = Depends(get_challenge_service),
 ) -> TodaysTopperResponse:
     return await svc.todays_topper()
+
+
+@router.get("/leaderboard", response_model=HomepageLeaderboard)
+async def get_homepage_leaderboard(
+    svc: ChallengeService = Depends(get_challenge_service),
+) -> HomepageLeaderboard:
+    return await svc.homepage_leaderboard()
 
 
 @router.get("/{challenge_id}/participants", response_model=ChallengeParticipantsPage)

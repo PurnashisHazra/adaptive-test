@@ -152,6 +152,19 @@ class TodaysTopperResponse(BaseModel):
     topper: Optional[TodaysTopperOut] = None
 
 
+class LeaderboardEntry(BaseModel):
+    rank: int
+    display_name: str
+    profile_slug: str
+    metric: str
+
+
+class HomepageLeaderboard(BaseModel):
+    most_challenges: List[LeaderboardEntry] = Field(default_factory=list)
+    highest_scores: List[LeaderboardEntry] = Field(default_factory=list)
+    new_signups: List[LeaderboardEntry] = Field(default_factory=list)
+
+
 class ChallengeGuestStartBody(BaseModel):
     display_name: Optional[str] = Field(default=None, max_length=120)
 

@@ -8,7 +8,7 @@ import { AppPage } from "../components/AppPage";
 import type { Role } from "../api/types";
 
 function redirectForRole(role: Role, studentPath: string): string {
-  if (role === "super_admin") return "/super-admin";
+  if (role === "god" || role === "super_admin") return "/super-admin";
   if (role === "admin") return "/admin";
   return studentPath;
 }

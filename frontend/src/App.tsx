@@ -41,6 +41,7 @@ import { ChallengeExamRoute } from "./components/ChallengeExamRoute";
 import { SuperAdminLayout } from "./components/SuperAdminLayout";
 import { SuperAdminDashboardPage } from "./pages/admin/SuperAdminDashboardPage";
 import { SuperAdminMetricsPage } from "./pages/admin/SuperAdminMetricsPage";
+import { GodDatabasePage } from "./pages/admin/GodDatabasePage";
 import { CatMockTestPage } from "./pages/seo/CatMockTestPage";
 import { SscMockTestPage } from "./pages/seo/SscMockTestPage";
 import { BankExamMockTestPage } from "./pages/seo/BankExamMockTestPage";
@@ -143,7 +144,7 @@ export default function App() {
         <Route
           path="/admin"
           element={
-            <RequireRole allowedRoles={["admin"]} studentRedirectTo="/" adminRedirectTo="/admin" superAdminRedirectTo="/super-admin">
+            <RequireRole allowedRoles={["admin", "god"]} studentRedirectTo="/" adminRedirectTo="/admin" superAdminRedirectTo="/super-admin">
               <AdminLayout />
             </RequireRole>
           }
@@ -176,13 +177,18 @@ export default function App() {
         <Route
           path="/super-admin"
           element={
-            <RequireRole allowedRoles={["super_admin"]} studentRedirectTo="/" adminRedirectTo="/admin" superAdminRedirectTo="/super-admin">
+            <RequireRole allowedRoles={["super_admin", "god"]} studentRedirectTo="/" adminRedirectTo="/admin" superAdminRedirectTo="/super-admin">
               <SuperAdminLayout />
             </RequireRole>
           }
         >
           <Route index element={<SuperAdminDashboardPage />} />
           <Route path="metrics" element={<SuperAdminMetricsPage />} />
+          <Route path="database" element={
+            <RequireRole allowedRoles={["god"]} studentRedirectTo="/" adminRedirectTo="/admin" superAdminRedirectTo="/super-admin">
+              <GodDatabasePage />
+            </RequireRole>
+          } />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

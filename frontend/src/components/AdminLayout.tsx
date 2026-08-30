@@ -1,4 +1,5 @@
 import { Link, NavLink, Outlet } from "react-router-dom";
+import { useAuthStore } from "../store/authStore";
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `admin-nav-link${isActive ? " admin-nav-link--active" : ""}`;
@@ -46,12 +47,17 @@ const navGroups: { label: string; items: { to: string; end?: boolean; label: str
 ];
 
 export function AdminLayout() {
+  const role = useAuthStore((s) => s.role);
+  const isGod = role === "god";
+
   return (
     <div className="admin-root">
       <aside className="admin-sidebar" aria-label="Admin navigation">
         <div className="admin-sidebar-brand">
-          AdapTest Admin
-          <span className="admin-sidebar-brand__sub">Instructor dashboard</span>
+          {isGod ? "AdapTest God" : "AdapTest Admin"}
+          <span className="admin-sidebar-brand__sub">
+            {isGod ? "Full instructor console" : "Instructor dashboard"}
+          </span>
         </div>
         <nav className="admin-nav">
           {navGroups.map((group) => (
@@ -66,6 +72,7 @@ export function AdminLayout() {
           ))}
         </nav>
         <div className="admin-sidebar-footer">
+          {isGod ? <Link to="/super-admin">← God command center</Link> : null}
           <Link to="/">← Back to site</Link>
         </div>
       </aside>

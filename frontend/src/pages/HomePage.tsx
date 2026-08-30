@@ -36,7 +36,7 @@ export function HomePage() {
     );
   }
 
-  if (role === "super_admin") {
+  if (role === "god" || role === "super_admin") {
     return <Navigate to="/super-admin" replace />;
   }
 

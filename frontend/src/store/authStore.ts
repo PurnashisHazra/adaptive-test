@@ -31,6 +31,7 @@ const LS_TOKEN = "auth_token";
 
 function parseRole(roleRaw: string): Role {
   const r = roleRaw.toLowerCase();
+  if (r === "god") return "god";
   if (r === "super_admin") return "super_admin";
   if (r === "admin") return "admin";
   return "student";

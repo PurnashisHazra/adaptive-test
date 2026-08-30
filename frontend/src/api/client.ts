@@ -26,6 +26,7 @@ import type {
   ChallengeParticipantsPage,
   ChallengeRecapResponse,
   TodaysTopper,
+  HomepageLeaderboard,
   ExamNewsItem,
   QuestionPaper,
   StudentHistoryStats,
@@ -174,6 +175,46 @@ export async function setSuperAdminUserAdminLimits(username: string, limits: imp
     limits
   );
   return data;
+}
+
+export async function listGodCollections() {
+  const { data } = await api.get<import("./types").GodCollectionInfo[]>("/god/collections");
+  return data;
+}
+
+export async function listGodDocuments(collection: string, page = 1, pageSize = 20) {
+  const { data } = await api.get<import("./types").GodDocumentPage>(
+    `/god/collections/${encodeURIComponent(collection)}/documents`,
+    { params: { page, page_size: pageSize } }
+  );
+  return data;
+}
+
+export async function getGodDocument(collection: string, id: string) {
+  const { data } = await api.get<Record<string, unknown>>(
+    `/god/collections/${encodeURIComponent(collection)}/documents/${encodeURIComponent(id)}`
+  );
+  return data;
+}
+
+export async function createGodDocument(collection: string, document: Record<string, unknown>) {
+  const { data } = await api.post<Record<string, unknown>>(
+    `/god/collections/${encodeURIComponent(collection)}/documents`,
+    { document }
+  );
+  return data;
+}
+
+export async function replaceGodDocument(collection: string, id: string, document: Record<string, unknown>) {
+  const { data } = await api.put<Record<string, unknown>>(
+    `/god/collections/${encodeURIComponent(collection)}/documents/${encodeURIComponent(id)}`,
+    { document }
+  );
+  return data;
+}
+
+export async function deleteGodDocument(collection: string, id: string) {
+  await api.delete(`/god/collections/${encodeURIComponent(collection)}/documents/${encodeURIComponent(id)}`);
 }
 
 export async function login(body: { username: string; password: string }) {
@@ -656,6 +697,11 @@ export async function getExamNews() {
 export async function getTodaysTopper() {
   const { data } = await api.get<{ topper: TodaysTopper | null }>("/challenges/todays-topper");
   return data.topper;
+}
+
+export async function getHomepageLeaderboard() {
+  const { data } = await api.get<HomepageLeaderboard>("/challenges/leaderboard");
+  return data;
 }
 
 export async function listChallengeCatalog(page = 1, pageSize = 3, guestId?: string) {

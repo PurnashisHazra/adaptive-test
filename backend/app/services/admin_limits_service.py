@@ -100,11 +100,17 @@ class AdminLimitsService:
 
     async def get_admin_user(self, admin_username: str) -> Optional[Dict[str, Any]]:
         user = await self._users.get_by_username(admin_username.strip())
-        if not user or parse_role(user.get("role", "")) != Role.admin:
+        if not user:
+            return None
+        role = parse_role(user.get("role", ""))
+        if role not in (Role.admin, Role.god):
             return None
         return user
 
     async def get_limits(self, admin_username: str) -> AdminLimits:
+        user = await self._users.get_by_username(admin_username.strip())
+        if user and parse_role(user.get("role", "")) == Role.god:
+            return AdminLimits()
         user = await self.get_admin_user(admin_username)
         if not user:
             raise ValueError("Admin user not found")
