@@ -14,11 +14,7 @@ export function SeoFooter() {
       <div className="content-inner seo-footer__inner">
         <div className="seo-footer__brand">
           <Link to="/" className="seo-footer__logo">
-            <img src="/emgc-logo.png" alt="EMGC" className="seo-footer__logo-img" />
-            <span className="seo-footer__logo-divider" aria-hidden>
-              |
-            </span>
-            <span>Testhub</span>
+            {SITE_NAME}
           </Link>
           <p className="seo-footer__tagline">
             Adaptive CAT mocks, SSC mock tests, and banking practice—questions that match your level after every answer.

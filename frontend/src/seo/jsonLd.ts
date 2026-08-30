@@ -6,7 +6,7 @@ export function organizationJsonLd() {
     "@type": "Organization",
     name: SITE_NAME,
     url: SITE_URL,
-    logo: `${SITE_URL}/emgc-logo.png`,
+    logo: `${SITE_URL}/favicon.svg`,
     email: SUPPORT_EMAIL,
     description:
       "AdapTest offers adaptive CAT mocks, SSC mock tests, and banking exam practice with AI-selected questions and detailed performance analytics.",
