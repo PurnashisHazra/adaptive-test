@@ -43,6 +43,69 @@ function nextOptionKey(existing: QuestionOption[]): string {
   return `opt${n}`;
 }
 
+function QuestionImageField({
+  label,
+  help,
+  value,
+  uploading,
+  onChange,
+  onUploading,
+}: {
+  label: string;
+  help: string;
+  value: string;
+  uploading: boolean;
+  onChange: (url: string) => void;
+  onUploading: (busy: boolean) => void;
+}) {
+  return (
+    <>
+      <label className="label">{label}</label>
+      <p style={{ margin: "0 0 0.5rem", fontSize: "0.85rem", color: "var(--muted)" }}>{help}</p>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem" }}>
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif"
+          className="input"
+          style={{ maxWidth: 280 }}
+          disabled={uploading}
+          onChange={async (e) => {
+            const f = e.target.files?.[0];
+            e.target.value = "";
+            if (!f) return;
+            onUploading(true);
+            try {
+              const url = await uploadQuestionImage(f);
+              onChange(url);
+              toast.success("Image uploaded");
+            } catch (err: unknown) {
+              const msg =
+                err && typeof err === "object" && "response" in err
+                  ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+                  : undefined;
+              toast.error(typeof msg === "string" ? msg : "Upload failed");
+            } finally {
+              onUploading(false);
+            }
+          }}
+        />
+        {uploading ? <span style={{ fontSize: "0.85rem", color: "var(--muted)" }}>Uploading…</span> : null}
+        {value ? (
+          <button type="button" className="btn btn-ghost" onClick={() => onChange("")}>
+            Remove image
+          </button>
+        ) : null}
+      </div>
+      <input className="input" value={value} onChange={(e) => onChange(e.target.value)} placeholder="https://…" />
+      {value ? (
+        <div style={{ marginTop: "0.65rem" }}>
+          <img src={value} alt="" style={{ maxWidth: "100%", maxHeight: 220, borderRadius: 8, border: "1px solid var(--border)" }} />
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 function applyQuestionTypeChange(next: QuestionType, setOptions: (o: QuestionOption[]) => void, setCorrectAnswer: (s: string) => void) {
   if (next === "true_false") {
     setOptions([
@@ -83,6 +146,8 @@ export function QuestionFormPage() {
   const [addingNewExam, setAddingNewExam] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
   const [imageUploading, setImageUploading] = useState(false);
+  const [explanationImageUrl, setExplanationImageUrl] = useState("");
+  const [explanationImageUploading, setExplanationImageUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const { tree: folderTree } = useQuestionFolderTree();
 
@@ -104,6 +169,7 @@ export function QuestionFormPage() {
         setAddingNewExam(false);
         setAddingNewTopic(false);
         setImageUrl(q.image_url?.trim() ?? "");
+        setExplanationImageUrl(q.explanation_image_url?.trim() ?? "");
       })
       .catch(() => toast.error("Failed to load"))
       .finally(() => setLoading(false));
@@ -136,6 +202,7 @@ export function QuestionFormPage() {
       topic: topic.trim(),
       tags: [examTag.trim().toUpperCase()],
       image_url: imageUrl.trim() || null,
+      explanation_image_url: explanationImageUrl.trim() || null,
     };
     try {
       if (isEdit && id) {
@@ -187,55 +254,14 @@ export function QuestionFormPage() {
           <textarea className="input" rows={4} value={questionText} onChange={(e) => setQuestionText(e.target.value)} required />
         </div>
         <div style={{ marginBottom: "1rem" }}>
-          <label className="label">Image (optional)</label>
-          <p style={{ margin: "0 0 0.5rem", fontSize: "0.85rem", color: "var(--muted)" }}>
-            Upload to Cloudflare R2 or paste a public image URL. Shown to students with the question.
-          </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem" }}>
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              className="input"
-              style={{ maxWidth: 280 }}
-              disabled={imageUploading}
-              onChange={async (e) => {
-                const f = e.target.files?.[0];
-                e.target.value = "";
-                if (!f) return;
-                setImageUploading(true);
-                try {
-                  const url = await uploadQuestionImage(f);
-                  setImageUrl(url);
-                  toast.success("Image uploaded");
-                } catch (err: unknown) {
-                  const msg =
-                    err && typeof err === "object" && "response" in err
-                      ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
-                      : undefined;
-                  toast.error(typeof msg === "string" ? msg : "Upload failed");
-                } finally {
-                  setImageUploading(false);
-                }
-              }}
-            />
-            {imageUploading ? <span style={{ fontSize: "0.85rem", color: "var(--muted)" }}>Uploading…</span> : null}
-            {imageUrl ? (
-              <button type="button" className="btn btn-ghost" onClick={() => setImageUrl("")}>
-                Remove image
-              </button>
-            ) : null}
-          </div>
-          <input
-            className="input"
+          <QuestionImageField
+            label="Image (optional)"
+            help="Upload to Cloudflare R2 or paste a public image URL. Shown to students with the question."
             value={imageUrl}
-            onChange={(e) => setImageUrl(e.target.value)}
-            placeholder="https://…"
+            uploading={imageUploading}
+            onChange={setImageUrl}
+            onUploading={setImageUploading}
           />
-          {imageUrl ? (
-            <div style={{ marginTop: "0.65rem" }}>
-              <img src={imageUrl} alt="" style={{ maxWidth: "100%", maxHeight: 220, borderRadius: 8, border: "1px solid var(--border)" }} />
-            </div>
-          ) : null}
         </div>
         <div className="grid-2">
           <div>
@@ -365,6 +391,16 @@ export function QuestionFormPage() {
         <div style={{ marginTop: "1rem" }}>
           <label className="label">Explanation (optional)</label>
           <textarea className="input" rows={2} value={explanation} onChange={(e) => setExplanation(e.target.value)} />
+          <div style={{ marginTop: "0.75rem" }}>
+            <QuestionImageField
+              label="Explanation image (optional)"
+              help="Upload to Cloudflare R2 or paste a public image URL. Shown with the explanation on review."
+              value={explanationImageUrl}
+              uploading={explanationImageUploading}
+              onChange={setExplanationImageUrl}
+              onUploading={setExplanationImageUploading}
+            />
+          </div>
         </div>
         <div style={{ marginTop: "1rem" }}>
           <label className="label">Exam category</label>

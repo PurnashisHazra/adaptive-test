@@ -161,7 +161,7 @@ export function BulkUploadPage() {
         </Link>
       }
     >
-      <p className="app-page-lead">
+      <p style={{ color: "var(--muted)", marginTop: 0 }}>
         Upload a CSV with headers matching the template, a JSON file with a top-level questions array, or a question-paper PDF
         to extract structured drafts (MCQ / True-False / TITA).
       </p>
@@ -169,7 +169,7 @@ export function BulkUploadPage() {
       <div className="card" style={{ marginTop: "1.25rem", maxWidth: 960 }}>
         <h3 style={{ marginTop: 0 }}>Question paper (PDF)</h3>
         <p style={{ fontSize: "0.9rem", color: "var(--muted)" }}>
-          Requires <code>OPENAI_API_KEY</code> on the server. Text-based PDFs work best. OpenAI reads the full extracted text and builds
+          Requires <code>OPENAI_API_KEY</code> on the server. Text-based PDFs work best. AI reads the full extracted text and builds
           rows that match the question model (including repeating comprehension passages and copying shared directions onto every question in a range).
           Review each row (type, options, correct answer) before saving.
         </p>
@@ -392,7 +392,7 @@ export function BulkUploadPage() {
       <div className="card" style={{ marginTop: "1.25rem", maxWidth: 720 }}>
         <h3 style={{ marginTop: 0 }}>CSV</h3>
         <p style={{ fontSize: "0.9rem", color: "var(--muted)" }}>
-          Columns: question_text, question_type (mcq_single, true_false, or tita / type_in / short_answer / fill_in), option_a–d (leave blank for TITA), correct_answer, difficulty, subject, topic, tags (exam category: CAT/SSC/BANK/RAILWAY/DEFENCE/STATE/OTHER), explanation, image_url (optional; public image link, or use column name image_link)
+          Columns: question_text, question_type (mcq_single, true_false, or tita / type_in / short_answer / fill_in), option_a–d (leave blank for TITA), correct_answer, difficulty, subject, topic, tags (exam category: CAT/SSC/BANK/RAILWAY/DEFENCE/STATE/OTHER), explanation, image_url (optional; public image link, or use column name image_link), explanation_image_url (optional; public image link shown with the explanation)
         </p>
         <input type="file" accept=".csv,text/csv" onChange={(e) => onCsv(e.target.files?.[0] ?? null)} />
       </div>

@@ -36,6 +36,7 @@ class QuestionRepository:
             "correct_answer": doc["correct_answer"],
             "explanation": doc.get("explanation"),
             "image_url": doc.get("image_url"),
+            "explanation_image_url": doc.get("explanation_image_url"),
             "difficulty": doc["difficulty"],
             "subject": doc.get("subject", "General"),
             "topic": doc.get("topic", "General"),

@@ -119,6 +119,7 @@ export interface QuestionAdmin {
   correct_answer: string;
   explanation?: string | null;
   image_url?: string | null;
+  explanation_image_url?: string | null;
   difficulty: Difficulty;
   subject: string;
   topic: string;
@@ -170,6 +171,7 @@ export interface QuestionCreatePayload {
   correct_answer: string;
   explanation?: string | null;
   image_url?: string | null;
+  explanation_image_url?: string | null;
   difficulty: Difficulty;
   subject: string;
   topic: string;
@@ -834,6 +836,7 @@ export interface StudentQuestionReview {
   is_correct: boolean;
   is_attempted?: boolean;
   explanation?: string | null;
+  explanation_image_url?: string | null;
   time_spent_seconds?: number | null;
   difficulty_when_served?: string | null;
   answer_attempt_id?: string;

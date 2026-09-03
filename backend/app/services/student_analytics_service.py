@@ -407,6 +407,7 @@ class StudentAnalyticsService:
                         is_correct=bool(a.get("is_correct")) if attempted else False,
                         is_attempted=attempted,
                         explanation=None,
+                        explanation_image_url=None,
                         time_spent_seconds=a.get("time_spent_seconds"),
                         difficulty_when_served=diff_served,
                         topic_when_served=str(a.get("topic_when_served") or "").strip() or None,
@@ -423,6 +424,8 @@ class StudentAnalyticsService:
             correct_key = str(qdoc.get("correct_answer", ""))
             raw_img = qdoc.get("image_url")
             img = str(raw_img).strip() if raw_img else None
+            raw_exp_img = qdoc.get("explanation_image_url")
+            exp_img = str(raw_exp_img).strip() if raw_exp_img else None
             chosen_label = "Not attempted" if not attempted else _option_label(raw_opts, chosen)
             out.append(
                 StudentQuestionReview(
@@ -439,6 +442,7 @@ class StudentAnalyticsService:
                     is_correct=bool(a.get("is_correct")) if attempted else False,
                     is_attempted=attempted,
                     explanation=qdoc.get("explanation"),
+                    explanation_image_url=exp_img or None,
                     time_spent_seconds=a.get("time_spent_seconds"),
                     difficulty_when_served=diff_served,
                     topic_when_served=str(qdoc.get("topic") or a.get("topic_when_served") or "").strip() or None,

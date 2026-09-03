@@ -43,6 +43,7 @@ def _row_to_question(row: Dict[str, str], row_num: int) -> Tuple[Optional[Questi
         tags = [t.strip() for t in tags_raw.split(",") if t.strip()]
 
         img_raw = (row.get("image_url") or row.get("image_link") or "").strip()
+        exp_img_raw = (row.get("explanation_image_url") or row.get("explanation_image_link") or "").strip()
 
         qc = QuestionCreate(
             question_text=(row.get("question_text") or "").strip(),
@@ -51,6 +52,7 @@ def _row_to_question(row: Dict[str, str], row_num: int) -> Tuple[Optional[Questi
             correct_answer=(row.get("correct_answer") or "").strip(),
             explanation=(row.get("explanation") or "").strip() or None,
             image_url=img_raw or None,
+            explanation_image_url=exp_img_raw or None,
             difficulty=difficulty,
             subject=(row.get("subject") or "General").strip(),
             topic=(row.get("topic") or "").strip(),

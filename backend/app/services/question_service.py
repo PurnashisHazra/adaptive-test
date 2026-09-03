@@ -85,6 +85,7 @@ def question_create_to_doc(data: QuestionCreate) -> Dict[str, Any]:
     is_ai_generated = bool(data.is_ai_generated)
     tags = _normalize_exam_tags(list(data.tags))
     img = (data.image_url or "").strip() if data.image_url else None
+    exp_img = (data.explanation_image_url or "").strip() if data.explanation_image_url else None
     return {
         "question_text": data.question_text.strip(),
         "question_text_norm": norm,
@@ -93,6 +94,7 @@ def question_create_to_doc(data: QuestionCreate) -> Dict[str, Any]:
         "correct_answer": ca,
         "explanation": data.explanation.strip() if data.explanation else None,
         "image_url": img or None,
+        "explanation_image_url": exp_img or None,
         "difficulty": data.difficulty.value,
         "subject": data.subject.strip(),
         "topic": data.topic.strip(),
@@ -114,9 +116,12 @@ def merge_update_doc(existing: Dict[str, Any], upd: QuestionUpdate) -> Dict[str,
         patch["correct_answer"] = upd.correct_answer.strip().lower()
     if upd.explanation is not None:
         patch["explanation"] = upd.explanation.strip() if upd.explanation else None
-    if upd.image_url is not None:
-        s = upd.image_url.strip()
+    if "image_url" in upd.model_fields_set:
+        s = (upd.image_url or "").strip()
         patch["image_url"] = s if s else None
+    if "explanation_image_url" in upd.model_fields_set:
+        s = (upd.explanation_image_url or "").strip()
+        patch["explanation_image_url"] = s if s else None
     if upd.difficulty is not None:
         patch["difficulty"] = upd.difficulty.value
     if upd.subject is not None:
@@ -230,6 +235,7 @@ class QuestionService:
         "correct_answer",
         "explanation",
         "image_url",
+        "explanation_image_url",
         "difficulty",
         "subject",
         "topic",
@@ -266,6 +272,7 @@ class QuestionService:
             "correct_answer": str(doc.get("correct_answer", "")),
             "explanation": str(doc.get("explanation") or ""),
             "image_url": str(doc.get("image_url") or ""),
+            "explanation_image_url": str(doc.get("explanation_image_url") or ""),
             "difficulty": str(doc.get("difficulty", "")),
             "subject": str(doc.get("subject", "")),
             "topic": str(doc.get("topic", "")),
