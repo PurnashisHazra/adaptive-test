@@ -6,6 +6,7 @@ from app.models.domain import Difficulty, QuestionType
 from app.repositories.question_repository import QuestionRepository
 from app.schemas.question import QuestionCreate, QuestionUpdate, QuestionBankFolderTree
 from app.utils.exam_tags import normalize_exam_tags
+from app.utils.explanation_image import split_explanation_image
 from app.utils.ids import oid_str
 
 
@@ -85,16 +86,16 @@ def question_create_to_doc(data: QuestionCreate) -> Dict[str, Any]:
     is_ai_generated = bool(data.is_ai_generated)
     tags = _normalize_exam_tags(list(data.tags))
     img = (data.image_url or "").strip() if data.image_url else None
-    exp_img = (data.explanation_image_url or "").strip() if data.explanation_image_url else None
+    explanation, exp_img = split_explanation_image(data.explanation, data.explanation_image_url)
     return {
         "question_text": data.question_text.strip(),
         "question_text_norm": norm,
         "question_type": data.question_type.value,
         "options": opts,
         "correct_answer": ca,
-        "explanation": data.explanation.strip() if data.explanation else None,
+        "explanation": explanation,
         "image_url": img or None,
-        "explanation_image_url": exp_img or None,
+        "explanation_image_url": exp_img,
         "difficulty": data.difficulty.value,
         "subject": data.subject.strip(),
         "topic": data.topic.strip(),
@@ -114,14 +115,24 @@ def merge_update_doc(existing: Dict[str, Any], upd: QuestionUpdate) -> Dict[str,
         patch["options"] = [{"key": o.key.strip().lower(), "label": o.label.strip()} for o in upd.options]
     if upd.correct_answer is not None:
         patch["correct_answer"] = upd.correct_answer.strip().lower()
+    exp_img: Optional[str] = None
+    exp_img_explicit = "explanation_image_url" in upd.model_fields_set
+    if exp_img_explicit:
+        exp_img = (upd.explanation_image_url or "").strip() or None
+    elif (upd.explanation_image_url or "").strip():
+        exp_img = upd.explanation_image_url.strip()
+        exp_img_explicit = True
     if upd.explanation is not None:
-        patch["explanation"] = upd.explanation.strip() if upd.explanation else None
+        explanation, extracted = split_explanation_image(upd.explanation, exp_img)
+        patch["explanation"] = explanation
+        if extracted:
+            exp_img = extracted
+            exp_img_explicit = True
+    if exp_img_explicit:
+        patch["explanation_image_url"] = exp_img
     if "image_url" in upd.model_fields_set:
         s = (upd.image_url or "").strip()
         patch["image_url"] = s if s else None
-    if "explanation_image_url" in upd.model_fields_set:
-        s = (upd.explanation_image_url or "").strip()
-        patch["explanation_image_url"] = s if s else None
     if upd.difficulty is not None:
         patch["difficulty"] = upd.difficulty.value
     if upd.subject is not None:

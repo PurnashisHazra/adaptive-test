@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from bson import ObjectId
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 from app.models.domain import Difficulty, QuestionType
 from app.utils.exam_tags import normalize_exam_tags
@@ -27,6 +27,7 @@ class QuestionBase(BaseModel):
         default=None,
         max_length=2048,
         description="Optional image shown with the explanation (e.g. R2 public URL).",
+        validation_alias=AliasChoices("explanation_image_url", "explanationImageUrl", "explanation_image"),
     )
     difficulty: Difficulty
     subject: str = Field(default="General", min_length=1)
@@ -62,7 +63,11 @@ class QuestionUpdate(BaseModel):
     correct_answer: Optional[str] = Field(default=None, min_length=1)
     explanation: Optional[str] = None
     image_url: Optional[str] = Field(default=None, max_length=2048)
-    explanation_image_url: Optional[str] = Field(default=None, max_length=2048)
+    explanation_image_url: Optional[str] = Field(
+        default=None,
+        max_length=2048,
+        validation_alias=AliasChoices("explanation_image_url", "explanationImageUrl", "explanation_image"),
+    )
     difficulty: Optional[Difficulty] = None
     subject: Optional[str] = Field(default=None, min_length=1)
     topic: Optional[str] = Field(default=None, min_length=1)

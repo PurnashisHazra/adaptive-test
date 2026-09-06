@@ -17,6 +17,7 @@ import type {
   StudentStandaloneDetail,
 } from "../api/types";
 import { AppPage } from "../components/AppPage";
+import { splitExplanationImage } from "../lib/explanationImage";
 
 function peerAccuracyLine(q: StudentQuestionReview): { main: string; note?: string } {
   const n = q.peer_answer_count ?? 0;
@@ -96,6 +97,7 @@ function QuestionInsightCapsules({ capsules }: { capsules: StudentInsightCapsule
 
 export function QuestionReviewCard({ q }: { q: StudentQuestionReview }) {
   const attempted = q.is_attempted !== false;
+  const exp = splitExplanationImage(q.explanation, q.explanation_image_url);
   const diff = q.difficulty_when_served ? String(q.difficulty_when_served).toUpperCase() : null;
   const acc = peerAccuracyLine(q);
   const avgT = peerAvgTimeLine(q);
@@ -184,7 +186,7 @@ export function QuestionReviewCard({ q }: { q: StudentQuestionReview }) {
         </dl>
       </div>
 
-      {q.explanation || q.explanation_image_url ? (
+      {exp.text || exp.url ? (
         <div
           style={{
             marginTop: "1rem",
@@ -196,11 +198,11 @@ export function QuestionReviewCard({ q }: { q: StudentQuestionReview }) {
           }}
         >
           <strong style={{ display: "block", marginBottom: "0.35rem" }}>Explanation</strong>
-          {q.explanation ? <span style={{ whiteSpace: "pre-wrap" }}>{q.explanation}</span> : null}
-          {q.explanation_image_url ? (
-            <div style={{ marginTop: q.explanation ? "0.65rem" : 0 }}>
+          {exp.text ? <span style={{ whiteSpace: "pre-wrap" }}>{exp.text}</span> : null}
+          {exp.url ? (
+            <div style={{ marginTop: exp.text ? "0.65rem" : 0 }}>
               <img
-                src={q.explanation_image_url}
+                src={exp.url}
                 alt=""
                 style={{ maxWidth: "100%", maxHeight: 240, borderRadius: 8, border: "1px solid var(--border)" }}
               />

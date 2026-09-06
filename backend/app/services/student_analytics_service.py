@@ -12,6 +12,7 @@ from app.repositories.attempt_repository import AttemptRepository
 from app.repositories.paper_repository import PaperRepository
 from app.repositories.question_repository import QuestionRepository
 from app.repositories.student_coach_plan_repository import StudentCoachPlanRepository
+from app.utils.explanation_image import split_explanation_image
 from app.schemas.student_analytics import (
     StudentAttemptAccuracyImprovementResponse,
     StudentAttemptTimeStrategyResponse,
@@ -424,8 +425,10 @@ class StudentAnalyticsService:
             correct_key = str(qdoc.get("correct_answer", ""))
             raw_img = qdoc.get("image_url")
             img = str(raw_img).strip() if raw_img else None
-            raw_exp_img = qdoc.get("explanation_image_url")
-            exp_img = str(raw_exp_img).strip() if raw_exp_img else None
+            explanation, exp_img = split_explanation_image(
+                qdoc.get("explanation") if isinstance(qdoc.get("explanation"), str) else None,
+                str(qdoc.get("explanation_image_url") or "").strip() or None,
+            )
             chosen_label = "Not attempted" if not attempted else _option_label(raw_opts, chosen)
             out.append(
                 StudentQuestionReview(
@@ -441,7 +444,7 @@ class StudentAnalyticsService:
                     correct_label=_option_label(raw_opts, correct_key),
                     is_correct=bool(a.get("is_correct")) if attempted else False,
                     is_attempted=attempted,
-                    explanation=qdoc.get("explanation"),
+                    explanation=explanation,
                     explanation_image_url=exp_img or None,
                     time_spent_seconds=a.get("time_spent_seconds"),
                     difficulty_when_served=diff_served,

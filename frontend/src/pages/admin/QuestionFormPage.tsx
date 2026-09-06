@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { createQuestion, getQuestion, updateQuestion, uploadQuestionImage } from "../../api/client";
 import { AdminPanel } from "../../components/AdminPanel";
+import { embedExplanationImage, splitExplanationImage } from "../../lib/explanationImage";
 import type { Difficulty, ExamTag, QuestionOption, QuestionType } from "../../api/types";
 import {
   FALLBACK_EXAM_TAGS,
@@ -48,6 +49,7 @@ function QuestionImageField({
   help,
   value,
   uploading,
+  inputId,
   onChange,
   onUploading,
 }: {
@@ -55,12 +57,15 @@ function QuestionImageField({
   help: string;
   value: string;
   uploading: boolean;
+  inputId: string;
   onChange: (url: string) => void;
   onUploading: (busy: boolean) => void;
 }) {
   return (
     <>
-      <label className="label">{label}</label>
+      <label className="label" htmlFor={inputId}>
+        {label}
+      </label>
       <p style={{ margin: "0 0 0.5rem", fontSize: "0.85rem", color: "var(--muted)" }}>{help}</p>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem" }}>
         <input
@@ -96,7 +101,15 @@ function QuestionImageField({
           </button>
         ) : null}
       </div>
-      <input className="input" value={value} onChange={(e) => onChange(e.target.value)} placeholder="https://…" />
+      <input
+        id={inputId}
+        name={inputId}
+        className="input"
+        value={value}
+        autoComplete="off"
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="https://…"
+      />
       {value ? (
         <div style={{ marginTop: "0.65rem" }}>
           <img src={value} alt="" style={{ maxWidth: "100%", maxHeight: 220, borderRadius: 8, border: "1px solid var(--border)" }} />
@@ -147,7 +160,13 @@ export function QuestionFormPage() {
   const [imageUrl, setImageUrl] = useState("");
   const [imageUploading, setImageUploading] = useState(false);
   const [explanationImageUrl, setExplanationImageUrl] = useState("");
+  const explanationImageUrlRef = useRef("");
   const [explanationImageUploading, setExplanationImageUploading] = useState(false);
+
+  function setExplanationImage(url: string) {
+    explanationImageUrlRef.current = url;
+    setExplanationImageUrl(url);
+  }
   const [loading, setLoading] = useState(false);
   const { tree: folderTree } = useQuestionFolderTree();
 
@@ -160,7 +179,8 @@ export function QuestionFormPage() {
         setQuestionType(q.question_type);
         setOptions(q.options.length ? q.options : q.question_type === "tita" ? [] : defaultMcqOptions());
         setCorrectAnswer(q.correct_answer);
-        setExplanation(q.explanation || "");
+        const parsedExp = splitExplanationImage(q.explanation, q.explanation_image_url);
+        setExplanation(parsedExp.text);
         setDifficulty(q.difficulty);
         setSubject(q.subject);
         setTopic(q.topic);
@@ -169,7 +189,7 @@ export function QuestionFormPage() {
         setAddingNewExam(false);
         setAddingNewTopic(false);
         setImageUrl(q.image_url?.trim() ?? "");
-        setExplanationImageUrl(q.explanation_image_url?.trim() ?? "");
+        setExplanationImage(parsedExp.url);
       })
       .catch(() => toast.error("Failed to load"))
       .finally(() => setLoading(false));
@@ -191,18 +211,19 @@ export function QuestionFormPage() {
         : questionType === "true_false"
           ? options
           : [];
+    const expImage = (explanationImageUrlRef.current || explanationImageUrl).trim();
     const body = {
       question_text: questionText,
       question_type: questionType,
       options: optsPayload,
       correct_answer: correctAnswer,
-      explanation: explanation || null,
+      explanation: embedExplanationImage(explanation, expImage),
+      explanation_image_url: expImage || null,
       difficulty,
       subject,
       topic: topic.trim(),
       tags: [examTag.trim().toUpperCase()],
       image_url: imageUrl.trim() || null,
-      explanation_image_url: explanationImageUrl.trim() || null,
     };
     try {
       if (isEdit && id) {
@@ -259,6 +280,7 @@ export function QuestionFormPage() {
             help="Upload to Cloudflare R2 or paste a public image URL. Shown to students with the question."
             value={imageUrl}
             uploading={imageUploading}
+            inputId="question-image-url"
             onChange={setImageUrl}
             onUploading={setImageUploading}
           />
@@ -397,7 +419,8 @@ export function QuestionFormPage() {
               help="Upload to Cloudflare R2 or paste a public image URL. Shown with the explanation on review."
               value={explanationImageUrl}
               uploading={explanationImageUploading}
-              onChange={setExplanationImageUrl}
+              inputId="explanation-image-url"
+              onChange={setExplanationImage}
               onUploading={setExplanationImageUploading}
             />
           </div>
